@@ -10,7 +10,12 @@ import Foundation
 import AppKit
 
 final class macOSViewController: NSViewController {
-    private let helloLabel = NSTextField(labelWithString: "Hello world")
+    private let fretboardConfiguration = FretboardConfiguration(
+        instrument: .guitar6,
+        maxFret: 12,
+        preferredHeight: 180
+    )
+    private lazy var fretboardView = macOSFretboardView(configuration: fretboardConfiguration)
 
     override func loadView() {
         view = NSView()
@@ -20,20 +25,22 @@ final class macOSViewController: NSViewController {
         super.viewDidLoad()
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        configureHelloLabel()
+        configureFretboardView()
     }
 
-    private func configureHelloLabel() {
-        helloLabel.translatesAutoresizingMaskIntoConstraints = false
-        helloLabel.font = .systemFont(ofSize: 32, weight: .semibold)
-        helloLabel.textColor = .labelColor
-        helloLabel.alignment = .center
+    private func configureFretboardView() {
+        fretboardView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(fretboardView)
 
-        view.addSubview(helloLabel)
+        let heightConstraint = fretboardView.heightAnchor.constraint(
+            equalToConstant: fretboardConfiguration.preferredHeight
+        )
 
         NSLayoutConstraint.activate([
-            helloLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            helloLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            fretboardView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            fretboardView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            fretboardView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            heightConstraint
         ])
     }
 }

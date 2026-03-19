@@ -10,26 +10,33 @@ import Foundation
 import UIKit
 
 final class iOSViewController: UIViewController {
-    private let helloLabel = UILabel()
+    private let fretboardConfiguration = FretboardConfiguration(
+        instrument: .guitar6,
+        maxFret: 12,
+        preferredHeight: 180
+    )
+    private lazy var fretboardView = iOSFretboardView(configuration: fretboardConfiguration)
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        configureHelloLabel()
+        configureFretboardView()
     }
 
-    private func configureHelloLabel() {
-        helloLabel.translatesAutoresizingMaskIntoConstraints = false
-        helloLabel.text = "hello world"
-        helloLabel.font = .systemFont(ofSize: 32, weight: .semibold)
-        helloLabel.textColor = .label
-        helloLabel.textAlignment = .center
+    private func configureFretboardView() {
+        fretboardView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(fretboardView)
 
-        view.addSubview(helloLabel)
+        let safeArea = view.safeAreaLayoutGuide
+        let heightConstraint = fretboardView.heightAnchor.constraint(
+            equalToConstant: fretboardConfiguration.preferredHeight
+        )
 
         NSLayoutConstraint.activate([
-            helloLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            helloLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            fretboardView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
+            fretboardView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            fretboardView.centerYAnchor.constraint(equalTo: safeArea.centerYAnchor),
+            heightConstraint
         ])
     }
 }
