@@ -5,7 +5,9 @@
 //  Created by Cursor on 2026/3/19.
 //
 
+import Foundation
 import CoreGraphics
+import CoreText
 import QuartzCore
 
 final class FretboardLayer: CALayer {
@@ -15,6 +17,13 @@ final class FretboardLayer: CALayer {
                 return
             }
 
+            setNeedsDisplay()
+        }
+    }
+
+    // provider 只负责音名内容，marker 仍由当前 layer 固定绘制。
+    var contentProvider: (any FretboardContentProviding)? {
+        didSet {
             setNeedsDisplay()
         }
     }
@@ -29,6 +38,7 @@ final class FretboardLayer: CALayer {
 
         if let otherLayer = layer as? FretboardLayer {
             configuration = otherLayer.configuration
+            contentProvider = otherLayer.contentProvider
         }
 
         configureLayer()
@@ -53,6 +63,7 @@ final class FretboardLayer: CALayer {
         drawFrets(in: context, geometry: geometry)
         drawNut(in: context, geometry: geometry)
         drawStrings(in: context, geometry: geometry)
+        drawLabels(in: context, geometry: geometry)
         drawDisplayBorder(in: context, geometry: geometry)
     }
 
@@ -159,6 +170,33 @@ final class FretboardLayer: CALayer {
         context.restoreGState()
     }
 
+    private func drawLabels(in context: CGContext, geometry: FretboardGeometry) {
+        guard let contentProvider else {
+            return
+        }
+
+        let labels = contentProvider.makeLabels(
+            configuration: configuration,
+            geometry: geometry
+        )
+        guard !labels.isEmpty else {
+            return
+        }
+
+        for label in labels {
+            guard let resolvedText = resolvedTextLine(for: label) else {
+                continue
+            }
+
+            drawTextLine(
+                resolvedText.line,
+                bounds: resolvedText.bounds,
+                centeredAt: label.center,
+                in: context
+            )
+        }
+    }
+
     private func drawDisplayBorder(in context: CGContext, geometry: FretboardGeometry) {
         let path = displayPath(for: geometry)
 
@@ -179,6 +217,97 @@ final class FretboardLayer: CALayer {
             transform: nil
         )
     }
+
+    private func resolvedTextLine(
+        for label: FretboardLabelContent
+    ) -> (line: CTLine, bounds: CGRect)? {
+        let baseFontSize = max(label.fontSize, 1)
+        let textColor = label.fret == 0
+            ? Palette.noteLabelTextOnOpenString
+            : Palette.noteLabelTextOnFretboard
+
+        var line = makeTextLine(
+            text: label.text,
+            fontSize: baseFontSize,
+            textColor: textColor
+        )
+        var lineBounds = CTLineGetBoundsWithOptions(line, [.useOpticalBounds])
+
+        guard !lineBounds.isNull, !lineBounds.isEmpty else {
+            return nil
+        }
+
+        let widthScale = label.maxSize.width > 0
+            ? label.maxSize.width / max(lineBounds.width, 1)
+            : 1
+        let heightScale = label.maxSize.height > 0
+            ? label.maxSize.height / max(lineBounds.height, 1)
+            : 1
+        let fitScale = min(1, widthScale, heightScale)
+
+        if fitScale < 1 {
+            line = makeTextLine(
+                text: label.text,
+                fontSize: max(baseFontSize * fitScale, 1),
+                textColor: textColor
+            )
+            lineBounds = CTLineGetBoundsWithOptions(line, [.useOpticalBounds])
+        }
+
+        guard !lineBounds.isNull, !lineBounds.isEmpty else {
+            return nil
+        }
+
+        return (line, lineBounds)
+    }
+
+    private func makeTextLine(
+        text: String,
+        fontSize: CGFloat,
+        textColor: CGColor
+    ) -> CTLine {
+        let attributes: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): CTFontCreateWithName(
+                "HelveticaNeue-Medium" as CFString,
+                fontSize,
+                nil
+            ),
+            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): textColor
+        ]
+        let attributedText = NSAttributedString(string: text, attributes: attributes)
+        return CTLineCreateWithAttributedString(attributedText)
+    }
+
+    private func drawTextLine(
+        _ line: CTLine,
+        bounds lineBounds: CGRect,
+        centeredAt center: CGPoint,
+        in context: CGContext
+    ) {
+        context.saveGState()
+        context.textMatrix = .identity
+
+        let drawOrigin: CGPoint
+        if context.ctm.d < 0 {
+            context.translateBy(x: 0, y: bounds.height)
+            context.scaleBy(x: 1, y: -1)
+
+            let flippedCenter = CGPoint(x: center.x, y: bounds.height - center.y)
+            drawOrigin = CGPoint(
+                x: flippedCenter.x - lineBounds.midX,
+                y: flippedCenter.y - lineBounds.midY
+            )
+        } else {
+            drawOrigin = CGPoint(
+                x: center.x - lineBounds.midX,
+                y: center.y - lineBounds.midY
+            )
+        }
+
+        context.textPosition = drawOrigin
+        CTLineDraw(line, context)
+        context.restoreGState()
+    }
 }
 
 private enum Palette {
@@ -189,6 +318,8 @@ private enum Palette {
     static let string = makeColor(0.96, 0.96, 0.97, 0.94)
     static let markerFill = makeColor(0.97, 0.95, 0.90)
     static let displayBorder = makeColor(0.22, 0.18, 0.14, 0.28)
+    static let noteLabelTextOnFretboard = makeColor(0.98, 0.97, 0.95)
+    static let noteLabelTextOnOpenString = makeColor(0.20, 0.16, 0.12)
 
     private static func makeColor(
         _ red: CGFloat,
