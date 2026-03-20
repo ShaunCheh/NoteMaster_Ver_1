@@ -19,6 +19,12 @@ final class macOSFretboardView: NSView {
         }
     }
 
+    var contentProvider: (any FretboardContentProviding)? {
+        didSet {
+            fretboardLayer.contentProvider = contentProvider
+        }
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(
             width: NSView.noIntrinsicMetric,
@@ -69,6 +75,7 @@ final class macOSFretboardView: NSView {
 
     private func applyConfiguration() {
         fretboardLayer.configuration = configuration
+        fretboardLayer.contentProvider = contentProvider
         updateContentsScale()
         invalidateIntrinsicContentSize()
     }

@@ -19,6 +19,12 @@ final class iOSFretboardView: UIView {
         }
     }
 
+    var contentProvider: (any FretboardContentProviding)? {
+        didSet {
+            fretboardLayer.contentProvider = contentProvider
+        }
+    }
+
     override class var layerClass: AnyClass {
         FretboardLayer.self
     }
@@ -75,6 +81,7 @@ final class iOSFretboardView: UIView {
 
     private func applyConfiguration() {
         fretboardLayer.configuration = configuration
+        fretboardLayer.contentProvider = contentProvider
         updateContentsScale()
         invalidateIntrinsicContentSize()
     }
