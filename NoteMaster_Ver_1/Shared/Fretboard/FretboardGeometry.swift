@@ -161,23 +161,33 @@ struct FretboardGeometry: Equatable {
         }
 
         let stringBandRect = makeStringBandRect()
-        guard !stringBandRect.isNull else {
+        guard
+            !stringBandRect.isNull,
+            configuration.stringCount > 0
+        else {
             return []
         }
 
-        return Self.makeDistributedPositions(
-            count: configuration.stringCount,
-            minValue: stringBandRect.minY,
-            maxValue: stringBandRect.maxY
-        )
+        let laneHeight = resolvedStringLaneHeight(in: stringBandRect)
+        let occupiedHeight = laneHeight * CGFloat(configuration.stringCount)
+        let firstLaneMinY = stringBandRect.midY - (occupiedHeight / 2)
+
+        return (0..<configuration.stringCount).map { stringIndex in
+            firstLaneMinY + (laneHeight * (CGFloat(stringIndex) + 0.5))
+        }
     }
 
     var stringSpacing: CGFloat {
-        guard stringYPositions.count > 1 else {
+        guard configuration.stringCount > 1 else {
             return 0
         }
 
-        return stringYPositions[1] - stringYPositions[0]
+        let stringBandRect = makeStringBandRect()
+        guard !stringBandRect.isNull else {
+            return 0
+        }
+
+        return resolvedStringLaneHeight(in: stringBandRect)
     }
 
     var markerDiameter: CGFloat {
@@ -355,6 +365,21 @@ struct FretboardGeometry: Equatable {
             }
     }
 
+    private func resolvedStringLaneHeight(
+        in stringBandRect: CGRect
+    ) -> CGFloat {
+        guard
+            !stringBandRect.isNull,
+            configuration.stringCount > 0
+        else {
+            return 0
+        }
+
+        let preferredLaneHeight = max(configuration.layoutMetrics.stringLaneHeight, 1)
+        let availableLaneHeight = stringBandRect.height / CGFloat(configuration.stringCount)
+        return min(preferredLaneHeight, max(availableLaneHeight, 0))
+    }
+
     private func contains(
         _ point: CGPoint,
         inInclusiveBoundsOf rect: CGRect
@@ -413,22 +438,4 @@ struct FretboardGeometry: Equatable {
         return rect.isNull || rect.isEmpty ? .null : rect
     }
 
-    private static func makeDistributedPositions(
-        count: Int,
-        minValue: CGFloat,
-        maxValue: CGFloat
-    ) -> [CGFloat] {
-        guard count > 0 else {
-            return []
-        }
-
-        guard count > 1 else {
-            return [(minValue + maxValue) / 2]
-        }
-
-        let step = (maxValue - minValue) / CGFloat(count - 1)
-        return (0..<count).map { index in
-            minValue + (CGFloat(index) * step)
-        }
-    }
 }
