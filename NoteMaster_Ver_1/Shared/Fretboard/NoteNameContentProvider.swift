@@ -114,8 +114,8 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
         slotRect: CGRect,
         geometry: FretboardGeometry
     ) -> CGFloat {
-        let referenceHeight = geometry.stringSpacing > 0
-            ? geometry.stringSpacing
+        let referenceHeight = geometry.stringLaneHeight > 0
+            ? geometry.stringLaneHeight
             : slotRect.height * 0.24
         let heightDrivenDiameter = referenceHeight * layoutMetrics.badgeDiameterRatio
         let widthDrivenDiameter = slotRect.width * layoutMetrics.maxBadgeWidthRatio

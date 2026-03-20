@@ -155,33 +155,7 @@ struct FretboardGeometry: Equatable {
         }
     }
 
-    var stringYPositions: [CGFloat] {
-        guard !drawingRect.isNull else {
-            return []
-        }
-
-        let stringBandRect = makeStringBandRect()
-        guard
-            !stringBandRect.isNull,
-            configuration.stringCount > 0
-        else {
-            return []
-        }
-
-        let laneHeight = resolvedStringLaneHeight(in: stringBandRect)
-        let occupiedHeight = laneHeight * CGFloat(configuration.stringCount)
-        let firstLaneMinY = stringBandRect.midY - (occupiedHeight / 2)
-
-        return (0..<configuration.stringCount).map { stringIndex in
-            firstLaneMinY + (laneHeight * (CGFloat(stringIndex) + 0.5))
-        }
-    }
-
-    var stringSpacing: CGFloat {
-        guard configuration.stringCount > 1 else {
-            return 0
-        }
-
+    var stringLaneHeight: CGFloat {
         let stringBandRect = makeStringBandRect()
         guard !stringBandRect.isNull else {
             return 0
@@ -190,18 +164,58 @@ struct FretboardGeometry: Equatable {
         return resolvedStringLaneHeight(in: stringBandRect)
     }
 
+    var stringColumnRect: CGRect {
+        let stringBandRect = makeStringBandRect()
+        let laneHeight = resolvedStringLaneHeight(in: stringBandRect)
+        guard
+            !stringBandRect.isNull,
+            configuration.stringCount > 0,
+            laneHeight > 0
+        else {
+            return .null
+        }
+
+        let occupiedHeight = laneHeight * CGFloat(configuration.stringCount)
+        return CGRect(
+            x: stringBandRect.minX,
+            y: stringBandRect.midY - (occupiedHeight / 2),
+            width: stringBandRect.width,
+            height: occupiedHeight
+        )
+    }
+
+    var stringYPositions: [CGFloat] {
+        let columnRect = stringColumnRect
+        let laneHeight = stringLaneHeight
+        guard
+            !columnRect.isNull,
+            laneHeight > 0
+        else {
+            return []
+        }
+
+        return (0..<configuration.stringCount).map { stringIndex in
+            columnRect.minY + (laneHeight * (CGFloat(stringIndex) + 0.5))
+        }
+    }
+
+    var stringSpacing: CGFloat {
+        guard configuration.stringCount > 1 else {
+            return 0
+        }
+
+        return stringLaneHeight
+    }
+
     var markerDiameter: CGFloat {
         guard !drawingRect.isNull else {
             return 0
         }
 
-        let verticalReference: CGFloat
-        if let firstStringY = stringYPositions.first,
-           let lastStringY = stringYPositions.last {
-            verticalReference = max(lastStringY - firstStringY, 0)
-        } else {
-            verticalReference = drawingRect.height
-        }
+        let columnRect = stringColumnRect
+        let verticalReference = !columnRect.isNull
+            ? columnRect.height
+            : drawingRect.height
 
         return min(displaySlotWidth, verticalReference) * configuration.layoutMetrics.markerDiameterRatio
     }
@@ -309,19 +323,23 @@ struct FretboardGeometry: Equatable {
         }
 
         let centerX = segmentRect.midX
+        let columnRect = stringColumnRect
+        let centerY = !columnRect.isNull
+            ? columnRect.midY
+            : drawingRect.midY
         let singleDotFrets = Set(configuration.markerLayout.normalizedSingleDotFrets(upTo: configuration.maxFret))
         let doubleDotFrets = Set(configuration.markerLayout.normalizedDoubleDotFrets(upTo: configuration.maxFret))
 
         if doubleDotFrets.contains(fret) {
             let offset = markerDoubleDotOffset
             return [
-                CGPoint(x: centerX, y: drawingRect.midY - offset),
-                CGPoint(x: centerX, y: drawingRect.midY + offset)
+                CGPoint(x: centerX, y: centerY - offset),
+                CGPoint(x: centerX, y: centerY + offset)
             ]
         }
 
         if singleDotFrets.contains(fret) {
-            return [CGPoint(x: centerX, y: drawingRect.midY)]
+            return [CGPoint(x: centerX, y: centerY)]
         }
 
         return []
@@ -332,13 +350,10 @@ struct FretboardGeometry: Equatable {
             return 0
         }
 
-        let verticalReference: CGFloat
-        if let firstStringY = stringYPositions.first,
-           let lastStringY = stringYPositions.last {
-            verticalReference = max(lastStringY - firstStringY, 0)
-        } else {
-            verticalReference = drawingRect.height
-        }
+        let columnRect = stringColumnRect
+        let verticalReference = !columnRect.isNull
+            ? columnRect.height
+            : drawingRect.height
 
         return verticalReference * configuration.layoutMetrics.doubleMarkerOffsetRatio
     }
