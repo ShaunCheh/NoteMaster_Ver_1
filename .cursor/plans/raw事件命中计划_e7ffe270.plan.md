@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase4-macos-raw-mouse
     content: 在 macOSFretboardView 中接入 mouseDown/Dragged/Up 并抛出共享命中结果
-    status: pending
+    status: completed
   - id: phase5-controller-console-output
     content: 在 iOS/macOS 控制器中装配回调并把命中结果输出到控制台
     status: pending

@@ -25,6 +25,9 @@ final class macOSFretboardView: NSView {
         }
     }
 
+    // 阶段 4 只负责把 raw mouse 事件转换成共享命中结果并向外抛出。
+    var onRawEvent: ((FretboardHitResult) -> Void)?
+
     override var intrinsicContentSize: NSSize {
         NSSize(
             width: NSView.noIntrinsicMetric,
@@ -59,6 +62,18 @@ final class macOSFretboardView: NSView {
         updateContentsScale()
     }
 
+    override func mouseDown(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .began)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .moved)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .ended)
+    }
+
     private var fretboardLayer: FretboardLayer {
         guard let fretboardLayer = layer as? FretboardLayer else {
             fatalError("Expected FretboardLayer backing layer.")
@@ -82,6 +97,16 @@ final class macOSFretboardView: NSView {
 
     private func updateContentsScale() {
         fretboardLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    private func handleRawMouseEvent(
+        _ event: NSEvent,
+        phase: FretboardEventPhase
+    ) {
+        let location = convert(event.locationInWindow, from: nil)
+        let geometry = FretboardGeometry(configuration: configuration, bounds: bounds)
+        let hitResult = geometry.hitTest(location, phase: phase)
+        onRawEvent?(hitResult)
     }
 }
 #endif
