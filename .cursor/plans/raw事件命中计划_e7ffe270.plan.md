@@ -4,10 +4,10 @@ overview: 基于你选定的方案 1，保留现有“平台薄包装视图 + �
 todos:
   - id: phase1-shared-interaction-model
     content: 新增共享交互模型，定义 raw 事件阶段和命中结果结构
-    status: pending
+    status: completed
   - id: phase2-geometry-hit-test
     content: 在 FretboardGeometry 中补齐 displayPosition、nearestStringIndex 和 hitTest 反查能力
-    status: pending
+    status: completed
   - id: phase3-ios-raw-touch
     content: 在 iOSFretboardView 中接入 touchesBegan/Moved/Ended/Cancelled 并抛出共享命中结果
     status: pending

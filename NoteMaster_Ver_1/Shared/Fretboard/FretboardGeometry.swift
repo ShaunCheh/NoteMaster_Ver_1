@@ -241,6 +241,57 @@ struct FretboardGeometry: Equatable {
         return stringYPositions[stringIndex]
     }
 
+    func displayPosition(forX x: CGFloat) -> Int? {
+        guard
+            !drawingRect.isNull,
+            displaySlotWidth > 0,
+            isValue(x, withinInclusiveRangeOf: drawingRect.minX, and: drawingRect.maxX)
+        else {
+            return nil
+        }
+
+        let relativeX = min(max(x - drawingRect.minX, 0), drawingRect.width)
+        let rawPosition = Int(relativeX / displaySlotWidth)
+        return min(rawPosition, configuration.maxFret)
+    }
+
+    func nearestStringIndex(forY y: CGFloat) -> Int? {
+        nearestStringMatch(forY: y)?.stringIndex
+    }
+
+    func hitTest(
+        _ point: CGPoint,
+        phase: FretboardEventPhase
+    ) -> FretboardHitResult {
+        let isInsideDrawingRect = contains(point, inInclusiveBoundsOf: drawingRect)
+        let nearestString = nearestStringMatch(forY: point.y)
+
+        guard
+            isInsideDrawingRect,
+            let fret = displayPosition(forX: point.x),
+            let nearestString
+        else {
+            return FretboardHitResult(
+                phase: phase,
+                locationInView: point,
+                cell: nil,
+                isInsideDrawingRect: isInsideDrawingRect,
+                distanceToNearestString: nearestString?.distance
+            )
+        }
+
+        return FretboardHitResult(
+            phase: phase,
+            locationInView: point,
+            cell: FretboardCell(
+                stringIndex: nearestString.stringIndex,
+                fret: fret
+            ),
+            isInsideDrawingRect: true,
+            distanceToNearestString: nearestString.distance
+        )
+    }
+
     func markerCenters(for fret: Int) -> [CGPoint] {
         let segmentRect = fretSegmentRect(at: fret)
         guard !segmentRect.isNull else {
@@ -280,6 +331,48 @@ struct FretboardGeometry: Equatable {
         }
 
         return verticalReference * configuration.layoutMetrics.doubleMarkerOffsetRatio
+    }
+
+    private func nearestStringMatch(
+        forY y: CGFloat
+    ) -> (stringIndex: Int, distance: CGFloat)? {
+        guard !stringYPositions.isEmpty else {
+            return nil
+        }
+
+        return stringYPositions.enumerated()
+            .map { index, stringY in
+                (
+                    stringIndex: index,
+                    distance: abs(stringY - y)
+                )
+            }
+            .min { lhs, rhs in
+                if lhs.distance == rhs.distance {
+                    return lhs.stringIndex < rhs.stringIndex
+                }
+                return lhs.distance < rhs.distance
+            }
+    }
+
+    private func contains(
+        _ point: CGPoint,
+        inInclusiveBoundsOf rect: CGRect
+    ) -> Bool {
+        guard !rect.isNull else {
+            return false
+        }
+
+        return isValue(point.x, withinInclusiveRangeOf: rect.minX, and: rect.maxX)
+            && isValue(point.y, withinInclusiveRangeOf: rect.minY, and: rect.maxY)
+    }
+
+    private func isValue(
+        _ value: CGFloat,
+        withinInclusiveRangeOf minValue: CGFloat,
+        and maxValue: CGFloat
+    ) -> Bool {
+        value >= minValue && value <= maxValue
     }
 
     private func makeStringBandRect() -> CGRect {
