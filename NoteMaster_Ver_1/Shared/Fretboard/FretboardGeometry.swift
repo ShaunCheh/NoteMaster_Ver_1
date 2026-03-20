@@ -5,7 +5,6 @@
 //  Created by Cursor on 2026/3/19.
 //
 
-import Foundation
 import CoreGraphics
 
 struct FretboardGeometry: Equatable {
@@ -157,19 +156,17 @@ struct FretboardGeometry: Equatable {
     }
 
     var stringLaneHeight: CGFloat {
-        let stringBandRect = makeStringBandRect()
-        guard !stringBandRect.isNull else {
+        guard !drawingRect.isNull else {
             return 0
         }
 
-        return resolvedStringLaneHeight(in: stringBandRect)
+        return resolvedStringLaneHeight(in: drawingRect.height)
     }
 
     var stringColumnRect: CGRect {
-        let stringBandRect = makeStringBandRect()
-        let laneHeight = resolvedStringLaneHeight(in: stringBandRect)
+        let laneHeight = stringLaneHeight
         guard
-            !stringBandRect.isNull,
+            !drawingRect.isNull,
             configuration.stringCount > 0,
             laneHeight > 0
         else {
@@ -178,9 +175,9 @@ struct FretboardGeometry: Equatable {
 
         let occupiedHeight = laneHeight * CGFloat(configuration.stringCount)
         return CGRect(
-            x: stringBandRect.minX,
-            y: stringBandRect.midY - (occupiedHeight / 2),
-            width: stringBandRect.width,
+            x: drawingRect.minX,
+            y: drawingRect.midY - (occupiedHeight / 2),
+            width: drawingRect.width,
             height: occupiedHeight
         )
     }
@@ -206,74 +203,6 @@ struct FretboardGeometry: Equatable {
         }
 
         return stringLaneHeight
-    }
-
-    var topStringCenterToDrawingEdge: CGFloat? {
-        guard
-            !drawingRect.isNull,
-            let firstStringY = stringYPositions.first
-        else {
-            return nil
-        }
-
-        return max(firstStringY - drawingRect.minY, 0)
-    }
-
-    var bottomStringCenterToDrawingEdge: CGFloat? {
-        guard
-            !drawingRect.isNull,
-            let lastStringY = stringYPositions.last
-        else {
-            return nil
-        }
-
-        return max(drawingRect.maxY - lastStringY, 0)
-    }
-
-    var topStringColumnInset: CGFloat? {
-        guard
-            !drawingRect.isNull,
-            !stringColumnRect.isNull
-        else {
-            return nil
-        }
-
-        return max(stringColumnRect.minY - drawingRect.minY, 0)
-    }
-
-    var bottomStringColumnInset: CGFloat? {
-        guard
-            !drawingRect.isNull,
-            !stringColumnRect.isNull
-        else {
-            return nil
-        }
-
-        return max(drawingRect.maxY - stringColumnRect.maxY, 0)
-    }
-
-    func layoutDebugSummary(platform: String) -> String {
-        let spacing = stringSpacing
-        let topGap = topStringCenterToDrawingEdge
-        let bottomGap = bottomStringCenterToDrawingEdge
-        let topInset = topStringColumnInset
-        let bottomInset = bottomStringColumnInset
-        let topGapExceedsSpacing = topGap.map { $0 > spacing } ?? false
-        let bottomGapExceedsSpacing = bottomGap.map { $0 > spacing } ?? false
-
-        return "[\(platform)] layout strings=\(configuration.stringCount) " +
-            "bounds=(\(Self.formatted(bounds.width))x\(Self.formatted(bounds.height))) " +
-            "preferredHeight=\(Self.formatted(configuration.preferredHeight)) " +
-            "drawingHeight=\(Self.formatted(drawingRect.height)) " +
-            "lane=\(Self.formatted(stringLaneHeight)) " +
-            "spacing=\(Self.formatted(spacing)) " +
-            "topEdgeToCenter=\(Self.formatted(topGap)) " +
-            "bottomEdgeToCenter=\(Self.formatted(bottomGap)) " +
-            "topInset=\(Self.formatted(topInset)) " +
-            "bottomInset=\(Self.formatted(bottomInset)) " +
-            "edgeRatio=\(Self.formatted(configuration.layoutMetrics.stringEdgeInsetRatio)) " +
-            "topGTSpacing=\(topGapExceedsSpacing) " +
-            "bottomGTSpacing=\(bottomGapExceedsSpacing)"
     }
 
     var markerDiameter: CGFloat {
@@ -450,17 +379,17 @@ struct FretboardGeometry: Equatable {
     }
 
     private func resolvedStringLaneHeight(
-        in stringBandRect: CGRect
+        in availableHeight: CGFloat
     ) -> CGFloat {
         guard
-            !stringBandRect.isNull,
+            availableHeight > 0,
             configuration.stringCount > 0
         else {
             return 0
         }
 
         let preferredLaneHeight = max(configuration.layoutMetrics.stringLaneHeight, 1)
-        let availableLaneHeight = stringBandRect.height / CGFloat(configuration.stringCount)
+        let availableLaneHeight = availableHeight / CGFloat(configuration.stringCount)
         return min(preferredLaneHeight, max(availableLaneHeight, 0))
     }
 
@@ -484,23 +413,6 @@ struct FretboardGeometry: Equatable {
         value >= minValue && value <= maxValue
     }
 
-    private func makeStringBandRect() -> CGRect {
-        guard !drawingRect.isNull else {
-            return .null
-        }
-
-        let maxInset = drawingRect.height / 2
-        let proposedInset = drawingRect.height * configuration.layoutMetrics.stringEdgeInsetRatio
-        let edgeInset = min(max(proposedInset, 0), maxInset)
-
-        let stringBandRect = drawingRect.insetBy(dx: 0, dy: edgeInset)
-        if stringBandRect.isNull || stringBandRect.isEmpty {
-            return drawingRect
-        }
-
-        return stringBandRect
-    }
-
     private static func makeDrawingRect(
         bounds: CGRect,
         metrics: FretboardConfiguration.LayoutMetrics
@@ -520,14 +432,6 @@ struct FretboardGeometry: Equatable {
         let rect = bounds.insetBy(dx: horizontalInset, dy: verticalInset)
 
         return rect.isNull || rect.isEmpty ? .null : rect
-    }
-
-    private static func formatted(_ value: CGFloat?) -> String {
-        guard let value else {
-            return "nil"
-        }
-
-        return String(format: "%.2f", Double(value))
     }
 
 }

@@ -16,9 +16,7 @@ final class macOSViewController: NSViewController {
                 return
             }
 
-            applyDisplayState(
-                logsLayoutDiagnostics: oldValue.configuration != displayState.configuration
-            )
+            applyDisplayState()
         }
     }
 
@@ -49,7 +47,7 @@ final class macOSViewController: NSViewController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         configureLayout()
-        applyDisplayState(logsLayoutDiagnostics: true)
+        applyDisplayState()
     }
 
     private func configureLayout() {
@@ -86,16 +84,12 @@ final class macOSViewController: NSViewController {
         ])
     }
 
-    private func applyDisplayState(logsLayoutDiagnostics: Bool = false) {
+    private func applyDisplayState() {
         buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
         view.needsLayout = true
         view.layoutSubtreeIfNeeded()
-
-        if logsLayoutDiagnostics {
-            printLayoutDiagnostics()
-        }
     }
 
     private func handleButtonAction(_ actionID: ButtonPanelActionID) {
@@ -107,14 +101,6 @@ final class macOSViewController: NSViewController {
         }
 
         displayState = nextDisplayState
-    }
-
-    private func printLayoutDiagnostics() {
-        let geometry = FretboardGeometry(
-            configuration: displayState.configuration,
-            bounds: fretboardView.bounds
-        )
-        print(geometry.layoutDebugSummary(platform: "macOS"))
     }
 }
 

@@ -16,9 +16,7 @@ final class iOSViewController: UIViewController {
                 return
             }
 
-            applyDisplayState(
-                logsLayoutDiagnostics: oldValue.configuration != displayState.configuration
-            )
+            applyDisplayState()
         }
     }
 
@@ -44,7 +42,7 @@ final class iOSViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         configureLayout()
-        applyDisplayState(logsLayoutDiagnostics: true)
+        applyDisplayState()
     }
 
     private func configureLayout() {
@@ -81,16 +79,12 @@ final class iOSViewController: UIViewController {
         ])
     }
 
-    private func applyDisplayState(logsLayoutDiagnostics: Bool = false) {
+    private func applyDisplayState() {
         buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
         view.setNeedsLayout()
         view.layoutIfNeeded()
-
-        if logsLayoutDiagnostics {
-            printLayoutDiagnostics()
-        }
     }
 
     private func handleButtonAction(_ actionID: ButtonPanelActionID) {
@@ -102,14 +96,6 @@ final class iOSViewController: UIViewController {
         }
 
         displayState = nextDisplayState
-    }
-
-    private func printLayoutDiagnostics() {
-        let geometry = FretboardGeometry(
-            configuration: displayState.configuration,
-            bounds: fretboardView.bounds
-        )
-        print(geometry.layoutDebugSummary(platform: "iOS"))
     }
 }
 

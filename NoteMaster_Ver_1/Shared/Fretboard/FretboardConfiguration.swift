@@ -11,7 +11,6 @@ struct FretboardConfiguration: Equatable, Sendable {
     struct LayoutMetrics: Equatable, Sendable {
         var horizontalInsetRatio: CGFloat
         var verticalInsetRatio: CGFloat
-        var stringEdgeInsetRatio: CGFloat
         // 每根弦占据的垂直车道高度，弦位应落在车道中心。
         var stringLaneHeight: CGFloat
         var nutWidthRatio: CGFloat
@@ -23,7 +22,6 @@ struct FretboardConfiguration: Equatable, Sendable {
         static let `default` = LayoutMetrics(
             horizontalInsetRatio: 0.04,
             verticalInsetRatio: 0.16,
-            stringEdgeInsetRatio: 0.09,
             stringLaneHeight: 17,
             nutWidthRatio: 0.014,
             fretLineWidth: 1,
@@ -39,12 +37,7 @@ struct FretboardConfiguration: Equatable, Sendable {
         }
 
         func drawingHeight(forStringCount stringCount: Int) -> CGFloat {
-            let stringBandHeight = stringBandHeight(forStringCount: stringCount)
-            let stringBandFactor = max(
-                1 - (stringEdgeInsetRatio * 2),
-                Self.minimumLayoutFactor
-            )
-            return stringBandHeight / stringBandFactor
+            stringBandHeight(forStringCount: stringCount)
         }
 
         func preferredHeight(forStringCount stringCount: Int) -> CGFloat {
