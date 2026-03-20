@@ -10,19 +10,19 @@ import Foundation
 import AppKit
 
 final class macOSViewController: NSViewController {
-    private let fretboardConfiguration = FretboardConfiguration(
-        tuning: .standard(for: .guitar6),
-        maxFret: 12,
-        preferredHeight: 180
-    )
-    private let noteContentProvider = NoteNameContentProvider(
-        visibility: .all,
-        spelling: .sharp,
-        showsOctave: true
-    )
+    private var displayState = FretboardDisplayState.default {
+        didSet {
+            guard isViewLoaded else {
+                return
+            }
+
+            applyDisplayState()
+        }
+    }
+    private var fretboardHeightConstraint: NSLayoutConstraint?
+
     private lazy var fretboardView: macOSFretboardView = {
-        let fretboardView = macOSFretboardView(configuration: fretboardConfiguration)
-        fretboardView.contentProvider = noteContentProvider
+        let fretboardView = macOSFretboardView(configuration: displayState.configuration)
         fretboardView.onRawEvent = { hitResult in
             print(hitResult.debugSummary(platform: "macOS"))
         }
@@ -38,6 +38,7 @@ final class macOSViewController: NSViewController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         configureFretboardView()
+        applyDisplayState()
     }
 
     private func configureFretboardView() {
@@ -45,8 +46,9 @@ final class macOSViewController: NSViewController {
         view.addSubview(fretboardView)
 
         let heightConstraint = fretboardView.heightAnchor.constraint(
-            equalToConstant: fretboardConfiguration.preferredHeight
+            equalToConstant: displayState.configuration.preferredHeight
         )
+        fretboardHeightConstraint = heightConstraint
 
         NSLayoutConstraint.activate([
             fretboardView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -54,6 +56,12 @@ final class macOSViewController: NSViewController {
             fretboardView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             heightConstraint
         ])
+    }
+
+    private func applyDisplayState() {
+        fretboardView.configuration = displayState.configuration
+        fretboardView.contentProvider = displayState.contentProvider
+        fretboardHeightConstraint?.constant = displayState.configuration.preferredHeight
     }
 }
 
