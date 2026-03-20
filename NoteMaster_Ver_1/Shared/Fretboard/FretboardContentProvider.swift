@@ -42,6 +42,7 @@ struct FretboardLabelContent: Equatable, Sendable {
     var fret: Int
     var text: String
     var center: CGPoint
+    var badgeDiameter: CGFloat
     var maxSize: CGSize
     var fontSize: CGFloat
 }

@@ -188,6 +188,10 @@ final class FretboardLayer: CALayer {
                 continue
             }
 
+            drawLabelBadge(
+                for: label,
+                in: context
+            )
             drawTextLine(
                 resolvedText.line,
                 bounds: resolvedText.bounds,
@@ -195,6 +199,26 @@ final class FretboardLayer: CALayer {
                 in: context
             )
         }
+    }
+
+    private func drawLabelBadge(
+        for label: FretboardLabelContent,
+        in context: CGContext
+    ) {
+        let badgeRect = CGRect(
+            x: label.center.x - (label.badgeDiameter / 2),
+            y: label.center.y - (label.badgeDiameter / 2),
+            width: label.badgeDiameter,
+            height: label.badgeDiameter
+        )
+
+        context.saveGState()
+        context.setFillColor(Palette.noteBadgeFill)
+        context.fillEllipse(in: badgeRect)
+        context.setStrokeColor(Palette.noteBadgeStroke)
+        context.setLineWidth(1)
+        context.strokeEllipse(in: badgeRect)
+        context.restoreGState()
     }
 
     private func drawDisplayBorder(in context: CGContext, geometry: FretboardGeometry) {
@@ -222,14 +246,11 @@ final class FretboardLayer: CALayer {
         for label: FretboardLabelContent
     ) -> (line: CTLine, bounds: CGRect)? {
         let baseFontSize = max(label.fontSize, 1)
-        let textColor = label.fret == 0
-            ? Palette.noteLabelTextOnOpenString
-            : Palette.noteLabelTextOnFretboard
 
         var line = makeTextLine(
             text: label.text,
             fontSize: baseFontSize,
-            textColor: textColor
+            textColor: Palette.noteBadgeText
         )
         var lineBounds = CTLineGetBoundsWithOptions(line, [.useOpticalBounds])
 
@@ -249,7 +270,7 @@ final class FretboardLayer: CALayer {
             line = makeTextLine(
                 text: label.text,
                 fontSize: max(baseFontSize * fitScale, 1),
-                textColor: textColor
+                textColor: Palette.noteBadgeText
             )
             lineBounds = CTLineGetBoundsWithOptions(line, [.useOpticalBounds])
         }
@@ -318,8 +339,9 @@ private enum Palette {
     static let string = makeColor(0.96, 0.96, 0.97, 0.94)
     static let markerFill = makeColor(0.97, 0.95, 0.90)
     static let displayBorder = makeColor(0.22, 0.18, 0.14, 0.28)
-    static let noteLabelTextOnFretboard = makeColor(0.98, 0.97, 0.95)
-    static let noteLabelTextOnOpenString = makeColor(0.20, 0.16, 0.12)
+    static let noteBadgeFill = makeColor(0.98, 0.97, 0.94, 0.98)
+    static let noteBadgeStroke = makeColor(0.23, 0.18, 0.14, 0.36)
+    static let noteBadgeText = makeColor(0.16, 0.12, 0.09)
 
     private static func makeColor(
         _ red: CGFloat,

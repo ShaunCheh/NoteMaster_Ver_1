@@ -9,16 +9,16 @@ import CoreGraphics
 
 struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
     struct LayoutMetrics: Equatable, Sendable {
-        var verticalOffsetRatio: CGFloat
-        var maxLabelWidthRatio: CGFloat
-        var maxLabelHeightRatio: CGFloat
+        var badgeDiameterRatio: CGFloat
+        var maxBadgeWidthRatio: CGFloat
+        var textInsetRatio: CGFloat
         var fontScale: CGFloat
 
         static let `default` = LayoutMetrics(
-            verticalOffsetRatio: 0.28,
-            maxLabelWidthRatio: 0.88,
-            maxLabelHeightRatio: 0.9,
-            fontScale: 0.46
+            badgeDiameterRatio: 0.78,
+            maxBadgeWidthRatio: 0.74,
+            textInsetRatio: 0.18,
+            fontScale: 0.88
         )
     }
 
@@ -88,15 +88,15 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
         slotRect: CGRect,
         geometry: FretboardGeometry
     ) -> FretboardLabelContent {
-        let maxLabelHeight = resolvedMaxLabelHeight(slotRect: slotRect, geometry: geometry)
-        let proposedCenterY = stringY - (verticalOffsetReference(slotRect: slotRect, geometry: geometry) * layoutMetrics.verticalOffsetRatio)
-        let minCenterY = slotRect.minY + (maxLabelHeight / 2)
-        let maxCenterY = slotRect.maxY - (maxLabelHeight / 2)
-        let clampedCenterY = min(max(proposedCenterY, minCenterY), maxCenterY)
-        let maxLabelWidth = max(slotRect.width * layoutMetrics.maxLabelWidthRatio, 0)
+        let badgeDiameter = resolvedBadgeDiameter(slotRect: slotRect, geometry: geometry)
+        let minCenterY = slotRect.minY + (badgeDiameter / 2)
+        let maxCenterY = slotRect.maxY - (badgeDiameter / 2)
+        let clampedCenterY = min(max(stringY, minCenterY), maxCenterY)
+        let textInset = badgeDiameter * layoutMetrics.textInsetRatio
+        let maxTextDiameter = max(badgeDiameter - (textInset * 2), 0)
         let fontSize = min(
-            slotRect.width * layoutMetrics.fontScale,
-            maxLabelHeight * 0.9
+            maxTextDiameter * layoutMetrics.fontScale,
+            maxTextDiameter
         )
 
         return FretboardLabelContent(
@@ -104,26 +104,22 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
             fret: fret,
             text: pitch.displayText(using: spelling, showsOctave: showsOctave),
             center: CGPoint(x: slotRect.midX, y: clampedCenterY),
-            maxSize: CGSize(width: maxLabelWidth, height: maxLabelHeight),
+            badgeDiameter: badgeDiameter,
+            maxSize: CGSize(width: maxTextDiameter, height: maxTextDiameter),
             fontSize: fontSize
         )
     }
 
-    private func resolvedMaxLabelHeight(
+    private func resolvedBadgeDiameter(
         slotRect: CGRect,
         geometry: FretboardGeometry
     ) -> CGFloat {
         let referenceHeight = geometry.stringSpacing > 0
             ? geometry.stringSpacing
-            : slotRect.height * 0.28
+            : slotRect.height * 0.24
+        let heightDrivenDiameter = referenceHeight * layoutMetrics.badgeDiameterRatio
+        let widthDrivenDiameter = slotRect.width * layoutMetrics.maxBadgeWidthRatio
 
-        return max(referenceHeight * layoutMetrics.maxLabelHeightRatio, 0)
-    }
-
-    private func verticalOffsetReference(
-        slotRect: CGRect,
-        geometry: FretboardGeometry
-    ) -> CGFloat {
-        geometry.stringSpacing > 0 ? geometry.stringSpacing : slotRect.height
+        return max(min(heightDrivenDiameter, widthDrivenDiameter), 0)
     }
 }

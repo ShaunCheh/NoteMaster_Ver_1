@@ -160,10 +160,15 @@ struct FretboardGeometry: Equatable {
             return []
         }
 
+        let stringBandRect = makeStringBandRect()
+        guard !stringBandRect.isNull else {
+            return []
+        }
+
         return Self.makeDistributedPositions(
             count: configuration.stringCount,
-            minValue: drawingRect.minY,
-            maxValue: drawingRect.maxY
+            minValue: stringBandRect.minY,
+            maxValue: stringBandRect.maxY
         )
     }
 
@@ -275,6 +280,23 @@ struct FretboardGeometry: Equatable {
         }
 
         return verticalReference * configuration.layoutMetrics.doubleMarkerOffsetRatio
+    }
+
+    private func makeStringBandRect() -> CGRect {
+        guard !drawingRect.isNull else {
+            return .null
+        }
+
+        let maxInset = drawingRect.height / 2
+        let proposedInset = drawingRect.height * configuration.layoutMetrics.stringEdgeInsetRatio
+        let edgeInset = min(max(proposedInset, 0), maxInset)
+
+        let stringBandRect = drawingRect.insetBy(dx: 0, dy: edgeInset)
+        if stringBandRect.isNull || stringBandRect.isEmpty {
+            return drawingRect
+        }
+
+        return stringBandRect
     }
 
     private static func makeDrawingRect(

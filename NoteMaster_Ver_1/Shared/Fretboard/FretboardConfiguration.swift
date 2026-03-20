@@ -11,6 +11,7 @@ struct FretboardConfiguration: Equatable, Sendable {
     struct LayoutMetrics: Equatable, Sendable {
         var horizontalInsetRatio: CGFloat
         var verticalInsetRatio: CGFloat
+        var stringEdgeInsetRatio: CGFloat
         var nutWidthRatio: CGFloat
         var fretLineWidth: CGFloat
         var stringLineWidth: CGFloat
@@ -20,6 +21,7 @@ struct FretboardConfiguration: Equatable, Sendable {
         static let `default` = LayoutMetrics(
             horizontalInsetRatio: 0.04,
             verticalInsetRatio: 0.16,
+            stringEdgeInsetRatio: 0.09,
             nutWidthRatio: 0.014,
             fretLineWidth: 1,
             stringLineWidth: 1.5,
