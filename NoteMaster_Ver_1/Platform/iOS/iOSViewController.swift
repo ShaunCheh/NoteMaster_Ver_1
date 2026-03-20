@@ -21,6 +21,16 @@ final class iOSViewController: UIViewController {
     }
     private var fretboardHeightConstraint: NSLayoutConstraint?
 
+    private lazy var buttonPanelView: iOSButtonPanelView = {
+        let buttonPanelView = iOSButtonPanelView(
+            model: ButtonPanelSnapshotBuilder.makeModel(from: displayState)
+        )
+        buttonPanelView.onAction = { [weak self] actionID in
+            self?.handleButtonAction(actionID)
+        }
+        return buttonPanelView
+    }()
+
     private lazy var fretboardView: iOSFretboardView = {
         let fretboardView = iOSFretboardView(configuration: displayState.configuration)
         fretboardView.onRawEvent = { hitResult in
@@ -32,12 +42,14 @@ final class iOSViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        configureFretboardView()
+        configureLayout()
         applyDisplayState()
     }
 
-    private func configureFretboardView() {
+    private func configureLayout() {
+        buttonPanelView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(buttonPanelView)
         view.addSubview(fretboardView)
 
         let safeArea = view.safeAreaLayoutGuide
@@ -47,17 +59,55 @@ final class iOSViewController: UIViewController {
         fretboardHeightConstraint = heightConstraint
 
         NSLayoutConstraint.activate([
+            buttonPanelView.leadingAnchor.constraint(
+                equalTo: safeArea.leadingAnchor,
+                constant: Layout.horizontalInset
+            ),
+            buttonPanelView.trailingAnchor.constraint(
+                equalTo: safeArea.trailingAnchor,
+                constant: -Layout.horizontalInset
+            ),
+            buttonPanelView.topAnchor.constraint(
+                equalTo: safeArea.topAnchor,
+                constant: Layout.topInset
+            ),
             fretboardView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
             fretboardView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
-            fretboardView.centerYAnchor.constraint(equalTo: safeArea.centerYAnchor),
-            heightConstraint
+            fretboardView.topAnchor.constraint(
+                equalTo: buttonPanelView.bottomAnchor,
+                constant: Layout.verticalSpacing
+            ),
+            heightConstraint,
+            fretboardView.bottomAnchor.constraint(
+                lessThanOrEqualTo: safeArea.bottomAnchor,
+                constant: -Layout.bottomInset
+            )
         ])
     }
 
     private func applyDisplayState() {
+        buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
         fretboardHeightConstraint?.constant = displayState.configuration.preferredHeight
     }
+
+    private func handleButtonAction(_ actionID: ButtonPanelActionID) {
+        var nextDisplayState = displayState
+        nextDisplayState.apply(actionID)
+
+        guard nextDisplayState != displayState else {
+            return
+        }
+
+        displayState = nextDisplayState
+    }
+}
+
+private enum Layout {
+    static let horizontalInset: CGFloat = 16
+    static let topInset: CGFloat = 16
+    static let verticalSpacing: CGFloat = 20
+    static let bottomInset: CGFloat = 16
 }
 #endif
