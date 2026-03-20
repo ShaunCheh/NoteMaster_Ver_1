@@ -62,8 +62,8 @@ final class macOSButtonPanelView: NSView {
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
 
-        sectionsStackView.orientation = .horizontal
-        sectionsStackView.alignment = .centerY
+        sectionsStackView.orientation = .vertical
+        sectionsStackView.alignment = .leading
         sectionsStackView.distribution = .fill
         sectionsStackView.spacing = Style.sectionSpacing
         sectionsStackView.translatesAutoresizingMaskIntoConstraints = false

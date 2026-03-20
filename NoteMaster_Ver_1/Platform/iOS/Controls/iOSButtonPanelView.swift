@@ -62,7 +62,7 @@ final class iOSButtonPanelView: UIView {
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
 
-        sectionsStackView.axis = .horizontal
+        sectionsStackView.axis = .vertical
         sectionsStackView.alignment = .fill
         sectionsStackView.distribution = .fill
         sectionsStackView.spacing = Style.sectionSpacing
