@@ -85,6 +85,8 @@ final class macOSFretboardView: NSView {
     private func configureView() {
         wantsLayer = true
         layerContentsRedrawPolicy = .onSetNeedsDisplay
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
         applyConfiguration()
     }
 

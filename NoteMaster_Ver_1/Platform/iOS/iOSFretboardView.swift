@@ -99,6 +99,8 @@ final class iOSFretboardView: UIView {
         backgroundColor = .clear
         isOpaque = false
         contentMode = .redraw
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
         applyConfiguration()
     }
 

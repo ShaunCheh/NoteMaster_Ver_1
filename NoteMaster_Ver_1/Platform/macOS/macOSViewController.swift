@@ -19,7 +19,6 @@ final class macOSViewController: NSViewController {
             applyDisplayState()
         }
     }
-    private var fretboardHeightConstraint: NSLayoutConstraint?
 
     private lazy var buttonPanelView: macOSButtonPanelView = {
         let buttonPanelView = macOSButtonPanelView(
@@ -58,10 +57,6 @@ final class macOSViewController: NSViewController {
         view.addSubview(fretboardView)
 
         let safeArea = view.safeAreaLayoutGuide
-        let heightConstraint = fretboardView.heightAnchor.constraint(
-            equalToConstant: displayState.configuration.preferredHeight
-        )
-        fretboardHeightConstraint = heightConstraint
 
         NSLayoutConstraint.activate([
             buttonPanelView.leadingAnchor.constraint(
@@ -82,7 +77,6 @@ final class macOSViewController: NSViewController {
                 equalTo: buttonPanelView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
-            heightConstraint,
             fretboardView.bottomAnchor.constraint(
                 lessThanOrEqualTo: safeArea.bottomAnchor,
                 constant: -Layout.bottomInset
@@ -94,7 +88,8 @@ final class macOSViewController: NSViewController {
         buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
-        fretboardHeightConstraint?.constant = displayState.configuration.preferredHeight
+        view.needsLayout = true
+        view.layoutSubtreeIfNeeded()
     }
 
     private func handleButtonAction(_ actionID: ButtonPanelActionID) {
