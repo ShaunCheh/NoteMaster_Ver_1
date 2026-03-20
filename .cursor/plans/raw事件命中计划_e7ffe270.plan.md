@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: phase6-verification
     content: 完成静态检查和多场景命中验证，确认双平台事件与坐标体系一致
-    status: pending
+    status: completed
 isProject: false
 ---
 
