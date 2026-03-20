@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: phase3-ios-raw-touch
     content: 在 iOSFretboardView 中接入 touchesBegan/Moved/Ended/Cancelled 并抛出共享命中结果
-    status: pending
+    status: completed
   - id: phase4-macos-raw-mouse
     content: 在 macOSFretboardView 中接入 mouseDown/Dragged/Up 并抛出共享命中结果
     status: pending
