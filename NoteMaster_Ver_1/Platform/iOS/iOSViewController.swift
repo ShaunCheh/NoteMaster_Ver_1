@@ -11,7 +11,7 @@ import UIKit
 
 final class iOSViewController: UIViewController {
     private let fretboardConfiguration = FretboardConfiguration(
-        instrument: .guitar6,
+        tuning: .standard(for: .guitar6),
         maxFret: 12,
         preferredHeight: 180
     )

@@ -57,24 +57,45 @@ struct FretboardConfiguration: Equatable, Sendable {
         }
     }
 
-    var instrument: InstrumentType
+    // 运行期配置以 tuning 为真相来源，instrument 由 tuning 派生。
+    var tuning: InstrumentTuning
     var maxFret: Int
     var preferredHeight: CGFloat
     var layoutMetrics: LayoutMetrics
     var markerLayout: MarkerLayout
 
     init(
-        instrument: InstrumentType = .guitar6,
+        tuning: InstrumentTuning = .standard(for: .guitar6),
         maxFret: Int = 12,
         preferredHeight: CGFloat = 180,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
-        self.instrument = instrument
+        self.tuning = tuning
         self.maxFret = max(0, maxFret)
         self.preferredHeight = max(1, preferredHeight)
         self.layoutMetrics = layoutMetrics
         self.markerLayout = markerLayout
+    }
+
+    init(
+        instrument: InstrumentType,
+        maxFret: Int = 12,
+        preferredHeight: CGFloat = 180,
+        layoutMetrics: LayoutMetrics = .default,
+        markerLayout: MarkerLayout = .standard
+    ) {
+        self.init(
+            tuning: .standard(for: instrument),
+            maxFret: maxFret,
+            preferredHeight: preferredHeight,
+            layoutMetrics: layoutMetrics,
+            markerLayout: markerLayout
+        )
+    }
+
+    var instrument: InstrumentType {
+        tuning.instrument
     }
 
     var fretRange: ClosedRange<Int> {
@@ -82,6 +103,6 @@ struct FretboardConfiguration: Equatable, Sendable {
     }
 
     var stringCount: Int {
-        instrument.stringCount
+        tuning.stringCount
     }
 }
