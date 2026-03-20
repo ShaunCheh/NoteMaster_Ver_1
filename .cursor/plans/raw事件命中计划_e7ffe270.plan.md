@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase5-controller-console-output
     content: 在 iOS/macOS 控制器中装配回调并把命中结果输出到控制台
-    status: pending
+    status: completed
   - id: phase6-verification
     content: 完成静态检查和多场景命中验证，确认双平台事件与坐标体系一致
     status: pending

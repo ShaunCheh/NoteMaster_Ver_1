@@ -5,6 +5,7 @@
 //  Created by Cursor on 2026/3/20.
 //
 
+import Foundation
 import CoreGraphics
 
 enum FretboardEventPhase: Equatable, Sendable {
@@ -12,6 +13,19 @@ enum FretboardEventPhase: Equatable, Sendable {
     case moved
     case ended
     case cancelled
+
+    var debugName: String {
+        switch self {
+        case .began:
+            return "began"
+        case .moved:
+            return "moved"
+        case .ended:
+            return "ended"
+        case .cancelled:
+            return "cancelled"
+        }
+    }
 }
 
 struct FretboardCell: Equatable, Hashable, Sendable {
@@ -38,5 +52,20 @@ struct FretboardHitResult: Equatable, Sendable {
 
     var hasHit: Bool {
         cell != nil
+    }
+
+    func debugSummary(platform: String) -> String {
+        let pointText = String(
+            format: "(%.1f, %.1f)",
+            locationInView.x,
+            locationInView.y
+        )
+        let stringText = stringIndex.map(String.init) ?? "nil"
+        let fretText = fret.map(String.init) ?? "nil"
+        let distanceText = distanceToNearestString.map {
+            String(format: "%.1f", $0)
+        } ?? "nil"
+
+        return "[\(platform)] phase=\(phase.debugName) string=\(stringText) fret=\(fretText) point=\(pointText) inside=\(isInsideDrawingRect) distance=\(distanceText)"
     }
 }

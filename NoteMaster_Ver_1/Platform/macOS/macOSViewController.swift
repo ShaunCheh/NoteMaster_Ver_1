@@ -23,6 +23,9 @@ final class macOSViewController: NSViewController {
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: fretboardConfiguration)
         fretboardView.contentProvider = noteContentProvider
+        fretboardView.onRawEvent = { hitResult in
+            print(hitResult.debugSummary(platform: "macOS"))
+        }
         return fretboardView
     }()
 
