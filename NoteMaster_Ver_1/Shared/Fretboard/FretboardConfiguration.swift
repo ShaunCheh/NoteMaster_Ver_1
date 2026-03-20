@@ -12,6 +12,8 @@ struct FretboardConfiguration: Equatable, Sendable {
         var horizontalInsetRatio: CGFloat
         var verticalInsetRatio: CGFloat
         var stringEdgeInsetRatio: CGFloat
+        // 每根弦占据的垂直车道高度，弦位应落在车道中心。
+        var stringLaneHeight: CGFloat
         var nutWidthRatio: CGFloat
         var fretLineWidth: CGFloat
         var stringLineWidth: CGFloat
@@ -22,12 +24,37 @@ struct FretboardConfiguration: Equatable, Sendable {
             horizontalInsetRatio: 0.04,
             verticalInsetRatio: 0.16,
             stringEdgeInsetRatio: 0.09,
+            stringLaneHeight: 17,
             nutWidthRatio: 0.014,
             fretLineWidth: 1,
             stringLineWidth: 1.5,
             markerDiameterRatio: 0.15,
             doubleMarkerOffsetRatio: 0.18
         )
+
+        private static let minimumLayoutFactor: CGFloat = 0.01
+
+        func stringBandHeight(forStringCount stringCount: Int) -> CGFloat {
+            CGFloat(max(stringCount, 1)) * max(stringLaneHeight, 1)
+        }
+
+        func drawingHeight(forStringCount stringCount: Int) -> CGFloat {
+            let stringBandHeight = stringBandHeight(forStringCount: stringCount)
+            let stringBandFactor = max(
+                1 - (stringEdgeInsetRatio * 2),
+                Self.minimumLayoutFactor
+            )
+            return stringBandHeight / stringBandFactor
+        }
+
+        func preferredHeight(forStringCount stringCount: Int) -> CGFloat {
+            let drawingHeight = drawingHeight(forStringCount: stringCount)
+            let drawingFactor = max(
+                1 - (verticalInsetRatio * 2),
+                Self.minimumLayoutFactor
+            )
+            return drawingHeight / drawingFactor
+        }
     }
 
     struct MarkerLayout: Equatable, Sendable {
@@ -62,20 +89,17 @@ struct FretboardConfiguration: Equatable, Sendable {
     // 运行期配置以 tuning 为真相来源，instrument 由 tuning 派生。
     var tuning: InstrumentTuning
     var maxFret: Int
-    var preferredHeight: CGFloat
     var layoutMetrics: LayoutMetrics
     var markerLayout: MarkerLayout
 
     init(
         tuning: InstrumentTuning = .standard(for: .guitar6),
         maxFret: Int = 12,
-        preferredHeight: CGFloat = 180,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
         self.tuning = tuning
         self.maxFret = max(0, maxFret)
-        self.preferredHeight = max(1, preferredHeight)
         self.layoutMetrics = layoutMetrics
         self.markerLayout = markerLayout
     }
@@ -83,14 +107,12 @@ struct FretboardConfiguration: Equatable, Sendable {
     init(
         instrument: InstrumentType,
         maxFret: Int = 12,
-        preferredHeight: CGFloat = 180,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
         self.init(
             tuning: .standard(for: instrument),
             maxFret: maxFret,
-            preferredHeight: preferredHeight,
             layoutMetrics: layoutMetrics,
             markerLayout: markerLayout
         )
@@ -106,5 +128,9 @@ struct FretboardConfiguration: Equatable, Sendable {
 
     var stringCount: Int {
         tuning.stringCount
+    }
+
+    var preferredHeight: CGFloat {
+        layoutMetrics.preferredHeight(forStringCount: stringCount)
     }
 }

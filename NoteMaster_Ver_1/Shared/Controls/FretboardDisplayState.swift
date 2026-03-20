@@ -16,8 +16,7 @@ struct FretboardDisplayState: Equatable, Sendable {
     static let `default` = FretboardDisplayState(
         configuration: FretboardConfiguration(
             tuning: .standard(for: .guitar6),
-            maxFret: 12,
-            preferredHeight: 180
+            maxFret: 12
         )
     )
 
