@@ -15,7 +15,16 @@ final class macOSViewController: NSViewController {
         maxFret: 12,
         preferredHeight: 180
     )
-    private lazy var fretboardView = macOSFretboardView(configuration: fretboardConfiguration)
+    private let noteContentProvider = NoteNameContentProvider(
+        visibility: .all,
+        spelling: .sharp,
+        showsOctave: true
+    )
+    private lazy var fretboardView: macOSFretboardView = {
+        let fretboardView = macOSFretboardView(configuration: fretboardConfiguration)
+        fretboardView.contentProvider = noteContentProvider
+        return fretboardView
+    }()
 
     override func loadView() {
         view = NSView()
