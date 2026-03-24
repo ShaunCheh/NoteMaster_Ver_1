@@ -126,6 +126,10 @@ enum StaffControlPanelSnapshotBuilder {
         switch sliderID {
         case .clefScale:
             return displayState.configuration.layoutMetrics.clefScale
+        case .clefVerticalTrim:
+            return displayState.configuration.clefVerticalTrimRatio(
+                for: displayState.configuration.clef
+            )
         case .clefAnchorYOffset:
             return displayState.configuration.clefAnchorLogicalDownwardShiftRatio(
                 for: displayState.configuration.clef
@@ -138,7 +142,7 @@ enum StaffControlPanelSnapshotBuilder {
         displayState _: StaffDisplayState
     ) -> Bool {
         switch sliderID {
-        case .clefScale, .clefAnchorYOffset:
+        case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
             return true
         }
     }
@@ -150,6 +154,8 @@ enum StaffControlPanelSnapshotBuilder {
         switch sliderID {
         case .clefScale:
             return String(format: "%.2fx", Double(value))
+        case .clefVerticalTrim:
+            return String(format: "%.0f%%", Double(value * 100))
         case .clefAnchorYOffset:
             // 避免接近 0 的值在 UI 上显示成 -0.00。
             let normalizedValue: CGFloat = abs(value) < 0.005 ? 0 : value

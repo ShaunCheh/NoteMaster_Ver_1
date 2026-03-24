@@ -496,6 +496,8 @@ private extension StaffSliderControlItem.ID {
         switch self {
         case .clefScale:
             return .setClefScale(value)
+        case .clefVerticalTrim:
+            return .setClefVerticalTrimRatio(value)
         case .clefAnchorYOffset:
             return .setClefAnchorLogicalDownwardShiftRatio(value)
         }

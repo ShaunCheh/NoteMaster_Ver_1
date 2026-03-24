@@ -21,10 +21,12 @@ enum StaffControlSectionID: CaseIterable, Equatable, Hashable, Sendable {
 enum StaffControlEvent: Equatable, Sendable {
     case setClef(StaffClef)
     case setClefScale(CGFloat)
+    case setClefVerticalTrimRatio(CGFloat)
     case setClefAnchorLogicalDownwardShiftRatio(CGFloat)
 
     // 连续值的约束统一收口在共享层，避免 iOS/macOS 各自重复 clamp。
     static let clefScaleRange: ClosedRange<CGFloat> = 1.0...5
+    static let clefVerticalTrimRatioRange: ClosedRange<CGFloat> = 0...0.4
     static let clefAnchorLogicalDownwardShiftRatioRange: ClosedRange<CGFloat> = (-0.25)...0.25
 
     func apply(to displayState: inout StaffDisplayState) {
@@ -34,6 +36,13 @@ enum StaffControlEvent: Equatable, Sendable {
         case let .setClefScale(value):
             displayState.configuration.layoutMetrics.clefScale = value.clamped(
                 to: Self.clefScaleRange
+            )
+        case let .setClefVerticalTrimRatio(value):
+            displayState.configuration.setClefVerticalTrimRatio(
+                value.clamped(
+                    to: Self.clefVerticalTrimRatioRange
+                ),
+                for: displayState.configuration.clef
             )
         case let .setClefAnchorLogicalDownwardShiftRatio(value):
             displayState.configuration.setClefAnchorLogicalDownwardShiftRatio(
@@ -88,11 +97,12 @@ struct StaffOptionControlItem: Equatable, Hashable, Sendable {
 struct StaffSliderControlItem: Equatable, Hashable, Sendable {
     enum ID: CaseIterable, Equatable, Hashable, Sendable {
         case clefScale
+        case clefVerticalTrim
         case clefAnchorYOffset
 
         var sectionID: StaffControlSectionID {
             switch self {
-            case .clefScale, .clefAnchorYOffset:
+            case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
                 return .clef
             }
         }
@@ -101,6 +111,8 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
             switch self {
             case .clefScale:
                 return "Scale"
+            case .clefVerticalTrim:
+                return "Vertical Clip"
             case .clefAnchorYOffset:
                 return "Anchor Y Offset"
             }
@@ -110,6 +122,8 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
             switch self {
             case .clefScale:
                 return "Adjust clef scale"
+            case .clefVerticalTrim:
+                return "Adjust clef vertical clip"
             case .clefAnchorYOffset:
                 return "Adjust clef anchor vertical offset"
             }
@@ -119,6 +133,8 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
             switch self {
             case .clefScale:
                 return StaffControlEvent.clefScaleRange
+            case .clefVerticalTrim:
+                return StaffControlEvent.clefVerticalTrimRatioRange
             case .clefAnchorYOffset:
                 return StaffControlEvent.clefAnchorLogicalDownwardShiftRatioRange
             }

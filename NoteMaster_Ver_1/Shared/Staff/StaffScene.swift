@@ -125,3 +125,14 @@ extension ClefAnchor.Semantic {
         }
     }
 }
+
+extension StaffGlyphSymbolID {
+    var clef: StaffClef {
+        switch self {
+        case .trebleClef:
+            return .treble
+        case .bassClef:
+            return .bass
+        }
+    }
+}

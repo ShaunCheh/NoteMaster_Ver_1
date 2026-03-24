@@ -112,6 +112,9 @@ struct StaffConfiguration: Equatable, Sendable {
     // 以共享逻辑坐标语义描述各 clef 的 glyph 内部锚点下移比例；正值表示向下。
     var trebleClefAnchorLogicalDownwardShiftRatio: CGFloat
     var bassClefAnchorLogicalDownwardShiftRatio: CGFloat
+    // 以共享逻辑坐标语义描述各 clef 在 optical bounds 上下两侧各自裁切的比例。
+    var trebleClefVerticalTrimRatio: CGFloat
+    var bassClefVerticalTrimRatio: CGFloat
     var debugOptions: DebugOptions
 
     init(
@@ -121,6 +124,8 @@ struct StaffConfiguration: Equatable, Sendable {
         layoutMetrics: LayoutMetrics = .default,
         trebleClefAnchorLogicalDownwardShiftRatio: CGFloat = 0.06,
         bassClefAnchorLogicalDownwardShiftRatio: CGFloat = 0,
+        trebleClefVerticalTrimRatio: CGFloat = 0,
+        bassClefVerticalTrimRatio: CGFloat = 0,
         debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation
@@ -129,6 +134,8 @@ struct StaffConfiguration: Equatable, Sendable {
         self.layoutMetrics = layoutMetrics
         self.trebleClefAnchorLogicalDownwardShiftRatio = trebleClefAnchorLogicalDownwardShiftRatio
         self.bassClefAnchorLogicalDownwardShiftRatio = bassClefAnchorLogicalDownwardShiftRatio
+        self.trebleClefVerticalTrimRatio = trebleClefVerticalTrimRatio
+        self.bassClefVerticalTrimRatio = bassClefVerticalTrimRatio
         self.debugOptions = debugOptions
     }
 
@@ -145,6 +152,15 @@ struct StaffConfiguration: Equatable, Sendable {
         }
     }
 
+    func clefVerticalTrimRatio(for clef: StaffClef) -> CGFloat {
+        switch clef {
+        case .treble:
+            return trebleClefVerticalTrimRatio
+        case .bass:
+            return bassClefVerticalTrimRatio
+        }
+    }
+
     mutating func setClefAnchorLogicalDownwardShiftRatio(
         _ value: CGFloat,
         for clef: StaffClef
@@ -154,6 +170,18 @@ struct StaffConfiguration: Equatable, Sendable {
             trebleClefAnchorLogicalDownwardShiftRatio = value
         case .bass:
             bassClefAnchorLogicalDownwardShiftRatio = value
+        }
+    }
+
+    mutating func setClefVerticalTrimRatio(
+        _ value: CGFloat,
+        for clef: StaffClef
+    ) {
+        switch clef {
+        case .treble:
+            trebleClefVerticalTrimRatio = value
+        case .bass:
+            bassClefVerticalTrimRatio = value
         }
     }
 }

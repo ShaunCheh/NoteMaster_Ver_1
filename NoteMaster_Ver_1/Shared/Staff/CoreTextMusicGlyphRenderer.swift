@@ -12,7 +12,8 @@ import CoreText
 struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private struct ResolvedGlyphLine {
         var line: CTLine
-        var bounds: CGRect
+        var opticalBounds: CGRect
+        var effectiveBounds: CGRect
     }
 
     private struct AnchorMetrics {
@@ -38,6 +39,10 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         }
 
         let musicGlyph = glyphItem.symbolID.musicGlyph
+        let verticalTrimRatio = verticalTrimRatio(
+            for: glyphItem,
+            geometry: geometry
+        )
         let targetSize = targetSize(
             for: glyphItem,
             geometry: geometry
@@ -49,7 +54,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         guard let resolvedLine = resolvedGlyphLine(
             for: musicGlyph,
             targetSize: targetSize,
-            tintColor: glyphItem.tintColor
+            tintColor: glyphItem.tintColor,
+            verticalTrimRatio: verticalTrimRatio
         ) else {
             return
         }
@@ -95,31 +101,39 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private func resolvedGlyphLine(
         for glyph: MusicGlyph,
         targetSize: CGSize,
-        tintColor: StaffSceneColor
+        tintColor: StaffSceneColor,
+        verticalTrimRatio: CGFloat
     ) -> ResolvedGlyphLine? {
         let baseFontSize = max(targetSize.height, 1)
 
         guard var resolved = makeResolvedGlyphLine(
             glyph: glyph,
             fontSize: baseFontSize,
-            tintColor: tintColor
+            tintColor: tintColor,
+            verticalTrimRatio: verticalTrimRatio
         ) else {
             return nil
         }
 
-        let widthScale = targetSize.width / max(resolved.bounds.width, 1)
-        let heightScale = targetSize.height / max(resolved.bounds.height, 1)
-        let fitScale = min(1, widthScale, heightScale)
+        let widthScale = targetSize.width / max(resolved.effectiveBounds.width, 1)
+        let heightScale = targetSize.height / max(resolved.effectiveBounds.height, 1)
+        let fitScale = min(widthScale, heightScale)
 
-        if fitScale < 1 {
+        if fitScale.isFinite, fitScale > 0, abs(fitScale - 1) > 0.0001 {
             resolved = makeResolvedGlyphLine(
                 glyph: glyph,
                 fontSize: max(baseFontSize * fitScale, 1),
-                tintColor: tintColor
+                tintColor: tintColor,
+                verticalTrimRatio: verticalTrimRatio
             ) ?? resolved
         }
 
-        guard !resolved.bounds.isNull, !resolved.bounds.isEmpty else {
+        guard
+            !resolved.opticalBounds.isNull,
+            !resolved.opticalBounds.isEmpty,
+            !resolved.effectiveBounds.isNull,
+            !resolved.effectiveBounds.isEmpty
+        else {
             return nil
         }
 
@@ -129,7 +143,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private func makeResolvedGlyphLine(
         glyph: MusicGlyph,
         fontSize: CGFloat,
-        tintColor: StaffSceneColor
+        tintColor: StaffSceneColor,
+        verticalTrimRatio: CGFloat
     ) -> ResolvedGlyphLine? {
         guard let font = MusicFontRegistry.font(
             for: glyph.fontFace,
@@ -149,18 +164,29 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             attributes: attributes
         )
         let line = CTLineCreateWithAttributedString(attributedText)
-        let bounds = CTLineGetBoundsWithOptions(
+        let opticalBounds = CTLineGetBoundsWithOptions(
             line,
             [.useOpticalBounds]
         )
 
-        guard !bounds.isNull, !bounds.isEmpty else {
+        let effectiveBounds = trimmedBounds(
+            from: opticalBounds,
+            verticalTrimRatio: verticalTrimRatio
+        )
+
+        guard
+            !opticalBounds.isNull,
+            !opticalBounds.isEmpty,
+            !effectiveBounds.isNull,
+            !effectiveBounds.isEmpty
+        else {
             return nil
         }
 
         return ResolvedGlyphLine(
             line: line,
-            bounds: bounds
+            opticalBounds: opticalBounds,
+            effectiveBounds: effectiveBounds
         )
     }
 
@@ -176,8 +202,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             geometry: geometry
         )
         let anchorOffset = CGPoint(
-            x: resolvedLine.bounds.minX + (resolvedLine.bounds.width * anchorMetrics.xRatio),
-            y: resolvedLine.bounds.minY + (resolvedLine.bounds.height * anchorMetrics.yRatio)
+            x: resolvedLine.opticalBounds.minX + (resolvedLine.opticalBounds.width * anchorMetrics.xRatio),
+            y: resolvedLine.opticalBounds.minY + (resolvedLine.opticalBounds.height * anchorMetrics.yRatio)
         )
         let flippedAnchor = CGPoint(
             x: anchor.point.x,
@@ -191,12 +217,16 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         drawLine(
             resolvedLine.line,
             at: drawOrigin,
+            clipBounds: flippedBounds(
+                for: resolvedLine.effectiveBounds,
+                drawOrigin: drawOrigin
+            ),
             in: context,
             geometry: geometry
         )
         drawBoundsOverlayIfNeeded(
             logicalBounds(
-                for: resolvedLine,
+                for: resolvedLine.effectiveBounds,
                 drawOrigin: drawOrigin,
                 geometry: geometry
             ),
@@ -222,19 +252,23 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             y: geometry.bounds.height - frame.midY
         )
         let drawOrigin = CGPoint(
-            x: frameCenter.x - resolvedLine.bounds.midX,
-            y: frameCenter.y - resolvedLine.bounds.midY
+            x: frameCenter.x - resolvedLine.effectiveBounds.midX,
+            y: frameCenter.y - resolvedLine.effectiveBounds.midY
         )
 
         drawLine(
             resolvedLine.line,
             at: drawOrigin,
+            clipBounds: flippedBounds(
+                for: resolvedLine.effectiveBounds,
+                drawOrigin: drawOrigin
+            ),
             in: context,
             geometry: geometry
         )
         drawBoundsOverlayIfNeeded(
             logicalBounds(
-                for: resolvedLine,
+                for: resolvedLine.effectiveBounds,
                 drawOrigin: drawOrigin,
                 geometry: geometry
             ),
@@ -246,6 +280,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private func drawLine(
         _ line: CTLine,
         at origin: CGPoint,
+        clipBounds: CGRect?,
         in context: CGContext,
         geometry: StaffGeometry
     ) {
@@ -255,21 +290,22 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         // 当前共享坐标固定为左上原点、y 向下；CoreText 绘制时在 renderer 内部局部翻回 y 向上。
         context.translateBy(x: 0, y: geometry.bounds.height)
         context.scaleBy(x: 1, y: -1)
+        if let clipBounds {
+            context.clip(to: clipBounds)
+        }
         context.textPosition = origin
         CTLineDraw(line, context)
         context.restoreGState()
     }
 
     private func logicalBounds(
-        for resolvedLine: ResolvedGlyphLine,
+        for bounds: CGRect,
         drawOrigin: CGPoint,
         geometry: StaffGeometry
     ) -> CGRect {
-        let flippedBounds = CGRect(
-            x: drawOrigin.x + resolvedLine.bounds.minX,
-            y: drawOrigin.y + resolvedLine.bounds.minY,
-            width: resolvedLine.bounds.width,
-            height: resolvedLine.bounds.height
+        let flippedBounds = flippedBounds(
+            for: bounds,
+            drawOrigin: drawOrigin
         )
 
         return CGRect(
@@ -277,6 +313,18 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             y: geometry.bounds.height - flippedBounds.maxY,
             width: flippedBounds.width,
             height: flippedBounds.height
+        )
+    }
+
+    private func flippedBounds(
+        for bounds: CGRect,
+        drawOrigin: CGPoint
+    ) -> CGRect {
+        CGRect(
+            x: drawOrigin.x + bounds.minX,
+            y: drawOrigin.y + bounds.minY,
+            width: bounds.width,
+            height: bounds.height
         )
     }
 
@@ -360,6 +408,41 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
                 yRatio: 0.5 - downwardShiftRatio
             )
         }
+    }
+
+    private func verticalTrimRatio(
+        for glyphItem: StaffGlyphItem,
+        geometry: StaffGeometry
+    ) -> CGFloat {
+        let clef: StaffClef
+        switch glyphItem.placement {
+        case let .anchor(anchor):
+            clef = anchor.semantic.clef
+        case .frame:
+            clef = glyphItem.symbolID.clef
+        }
+
+        return geometry.configuration.clefVerticalTrimRatio(for: clef)
+    }
+
+    private func trimmedBounds(
+        from bounds: CGRect,
+        verticalTrimRatio: CGFloat
+    ) -> CGRect {
+        guard !bounds.isNull, !bounds.isEmpty else {
+            return .null
+        }
+
+        let clampedTrimRatio = min(max(verticalTrimRatio, 0), 0.45)
+        guard clampedTrimRatio > 0 else {
+            return bounds
+        }
+
+        let maximumInset = max((bounds.height - 1) / 2, 0)
+        let inset = min(bounds.height * clampedTrimRatio, maximumInset)
+        let trimmedBounds = bounds.insetBy(dx: 0, dy: inset)
+
+        return trimmedBounds.isNull || trimmedBounds.isEmpty ? .null : trimmedBounds
     }
 }
 
