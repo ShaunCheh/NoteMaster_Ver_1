@@ -61,7 +61,10 @@ enum StaffControlPanelSnapshotBuilder {
             accessibilityLabel: sliderID.accessibilityLabel,
             value: clampedValue,
             range: range,
-            displayValue: displayValue(for: clampedValue),
+            displayValue: displayValue(
+                for: sliderID,
+                value: clampedValue
+            ),
             isEnabled: isEnabled(
                 for: sliderID,
                 displayState: displayState
@@ -74,6 +77,8 @@ enum StaffControlPanelSnapshotBuilder {
         displayState: StaffDisplayState
     ) -> CGFloat {
         switch sliderID {
+        case .clefScale:
+            return displayState.configuration.layoutMetrics.clefScale
         case .trebleClefAnchorYOffset:
             return displayState.configuration.trebleClefAnchorLogicalDownwardShiftRatio
         }
@@ -84,14 +89,22 @@ enum StaffControlPanelSnapshotBuilder {
         displayState _: StaffDisplayState
     ) -> Bool {
         switch sliderID {
-        case .trebleClefAnchorYOffset:
+        case .clefScale, .trebleClefAnchorYOffset:
             return true
         }
     }
 
-    private static func displayValue(for value: CGFloat) -> String {
-        // 避免接近 0 的值在 UI 上显示成 -0.00。
-        let normalizedValue: CGFloat = abs(value) < 0.005 ? 0 : value
-        return String(format: "%+.2f", Double(normalizedValue))
+    private static func displayValue(
+        for sliderID: StaffSliderControlItem.ID,
+        value: CGFloat
+    ) -> String {
+        switch sliderID {
+        case .clefScale:
+            return String(format: "%.2fx", Double(value))
+        case .trebleClefAnchorYOffset:
+            // 避免接近 0 的值在 UI 上显示成 -0.00。
+            let normalizedValue: CGFloat = abs(value) < 0.005 ? 0 : value
+            return String(format: "%+.2f", Double(normalizedValue))
+        }
     }
 }

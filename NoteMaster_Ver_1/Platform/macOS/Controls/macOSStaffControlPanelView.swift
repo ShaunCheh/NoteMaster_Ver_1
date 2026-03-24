@@ -373,6 +373,8 @@ private final class SliderRowView: NSView {
 private extension StaffSliderControlItem.ID {
     func makeEvent(value: CGFloat) -> StaffControlEvent {
         switch self {
+        case .clefScale:
+            return .setClefScale(value)
         case .trebleClefAnchorYOffset:
             return .setTrebleClefAnchorLogicalDownwardShiftRatio(value)
         }
