@@ -62,7 +62,7 @@ struct StaffConfiguration: Equatable, Sendable {
             staffSpaceHeight: 12,
             clefAreaWidthRatio: 0.22,
             staffLineWidth: 1,
-            clefScale: 1.6
+            clefScale: 4
         )
 
         private static let minimumLayoutFactor: CGFloat = 0.01
@@ -108,7 +108,7 @@ struct StaffConfiguration: Equatable, Sendable {
         clef: StaffClef = .treble,
         renderMode: MusicGlyphRenderMode = .automatic,
         layoutMetrics: LayoutMetrics = .default,
-        trebleClefAnchorLogicalDownwardShiftRatio: CGFloat = 0.11,
+        trebleClefAnchorLogicalDownwardShiftRatio: CGFloat = 0.06,
         debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation

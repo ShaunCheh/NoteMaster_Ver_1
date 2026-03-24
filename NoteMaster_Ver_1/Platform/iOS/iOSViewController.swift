@@ -23,7 +23,7 @@ final class iOSViewController: UIViewController {
     private var staffDisplayState = StaffDisplayState(
         configuration: StaffConfiguration(
             renderMode: .coreText,
-            trebleClefAnchorLogicalDownwardShiftRatio: 0.11,
+            trebleClefAnchorLogicalDownwardShiftRatio: 0.06,
             debugOptions: .init(
                 showsClefBounds: true,
                 showsClefAnchor: true
