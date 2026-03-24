@@ -171,7 +171,10 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         in context: CGContext,
         geometry: StaffGeometry
     ) {
-        let anchorMetrics = self.anchorMetrics(for: anchor.semantic)
+        let anchorMetrics = self.anchorMetrics(
+            for: anchor.semantic,
+            geometry: geometry
+        )
         let anchorOffset = CGPoint(
             x: resolvedLine.bounds.minX + (resolvedLine.bounds.width * anchorMetrics.xRatio),
             y: resolvedLine.bounds.minY + (resolvedLine.bounds.height * anchorMetrics.yRatio)
@@ -331,14 +334,19 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         context.restoreGState()
     }
 
-    private func anchorMetrics(for semantic: ClefAnchor.Semantic) -> AnchorMetrics {
+    private func anchorMetrics(
+        for semantic: ClefAnchor.Semantic,
+        geometry: StaffGeometry
+    ) -> AnchorMetrics {
         switch semantic {
         case .trebleGLine:
             // 基于 Bravura gClef 的 CoreText optical bounds 做经验对齐，
+            // 这里额外把 glyph 内部锚点按共享逻辑语义“向下”微调配置值，以新的锚点参与对齐；
+            // 注意：optical bounds 的局部坐标是 y-up，因此逻辑下移要体现在更小的 yRatio 上。
             // 后续切到 CGPath renderer 时应把这类补偿迁移到新的后端实现中。
             return AnchorMetrics(
                 xRatio: 0.5,
-                yRatio: 0.56
+                yRatio: 0.56 - geometry.configuration.trebleClefAnchorLogicalDownwardShiftRatio
             )
         }
     }

@@ -99,6 +99,8 @@ struct StaffConfiguration: Equatable, Sendable {
     var clef: StaffClef
     var renderMode: MusicGlyphRenderMode
     var layoutMetrics: LayoutMetrics
+    // 以共享逻辑坐标语义描述 treble clef 的 glyph 内部锚点下移比例；正值表示向下。
+    var trebleClefAnchorLogicalDownwardShiftRatio: CGFloat
     var debugOptions: DebugOptions
 
     init(
@@ -106,12 +108,14 @@ struct StaffConfiguration: Equatable, Sendable {
         clef: StaffClef = .treble,
         renderMode: MusicGlyphRenderMode = .automatic,
         layoutMetrics: LayoutMetrics = .default,
+        trebleClefAnchorLogicalDownwardShiftRatio: CGFloat = 0.11,
         debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation
         self.clef = clef
         self.renderMode = renderMode
         self.layoutMetrics = layoutMetrics
+        self.trebleClefAnchorLogicalDownwardShiftRatio = trebleClefAnchorLogicalDownwardShiftRatio
         self.debugOptions = debugOptions
     }
 

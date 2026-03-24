@@ -23,6 +23,7 @@ final class macOSViewController: NSViewController {
     private let staffDisplayState = StaffDisplayState(
         configuration: StaffConfiguration(
             renderMode: .coreText,
+            trebleClefAnchorLogicalDownwardShiftRatio: 0.11,
             debugOptions: .init(
                 showsClefBounds: true,
                 showsClefAnchor: true
