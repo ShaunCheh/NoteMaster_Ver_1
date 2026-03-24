@@ -57,22 +57,12 @@ flowchart LR
 - 坐标系不再走 `[FretboardLayer.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Fretboard/FretboardLayer.swift)` 里那种依赖 `context.ctm.d < 0` 的运行时猜测；平台包装视图或平台注入的画布配置要显式声明逻辑坐标方向，shared 层只消费统一逻辑坐标。
 - 首版只覆盖 `.trebleClef` 一个语义元素，但 `StaffScene` / `MusicGlyphRenderer` 的接口按未来 `.notehead`、`.stem`、`.beam`、`.rest`、`.accidental` 扩展来设计。
 
-## 坐标系设计细化
+## 阶段 1：建立 `Shared/Staff` 域与配置边界
 
-### 1. 统一逻辑坐标系
-
-- `Staff` 域所有共享几何、场景和渲染协议统一使用“左上角为原点，`y` 向下”的逻辑坐标。
-- 五线与空白区的编号也统一按“自上而下”解释：
-  - `lineIndex = 0...4` 表示从最上方线到最下方线
-  - `spaceIndex = 0...3` 表示从最上方空隙到最下方空隙
-- `StaffGeometry` 只接受已经归一化后的逻辑画布，不读取 `context.ctm`，不依赖平台原生 `isFlipped` 之类状态。
-- 建议把几何公式固定为：
-  - `staffHeight = CGFloat(staffLineCount - 1) * staffSpaceHeight`
-  - `staffTopY = drawingRect.midY - (staffHeight / 2)`
-  - `lineY(i) = staffTopY + CGFloat(i) * staffSpaceHeight`
-  - `spaceCenterY(i) = staffTopY + (CGFloat(i) + 0.5) * staffSpaceHeight`
-
-### 2. `canvasOrientation` 建议接口
+- 新增目录 `NoteMaster_Ver_1/Shared/Staff`，与现有 `Shared/Fretboard` 平行，避免把谱表逻辑混入指板域。
+- 新增 `[StaffConfiguration.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffConfiguration.swift)`。
+- 在阶段 1 就把共享坐标契约定死：`Staff` 域所有共享几何、场景和渲染协议统一使用“左上角为原点，`y` 向下”的逻辑坐标；`lineIndex`、`spaceIndex` 都按自上而下编号。
+- 新增 `[StaffCanvasOrientation.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffCanvasOrientation.swift)`，把当前唯一允许的逻辑坐标方向显式建模，而不是散落成隐式假设。
 
 ```swift
 // NoteMaster_Ver_1/Shared/Staff/StaffCanvasOrientation.swift
@@ -95,38 +85,24 @@ struct StaffCanvasOrientation: Equatable, Sendable {
 }
 ```
 
-- 虽然首版只有一种方向，仍然保留显式类型，不让“左上原点、`y` 向下”变成散落在代码里的隐式假设。
-- `iOSStaffView` / `macOSStaffView` 或各自的根 layer 负责注入 `StaffCanvasOrientation.standard`。
-- 平台差异只允许留在平台边界：
-  - iOS 绘制链路通常可直接使用统一逻辑坐标
-  - macOS 绘制链路在进入共享绘制前，对 `CGContext` 做一次归一化变换，然后共享层只按逻辑坐标画
-- 未来如果补 hit testing，平台点转逻辑点也只发生在平台边界，不能让 `StaffGeometry` 或 renderer 去判断平台。
+- 在 `StaffConfiguration` 中定义：
+  - `MusicGlyphRenderMode`：`.automatic`、`.coreText`、`.cgPath`
+  - `LayoutMetrics`：`horizontalInsetRatio`、`verticalInsetRatio`、`staffLineCount`、`staffSpaceHeight`、`clefAreaWidthRatio`、`staffLineWidth`、`clefScale`
+  - `preferredHeight`
+  - `clef`：当前只需要 `.treble`
+- 在 `MusicGlyphRenderMode` 和 `StaffConfiguration` 上直接写清楚注释：
+  - `.cgPath` 为未来迁移保留
+  - 本阶段 factory 仍只返回 `CoreText` renderer
+  - 调用侧不应假设 `.cgPath` 已具备独立实现
+- 新增 `[StaffDisplayState.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Controls/StaffDisplayState.swift)` 或等价状态容器，职责对齐 `[FretboardDisplayState.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Controls/FretboardDisplayState.swift)`：
+  - 持有 `StaffConfiguration`
+  - 计算属性派生 `sceneProvider`
+  - 当前不引入按钮动作，只保证未来控制面板接入点稳定
 
-### 3. `clefAnchor` 建议接口
+## 阶段 2：实现 `StaffGeometry` 与 `StaffScene` 语义层
 
-```swift
-// NoteMaster_Ver_1/Shared/Staff/StaffScene.swift
-struct ClefAnchor: Equatable, Sendable {
-    enum Semantic: Equatable, Sendable {
-        case trebleGLine
-    }
-
-    var point: CGPoint
-    var semantic: Semantic
-    var targetHeight: CGFloat
-}
-```
-
-- `ClefAnchor` 表达的是“音乐语义锚点”，不是 `CoreText` baseline，也不是字形外接框中心。
-- 对 `treble clef` 来说，建议固定语义为 `.trebleGLine`，也就是把谱号内部对应 G 线的参考点锚到五线上的目标位置。
-- 在当前“左上原点、`y` 向下”的编号里，高音谱号应锚到 `lineIndex = 3`，因为它对应的是“自下往上第二线”，换成自上而下编号就是第 4 条线。
-- 建议 `ClefAnchor` 的计算规则固定为：
-  - `point.x = clefAreaRect.midX`
-  - `point.y = lineY(at: 3)`
-  - `targetHeight = staffRect.height * clefScale`
-- `CoreTextMusicGlyphRenderer` 只根据 `semantic` 做内部的 baseline 校正、optical bounds 校正和 glyph 偏移；`StaffSceneProvider` 不直接碰这些文本细节。
-
-### 4. `StaffGeometry` 建议接口
+- 新增 `[StaffGeometry.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffGeometry.swift)`。
+- `StaffGeometry` 必须显式接收 `StaffCanvasOrientation`，即便首版固定为 `.standard`，也要把平台边界和共享几何的契约写在构造函数里。
 
 ```swift
 // NoteMaster_Ver_1/Shared/Staff/StaffGeometry.swift
@@ -153,55 +129,38 @@ struct StaffGeometry: Equatable, Sendable {
 }
 ```
 
-- `orientation` 虽然首版固定为 `.standard`，仍建议进 `StaffGeometry` 构造函数，避免将来平台边界和共享几何的契约变成隐式。
-- `staffLineSegments` 直接产出逻辑线段，便于 `StaffLinesLayer` 纯几何绘制，不让 layer 自己重复算线位。
-- `clefAreaRect` 独立存在，避免以后 notehead、rest、key signature 进入后再返工左侧布局。
-- `clefAnchor(for:)` 返回语义锚点，而不是 `CGRect` 文本框；这样 future `CGPath` 后端可直接复用同一套布局结果。
-
-### 5. 平台归一化职责
-
-- `StaffRootLayer` 或平台根 layer 需要提供一个“归一化入口”，确保共享层拿到的绘制上下文和逻辑坐标约定一致。
-- 建议职责边界如下：
-  - 平台 view：负责托管 layer、同步 `contentsScale`
-  - 平台根 layer：负责把原生 `CGContext` 归一化到左上原点、`y` 向下
-  - 共享 `StaffGeometry` / `StaffSceneProvider` / `MusicGlyphRenderer`：只消费逻辑坐标，不做平台判断
-- 对未来事件系统，建议提前约定：
-  - iOS 点击点默认就是逻辑点
-  - macOS 点击点在进入共享层前执行 `logicalY = bounds.height - platformY`
-
-## 阶段 1：建立 `Shared/Staff` 域与配置边界
-
-- 新增目录 `NoteMaster_Ver_1/Shared/Staff`，与现有 `Shared/Fretboard` 平行，避免把谱表逻辑混入指板域。
-- 新增 `[StaffConfiguration.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffConfiguration.swift)`。
-- 在 `StaffConfiguration` 中定义：
-  - `MusicGlyphRenderMode`：`.automatic`、`.coreText`、`.cgPath`
-  - `LayoutMetrics`：`horizontalInsetRatio`、`verticalInsetRatio`、`staffLineCount`、`staffSpaceHeight`、`clefAreaWidthRatio`、`staffLineWidth`、`clefScale`
-  - `preferredHeight`
-  - `clef`：当前只需要 `.treble`
-- 在 `MusicGlyphRenderMode` 和 `StaffConfiguration` 上直接写清楚注释：
-  - `.cgPath` 为未来迁移保留
-  - 本阶段 factory 仍只返回 `CoreText` renderer
-  - 调用侧不应假设 `.cgPath` 已具备独立实现
-- 新增 `[StaffDisplayState.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Controls/StaffDisplayState.swift)` 或等价状态容器，职责对齐 `[FretboardDisplayState.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Controls/FretboardDisplayState.swift)`：
-  - 持有 `StaffConfiguration`
-  - 计算属性派生 `sceneProvider`
-  - 当前不引入按钮动作，只保证未来控制面板接入点稳定
-
-## 阶段 2：实现 `StaffGeometry` 与 `StaffScene` 语义层
-
-- 新增 `[StaffGeometry.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffGeometry.swift)`。
 - `StaffGeometry` 负责：
   - 从 `bounds` 推导 `drawingRect`
   - 计算五条线的 `y` 位置
   - 计算 `staffRect`
   - 计算 `clefRect` 或 `clefAnchor`
   - 提供逻辑坐标下的辅助方法，如 `lineY(at:)`、`spaceCenterY(at:)`
+- `StaffGeometry` 的几何公式在本阶段直接定死：
+  - `staffHeight = CGFloat(staffLineCount - 1) * staffSpaceHeight`
+  - `staffTopY = drawingRect.midY - (staffHeight / 2)`
+  - `lineY(i) = staffTopY + CGFloat(i) * staffSpaceHeight`
+  - `spaceCenterY(i) = staffTopY + (CGFloat(i) + 0.5) * staffSpaceHeight`
 - `StaffGeometry` 里的编号规则要直接写死在实现与注释里：
   - `lineIndex = 0` 是最上方 staff line
   - `lineIndex = 4` 是最下方 staff line
   - `treble clef` 的语义锚线固定走 `lineIndex = 3`
 - 这里要特别避免把 `CTLine`、`CTFont`、`CGPath` 等后端类型混进去，保持与当前 `[FretboardGeometry.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Fretboard/FretboardGeometry.swift)` 一样，只产出几何事实。
 - 新增 `[StaffScene.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffScene.swift)` 与 `[StaffSceneProvider.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffSceneProvider.swift)`。
+- 在 `StaffScene` 中显式引入语义锚点类型，避免把 CoreText baseline 泄漏到场景层。
+
+```swift
+// NoteMaster_Ver_1/Shared/Staff/StaffScene.swift
+struct ClefAnchor: Equatable, Sendable {
+    enum Semantic: Equatable, Sendable {
+        case trebleGLine
+    }
+
+    var point: CGPoint
+    var semantic: Semantic
+    var targetHeight: CGFloat
+}
+```
+
 - `StaffScene` 至少包含：
   - `lineSegments`
   - `glyphs`
@@ -211,6 +170,12 @@ struct StaffGeometry: Equatable, Sendable {
   - `tintColor`
   - `renderHint`
 - `anchor` 的设计要从一开始就区分“视觉外接框”和“音乐语义锚点”；也就是说，不让调用方直接传 `CTLine` 的 baseline，而是统一传“这个谱号应该锚到哪根线 / 哪个逻辑点”。这样未来从 CoreText 切到 CGPath 时，不会把布局协议一起推倒重来。
+- `treble clef` 的首版锚点计算规则也在本阶段固定：
+  - `semantic = .trebleGLine`
+  - `point.x = clefAreaRect.midX`
+  - `point.y = lineY(at: 3)`
+  - `targetHeight = staffRect.height * clefScale`
+- `staffLineSegments` 直接由 `StaffGeometry` 产出，供 `StaffLinesLayer` 消费；`clefAreaRect` 必须独立存在，避免未来 notehead、rest、key signature 进入后再返工左侧布局。
 
 ## 阶段 3：字体 bootstrap 与符号标识层
 
@@ -237,6 +202,10 @@ struct StaffGeometry: Equatable, Sendable {
   - 基于 `MusicGlyph` 创建 attributed string / glyph run
   - 把 `treble clef` 按 `StaffScene` 提供的语义锚点落到逻辑坐标
   - 只在 renderer 内部处理 baseline 校正和 glyph optical bounds，不把这类细节外泄给 `SceneProvider`
+- 这里的实现细则要写清楚：
+  - renderer 只认 `ClefAnchor.semantic`、`point` 和 `targetHeight`
+  - renderer 可以内部维护 `treble clef` 的 baseline 偏移或 optical bounds 偏移
+  - 这些偏移绝不能回传到 `StaffSceneProvider` 或 `StaffGeometry`
 - 新增 `[MusicGlyphRendererFactory.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/MusicGlyphRendererFactory.swift)`。
 - 工厂分发规则建议固定为：
   - `.automatic` -> `CoreTextMusicGlyphRenderer`
@@ -255,6 +224,10 @@ struct StaffGeometry: Equatable, Sendable {
 - `StaffRootLayer` 还需要有一个显式的上下文归一化步骤：
   - iOS 路径通常为 no-op
   - macOS 路径在进入共享绘制前完成一次 `translate + scale`，把上下文统一成左上原点、`y` 向下
+- 这一阶段要把平台归一化职责写死：
+  - 平台 view 只负责托管 layer、同步 `contentsScale`
+  - 平台根 layer 负责把原生 `CGContext` 归一化到统一逻辑坐标
+  - `StaffGeometry`、`StaffSceneProvider`、`MusicGlyphRenderer` 不允许再读取平台状态或判断 `context.ctm`
 - 根 layer 下至少拆两个子层：
   - `[StaffLinesLayer.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffLinesLayer.swift)`：用 `CAShapeLayer` 或自定义 `CALayer` 画五线，纯几何，不依赖字体
   - `[StaffGlyphLayer.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Shared/Staff/StaffGlyphLayer.swift)`：遍历 `StaffScene.glyphs` 并调用 `MusicGlyphRendererFactory`
@@ -271,9 +244,11 @@ struct StaffGeometry: Equatable, Sendable {
   - iOS 用 `layerClass`
   - macOS 用 `makeBackingLayer()`
   - 两边都负责 `contentsScale`
-  - 两边都向 root layer 显式注入统一逻辑坐标约定
+  - 两边都向 root layer 显式注入 `StaffCanvasOrientation.standard`
   - 当前先不做 hit testing / raw event 桥接
-- 即便当前不做交互，也要在平台包装层先把“平台点 -> 逻辑点”的转换规则注释写清楚，避免未来事件系统重新引入坐标分叉。
+- 即便当前不做交互，也要在平台包装层先把“平台点 -> 逻辑点”的转换规则注释写清楚，避免未来事件系统重新引入坐标分叉：
+  - iOS 点击点默认就是逻辑点
+  - macOS 点击点进入共享层前按 `logicalY = bounds.height - platformY` 转换
 - 在 `[iOSViewController.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Platform/iOS/iOSViewController.swift)` 和 `[macOSViewController.swift](/Users/shaun/Library/Mobile Documents/com~apple~CloudDocs/Develop/NoteMaster_Ver_1/NoteMaster_Ver_1/Platform/macOS/macOSViewController.swift)` 中新增 `staffView` 的演示接入。
 - 演示阶段建议：
   - 先固定 `renderMode = .coreText`
