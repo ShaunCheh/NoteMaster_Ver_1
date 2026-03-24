@@ -16,6 +16,8 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        MusicFontRegistry.bootstrapIfNeeded()
+
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = iOSViewController()
         window.backgroundColor = .white

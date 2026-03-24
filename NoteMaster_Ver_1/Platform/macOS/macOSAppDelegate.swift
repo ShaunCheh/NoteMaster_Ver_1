@@ -21,6 +21,8 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        MusicFontRegistry.bootstrapIfNeeded()
+
         let viewController = macOSViewController()
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
