@@ -115,6 +115,8 @@ final class StaffRootLayer: CALayer {
             linesLayer.configuration = configuration
             linesLayer.orientation = configuration.canvasOrientation
             glyphLayer.frame = bounds
+            glyphLayer.configuration = configuration
+            glyphLayer.sceneProvider = sceneProvider
             linesLayer.contentsScale = contentsScale
             glyphLayer.contentsScale = contentsScale
             linesLayer.contextNormalizationMode = contextNormalizationMode
@@ -133,16 +135,6 @@ final class StaffRootLayer: CALayer {
 
     private func updatePresentationModel() {
         applySharedLayerSettings()
-        let geometry = StaffGeometry(
-            configuration: configuration,
-            bounds: bounds,
-            orientation: configuration.canvasOrientation
-        )
-        let scene = sceneProvider.makeScene(geometry: geometry)
-
-        glyphLayer.configuration = configuration
-        glyphLayer.geometry = geometry
-        glyphLayer.glyphs = scene.glyphs
         invalidateSublayerDisplay()
     }
 

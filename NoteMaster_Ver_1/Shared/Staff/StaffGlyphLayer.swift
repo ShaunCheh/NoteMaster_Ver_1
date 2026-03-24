@@ -21,19 +21,9 @@ final class StaffGlyphLayer: CALayer {
         }
     }
 
-    var geometry: StaffGeometry? {
+    var sceneProvider: StaffSceneProvider = .init() {
         didSet {
-            guard oldValue != geometry else {
-                return
-            }
-
-            setNeedsDisplay()
-        }
-    }
-
-    var glyphs: [StaffGlyphItem] = [] {
-        didSet {
-            guard oldValue != glyphs else {
+            guard oldValue != sceneProvider else {
                 return
             }
 
@@ -71,8 +61,7 @@ final class StaffGlyphLayer: CALayer {
 
         if let otherLayer = layer as? StaffGlyphLayer {
             configuration = otherLayer.configuration
-            geometry = otherLayer.geometry
-            glyphs = otherLayer.glyphs
+            sceneProvider = otherLayer.sceneProvider
             contextNormalizationMode = otherLayer.contextNormalizationMode
             resourceBundle = otherLayer.resourceBundle
         }
@@ -86,10 +75,13 @@ final class StaffGlyphLayer: CALayer {
     }
 
     override func draw(in context: CGContext) {
-        guard
-            let geometry,
-            !glyphs.isEmpty
-        else {
+        let geometry = StaffGeometry(
+            configuration: configuration,
+            bounds: bounds,
+            orientation: configuration.canvasOrientation
+        )
+        let glyphs = sceneProvider.makeScene(geometry: geometry).glyphs
+        guard !glyphs.isEmpty else {
             return
         }
 
