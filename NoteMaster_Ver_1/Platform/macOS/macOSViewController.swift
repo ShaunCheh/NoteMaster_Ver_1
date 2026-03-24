@@ -59,6 +59,9 @@ final class macOSViewController: NSViewController {
         return staffControlPanelView
     }()
 
+    private let scrollView = NSScrollView()
+    private let contentView = NSView()
+
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
         fretboardView.onRawEvent = { hitResult in
@@ -87,56 +90,73 @@ final class macOSViewController: NSViewController {
     }
 
     private func configureLayout() {
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.translatesAutoresizingMaskIntoConstraints = false
         buttonPanelView.translatesAutoresizingMaskIntoConstraints = false
         staffControlPanelView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(buttonPanelView)
-        view.addSubview(staffControlPanelView)
-        view.addSubview(staffView)
-        view.addSubview(fretboardView)
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.documentView = contentView
+        view.addSubview(scrollView)
+        contentView.addSubview(buttonPanelView)
+        contentView.addSubview(staffControlPanelView)
+        contentView.addSubview(staffView)
+        contentView.addSubview(fretboardView)
 
         let safeArea = view.safeAreaLayoutGuide
 
         NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: safeArea.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: safeArea.bottomAnchor),
+            contentView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            contentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            contentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
             buttonPanelView.leadingAnchor.constraint(
-                equalTo: safeArea.leadingAnchor,
+                equalTo: contentView.leadingAnchor,
                 constant: Layout.horizontalInset
             ),
             buttonPanelView.trailingAnchor.constraint(
-                equalTo: safeArea.trailingAnchor,
+                equalTo: contentView.trailingAnchor,
                 constant: -Layout.horizontalInset
             ),
             buttonPanelView.topAnchor.constraint(
-                equalTo: safeArea.topAnchor,
+                equalTo: contentView.topAnchor,
                 constant: Layout.topInset
             ),
             staffControlPanelView.leadingAnchor.constraint(
-                equalTo: safeArea.leadingAnchor,
+                equalTo: contentView.leadingAnchor,
                 constant: Layout.horizontalInset
             ),
             staffControlPanelView.trailingAnchor.constraint(
-                equalTo: safeArea.trailingAnchor,
+                equalTo: contentView.trailingAnchor,
                 constant: -Layout.horizontalInset
             ),
             staffControlPanelView.topAnchor.constraint(
                 equalTo: buttonPanelView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
-            staffView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
-            staffView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            staffView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            staffView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             staffView.topAnchor.constraint(
                 equalTo: staffControlPanelView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
-            fretboardView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
-            fretboardView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            fretboardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            fretboardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             fretboardView.topAnchor.constraint(
                 equalTo: staffView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
             fretboardView.bottomAnchor.constraint(
-                lessThanOrEqualTo: safeArea.bottomAnchor,
+                equalTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
             )
         ])
