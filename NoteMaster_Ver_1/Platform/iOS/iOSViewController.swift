@@ -16,11 +16,11 @@ final class iOSViewController: UIViewController {
                 return
             }
 
-            applyDisplayState()
+            applyFretboardDisplayState()
         }
     }
 
-    private let staffDisplayState = StaffDisplayState(
+    private var staffDisplayState = StaffDisplayState(
         configuration: StaffConfiguration(
             renderMode: .coreText,
             trebleClefAnchorLogicalDownwardShiftRatio: 0.11,
@@ -29,7 +29,15 @@ final class iOSViewController: UIViewController {
                 showsClefAnchor: true
             )
         )
-    )
+    ) {
+        didSet {
+            guard isViewLoaded else {
+                return
+            }
+
+            applyStaffDisplayState()
+        }
+    }
 
     private lazy var buttonPanelView: iOSButtonPanelView = {
         let buttonPanelView = iOSButtonPanelView(
@@ -39,6 +47,16 @@ final class iOSViewController: UIViewController {
             self?.handleButtonAction(actionID)
         }
         return buttonPanelView
+    }()
+
+    private lazy var staffControlPanelView: iOSStaffControlPanelView = {
+        let staffControlPanelView = iOSStaffControlPanelView(
+            model: StaffControlPanelSnapshotBuilder.makeModel(from: staffDisplayState)
+        )
+        staffControlPanelView.onEvent = { [weak self] event in
+            self?.handleStaffControlEvent(event)
+        }
+        return staffControlPanelView
     }()
 
     private lazy var fretboardView: iOSFretboardView = {
@@ -65,9 +83,11 @@ final class iOSViewController: UIViewController {
 
     private func configureLayout() {
         buttonPanelView.translatesAutoresizingMaskIntoConstraints = false
+        staffControlPanelView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(buttonPanelView)
+        view.addSubview(staffControlPanelView)
         view.addSubview(staffView)
         view.addSubview(fretboardView)
 
@@ -86,10 +106,22 @@ final class iOSViewController: UIViewController {
                 equalTo: safeArea.topAnchor,
                 constant: Layout.topInset
             ),
+            staffControlPanelView.leadingAnchor.constraint(
+                equalTo: safeArea.leadingAnchor,
+                constant: Layout.horizontalInset
+            ),
+            staffControlPanelView.trailingAnchor.constraint(
+                equalTo: safeArea.trailingAnchor,
+                constant: -Layout.horizontalInset
+            ),
+            staffControlPanelView.topAnchor.constraint(
+                equalTo: buttonPanelView.bottomAnchor,
+                constant: Layout.verticalSpacing
+            ),
             staffView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
             staffView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
             staffView.topAnchor.constraint(
-                equalTo: buttonPanelView.bottomAnchor,
+                equalTo: staffControlPanelView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
             fretboardView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
@@ -106,11 +138,25 @@ final class iOSViewController: UIViewController {
     }
 
     private func applyDisplayState() {
+        applyFretboardDisplayState()
+        applyStaffDisplayState()
+    }
+
+    private func applyFretboardDisplayState() {
         buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
-        staffView.configuration = staffDisplayState.configuration
-        staffView.sceneProvider = staffDisplayState.sceneProvider
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
+        updateLayoutIfNeeded()
+    }
+
+    private func applyStaffDisplayState() {
+        staffControlPanelView.model = StaffControlPanelSnapshotBuilder.makeModel(from: staffDisplayState)
+        staffView.configuration = staffDisplayState.configuration
+        staffView.sceneProvider = staffDisplayState.sceneProvider
+        updateLayoutIfNeeded()
+    }
+
+    private func updateLayoutIfNeeded() {
         view.setNeedsLayout()
         view.layoutIfNeeded()
     }
@@ -124,6 +170,17 @@ final class iOSViewController: UIViewController {
         }
 
         displayState = nextDisplayState
+    }
+
+    private func handleStaffControlEvent(_ event: StaffControlEvent) {
+        var nextStaffDisplayState = staffDisplayState
+        nextStaffDisplayState.apply(event)
+
+        guard nextStaffDisplayState != staffDisplayState else {
+            return
+        }
+
+        staffDisplayState = nextStaffDisplayState
     }
 }
 
