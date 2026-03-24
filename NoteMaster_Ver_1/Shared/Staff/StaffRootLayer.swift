@@ -20,7 +20,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            invalidateLegacyPresentationSnapshot()
+            invalidateSublayersForCurrentState()
         }
     }
 
@@ -30,7 +30,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            invalidateLegacyPresentationSnapshot()
+            invalidateSublayersForCurrentState()
         }
     }
 
@@ -40,8 +40,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            applySharedLayerSettings()
-            invalidateSublayerDisplay()
+            invalidateSublayersForCurrentState()
         }
     }
 
@@ -51,8 +50,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            glyphLayer.resourceBundle = resourceBundle
-            glyphLayer.setNeedsDisplay()
+            invalidateSublayersForCurrentState()
         }
     }
 
@@ -62,8 +60,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            applySharedLayerSettings()
-            invalidateSublayerDisplay()
+            invalidateSublayersForCurrentState()
         }
     }
 
@@ -73,7 +70,7 @@ final class StaffRootLayer: CALayer {
     override init() {
         super.init()
         configureLayer()
-        updatePresentationModel()
+        invalidateSublayersForCurrentState()
     }
 
     override init(layer: Any) {
@@ -87,13 +84,13 @@ final class StaffRootLayer: CALayer {
         }
 
         configureLayer()
-        updatePresentationModel()
+        invalidateSublayersForCurrentState()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         configureLayer()
-        updatePresentationModel()
+        invalidateSublayersForCurrentState()
     }
 
     override func layoutSublayers() {
@@ -106,10 +103,9 @@ final class StaffRootLayer: CALayer {
         drawsAsynchronously = false
         addSublayer(linesLayer)
         addSublayer(glyphLayer)
-        applySharedLayerSettings()
     }
 
-    private func applySharedLayerSettings() {
+    private func synchronizeSublayerState() {
         performWithoutImplicitAnimations {
             linesLayer.frame = bounds
             linesLayer.configuration = configuration
@@ -126,26 +122,22 @@ final class StaffRootLayer: CALayer {
     }
 
     func refreshForCurrentBounds(displayImmediately: Bool = false) {
-        updatePresentationModel()
-        if displayImmediately {
-            linesLayer.displayIfNeeded()
-            glyphLayer.displayIfNeeded()
-        }
-    }
-
-    private func updatePresentationModel() {
-        applySharedLayerSettings()
-        invalidateSublayerDisplay()
-    }
-
-    private func invalidateLegacyPresentationSnapshot() {
-        setNeedsLayout()
-        refreshForCurrentBounds()
+        invalidateSublayersForCurrentState(displayImmediately: displayImmediately)
     }
 
     private func invalidateSublayerDisplay() {
         linesLayer.setNeedsDisplay()
         glyphLayer.setNeedsDisplay()
+    }
+
+    private func invalidateSublayersForCurrentState(displayImmediately: Bool = false) {
+        synchronizeSublayerState()
+        invalidateSublayerDisplay()
+
+        if displayImmediately {
+            linesLayer.displayIfNeeded()
+            glyphLayer.displayIfNeeded()
+        }
     }
 
     private func performWithoutImplicitAnimations(_ updates: () -> Void) {

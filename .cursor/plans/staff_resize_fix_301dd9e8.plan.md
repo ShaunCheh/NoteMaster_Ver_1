@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase4-invalidation-cleanup
     content: 清理 RootLayer 的缓存推送路径并统一失效策略
-    status: pending
+    status: completed
   - id: phase5-verify-resize
     content: 验证 macOS live resize 行为并做静态检查
     status: pending
