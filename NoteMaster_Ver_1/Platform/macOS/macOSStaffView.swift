@@ -67,6 +67,22 @@ final class macOSStaffView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateContentsScale()
+        refreshPresentationForResize(displayImmediately: false)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        refreshPresentationForResize(displayImmediately: inLiveResize)
+    }
+
+    override func viewWillStartLiveResize() {
+        super.viewWillStartLiveResize()
+        refreshPresentationForResize(displayImmediately: true)
+    }
+
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        refreshPresentationForResize(displayImmediately: true)
     }
 
     private var staffRootLayer: StaffRootLayer {
@@ -79,7 +95,7 @@ final class macOSStaffView: NSView {
 
     private func configureView() {
         wantsLayer = true
-        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        layerContentsRedrawPolicy = .duringViewResize
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
         applyState()
@@ -94,11 +110,20 @@ final class macOSStaffView: NSView {
         staffRootLayer.contextNormalizationMode = .flipYToTopLeft
         staffRootLayer.resourceBundle = .main
         updateContentsScale()
+        refreshPresentationForResize(displayImmediately: false)
         invalidateIntrinsicContentSize()
     }
 
     private func updateContentsScale() {
         staffRootLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    private func refreshPresentationForResize(displayImmediately: Bool) {
+        guard let staffRootLayer = layer as? StaffRootLayer else {
+            return
+        }
+
+        staffRootLayer.refreshForCurrentBounds(displayImmediately: displayImmediately)
     }
 }
 #endif

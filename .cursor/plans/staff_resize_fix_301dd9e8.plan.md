@@ -4,7 +4,7 @@ overview: 按你选的方案 B，保留 `StaffRootLayer + StaffLinesLayer + Staf
 todos:
   - id: phase1-root-resize
     content: 收缩 StaffRootLayer 职责并补齐 macOS live resize/redraw 基础行为
-    status: pending
+    status: completed
   - id: phase2-lines-drawtime
     content: 把 StaffLinesLayer 改为 draw-time 基于当前 bounds 现算 StaffGeometry
     status: pending

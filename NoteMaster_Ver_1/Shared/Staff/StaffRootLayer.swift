@@ -20,7 +20,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            updatePresentationModel()
+            invalidateLegacyPresentationSnapshot()
         }
     }
 
@@ -30,7 +30,7 @@ final class StaffRootLayer: CALayer {
                 return
             }
 
-            updatePresentationModel()
+            invalidateLegacyPresentationSnapshot()
         }
     }
 
@@ -41,6 +41,7 @@ final class StaffRootLayer: CALayer {
             }
 
             applySharedLayerSettings()
+            invalidateSublayerDisplay()
         }
     }
 
@@ -62,6 +63,7 @@ final class StaffRootLayer: CALayer {
             }
 
             applySharedLayerSettings()
+            invalidateSublayerDisplay()
         }
     }
 
@@ -96,8 +98,7 @@ final class StaffRootLayer: CALayer {
 
     override func layoutSublayers() {
         super.layoutSublayers()
-        applySharedLayerSettings()
-        updatePresentationModel()
+        refreshForCurrentBounds()
     }
 
     private func configureLayer() {
@@ -109,18 +110,27 @@ final class StaffRootLayer: CALayer {
     }
 
     private func applySharedLayerSettings() {
-        linesLayer.frame = bounds
-        glyphLayer.frame = bounds
-        linesLayer.contentsScale = contentsScale
-        glyphLayer.contentsScale = contentsScale
-        linesLayer.contextNormalizationMode = contextNormalizationMode
-        glyphLayer.contextNormalizationMode = contextNormalizationMode
-        glyphLayer.resourceBundle = resourceBundle
+        performWithoutImplicitAnimations {
+            linesLayer.frame = bounds
+            glyphLayer.frame = bounds
+            linesLayer.contentsScale = contentsScale
+            glyphLayer.contentsScale = contentsScale
+            linesLayer.contextNormalizationMode = contextNormalizationMode
+            glyphLayer.contextNormalizationMode = contextNormalizationMode
+            glyphLayer.resourceBundle = resourceBundle
+        }
+    }
+
+    func refreshForCurrentBounds(displayImmediately: Bool = false) {
+        updatePresentationModel()
+        if displayImmediately {
+            linesLayer.displayIfNeeded()
+            glyphLayer.displayIfNeeded()
+        }
     }
 
     private func updatePresentationModel() {
         applySharedLayerSettings()
-
         let geometry = StaffGeometry(
             configuration: configuration,
             bounds: bounds,
@@ -134,5 +144,23 @@ final class StaffRootLayer: CALayer {
         glyphLayer.configuration = configuration
         glyphLayer.geometry = geometry
         glyphLayer.glyphs = scene.glyphs
+        invalidateSublayerDisplay()
+    }
+
+    private func invalidateLegacyPresentationSnapshot() {
+        setNeedsLayout()
+        refreshForCurrentBounds()
+    }
+
+    private func invalidateSublayerDisplay() {
+        linesLayer.setNeedsDisplay()
+        glyphLayer.setNeedsDisplay()
+    }
+
+    private func performWithoutImplicitAnimations(_ updates: () -> Void) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        updates()
+        CATransaction.commit()
     }
 }
