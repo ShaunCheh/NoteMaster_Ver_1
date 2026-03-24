@@ -5,12 +5,43 @@
 //  Created by Cursor on 2026/3/24.
 //
 
-// 阶段 1 先固定“状态 -> 场景入口”的共享边界；
-// 真正基于 geometry 产出 scene 的逻辑留到阶段 2 再补齐。
+// provider 只负责把共享状态投影成语义场景，不处理字体度量和绘制细节。
 struct StaffSceneProvider: Equatable, Sendable {
     var clef: StaffClef
+    var glyphTintColor: StaffSceneColor
 
-    init(clef: StaffClef = .treble) {
+    init(
+        clef: StaffClef = .treble,
+        glyphTintColor: StaffSceneColor = .primaryInk
+    ) {
         self.clef = clef
+        self.glyphTintColor = glyphTintColor
+    }
+
+    func makeScene(geometry: StaffGeometry) -> StaffScene {
+        guard !geometry.drawingRect.isNull else {
+            return .empty
+        }
+
+        let glyphs = [
+            StaffGlyphItem(
+                symbolID: symbolID(for: clef),
+                placement: .anchor(geometry.clefAnchor(for: clef)),
+                tintColor: glyphTintColor,
+                renderHint: .staffClef
+            )
+        ]
+
+        return StaffScene(
+            lineSegments: geometry.staffLineSegments,
+            glyphs: glyphs
+        )
+    }
+
+    private func symbolID(for clef: StaffClef) -> StaffGlyphSymbolID {
+        switch clef {
+        case .treble:
+            return .trebleClef
+        }
     }
 }
