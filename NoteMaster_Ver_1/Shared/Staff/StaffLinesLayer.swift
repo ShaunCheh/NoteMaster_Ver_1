@@ -9,9 +9,9 @@ import CoreGraphics
 import QuartzCore
 
 final class StaffLinesLayer: CALayer {
-    var lineSegments: [StaffGeometry.StaffLineSegment] = [] {
+    var configuration: StaffConfiguration = .init() {
         didSet {
-            guard oldValue != lineSegments else {
+            guard oldValue != configuration else {
                 return
             }
 
@@ -29,9 +29,9 @@ final class StaffLinesLayer: CALayer {
         }
     }
 
-    var strokeWidth: CGFloat = 1 {
+    var orientation: StaffCanvasOrientation = .standard {
         didSet {
-            guard oldValue != strokeWidth else {
+            guard oldValue != orientation else {
                 return
             }
 
@@ -58,9 +58,9 @@ final class StaffLinesLayer: CALayer {
         super.init(layer: layer)
 
         if let otherLayer = layer as? StaffLinesLayer {
-            lineSegments = otherLayer.lineSegments
+            configuration = otherLayer.configuration
             strokeColorModel = otherLayer.strokeColorModel
-            strokeWidth = otherLayer.strokeWidth
+            orientation = otherLayer.orientation
             contextNormalizationMode = otherLayer.contextNormalizationMode
         }
 
@@ -73,6 +73,12 @@ final class StaffLinesLayer: CALayer {
     }
 
     override func draw(in context: CGContext) {
+        let geometry = StaffGeometry(
+            configuration: configuration,
+            bounds: bounds,
+            orientation: orientation
+        )
+        let lineSegments = geometry.staffLineSegments
         guard !lineSegments.isEmpty else {
             return
         }
@@ -80,7 +86,7 @@ final class StaffLinesLayer: CALayer {
         context.saveGState()
         applyContextNormalizationIfNeeded(in: context)
         context.setStrokeColor(strokeColorModel.cgColor)
-        context.setLineWidth(max(strokeWidth, 1))
+        context.setLineWidth(max(configuration.layoutMetrics.staffLineWidth, 1))
         context.setLineCap(.round)
 
         for lineSegment in lineSegments {

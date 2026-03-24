@@ -112,6 +112,8 @@ final class StaffRootLayer: CALayer {
     private func applySharedLayerSettings() {
         performWithoutImplicitAnimations {
             linesLayer.frame = bounds
+            linesLayer.configuration = configuration
+            linesLayer.orientation = configuration.canvasOrientation
             glyphLayer.frame = bounds
             linesLayer.contentsScale = contentsScale
             glyphLayer.contentsScale = contentsScale
@@ -137,9 +139,6 @@ final class StaffRootLayer: CALayer {
             orientation: configuration.canvasOrientation
         )
         let scene = sceneProvider.makeScene(geometry: geometry)
-
-        linesLayer.strokeWidth = configuration.layoutMetrics.staffLineWidth
-        linesLayer.lineSegments = scene.lineSegments
 
         glyphLayer.configuration = configuration
         glyphLayer.geometry = geometry

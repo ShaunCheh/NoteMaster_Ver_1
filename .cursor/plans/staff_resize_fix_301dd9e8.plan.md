@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: phase2-lines-drawtime
     content: 把 StaffLinesLayer 改为 draw-time 基于当前 bounds 现算 StaffGeometry
-    status: pending
+    status: completed
   - id: phase3-glyph-drawtime
     content: 把 StaffGlyphLayer 改为 draw-time 基于当前 bounds 现算 geometry 与 scene
     status: pending
