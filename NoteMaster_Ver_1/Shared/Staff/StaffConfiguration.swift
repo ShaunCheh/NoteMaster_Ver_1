@@ -14,8 +14,18 @@ enum MusicGlyphRenderMode: Equatable, Sendable {
     case cgPath
 }
 
-enum StaffClef: Equatable, Sendable {
+enum StaffClef: CaseIterable, Equatable, Hashable, Sendable {
     case treble
+    case bass
+
+    var title: String {
+        switch self {
+        case .treble:
+            return "Treble"
+        case .bass:
+            return "Bass"
+        }
+    }
 }
 
 struct StaffConfiguration: Equatable, Sendable {
@@ -99,8 +109,9 @@ struct StaffConfiguration: Equatable, Sendable {
     var clef: StaffClef
     var renderMode: MusicGlyphRenderMode
     var layoutMetrics: LayoutMetrics
-    // 以共享逻辑坐标语义描述 treble clef 的 glyph 内部锚点下移比例；正值表示向下。
+    // 以共享逻辑坐标语义描述各 clef 的 glyph 内部锚点下移比例；正值表示向下。
     var trebleClefAnchorLogicalDownwardShiftRatio: CGFloat
+    var bassClefAnchorLogicalDownwardShiftRatio: CGFloat
     var debugOptions: DebugOptions
 
     init(
@@ -109,6 +120,7 @@ struct StaffConfiguration: Equatable, Sendable {
         renderMode: MusicGlyphRenderMode = .automatic,
         layoutMetrics: LayoutMetrics = .default,
         trebleClefAnchorLogicalDownwardShiftRatio: CGFloat = 0.06,
+        bassClefAnchorLogicalDownwardShiftRatio: CGFloat = 0,
         debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation
@@ -116,10 +128,32 @@ struct StaffConfiguration: Equatable, Sendable {
         self.renderMode = renderMode
         self.layoutMetrics = layoutMetrics
         self.trebleClefAnchorLogicalDownwardShiftRatio = trebleClefAnchorLogicalDownwardShiftRatio
+        self.bassClefAnchorLogicalDownwardShiftRatio = bassClefAnchorLogicalDownwardShiftRatio
         self.debugOptions = debugOptions
     }
 
     var preferredHeight: CGFloat {
         layoutMetrics.preferredHeight()
+    }
+
+    func clefAnchorLogicalDownwardShiftRatio(for clef: StaffClef) -> CGFloat {
+        switch clef {
+        case .treble:
+            return trebleClefAnchorLogicalDownwardShiftRatio
+        case .bass:
+            return bassClefAnchorLogicalDownwardShiftRatio
+        }
+    }
+
+    mutating func setClefAnchorLogicalDownwardShiftRatio(
+        _ value: CGFloat,
+        for clef: StaffClef
+    ) {
+        switch clef {
+        case .treble:
+            trebleClefAnchorLogicalDownwardShiftRatio = value
+        case .bass:
+            bassClefAnchorLogicalDownwardShiftRatio = value
+        }
     }
 }

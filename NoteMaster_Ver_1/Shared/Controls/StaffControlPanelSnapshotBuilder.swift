@@ -24,24 +24,71 @@ enum StaffControlPanelSnapshotBuilder {
         id: StaffControlSectionID,
         displayState: StaffDisplayState
     ) -> StaffControlSection? {
-        let sliders = StaffSliderControlItem.ID.allCases
-            .filter { $0.sectionID == id }
-            .map {
-                makeSlider(
-                    for: $0,
-                    displayState: displayState
-                )
-            }
+        let rows = makeRows(
+            for: id,
+            displayState: displayState
+        )
 
-        guard !sliders.isEmpty else {
+        guard !rows.isEmpty else {
             return nil
         }
 
         return StaffControlSection(
             id: id,
             title: id.title,
-            sliders: sliders
+            rows: rows
         )
+    }
+
+    private static func makeRows(
+        for sectionID: StaffControlSectionID,
+        displayState: StaffDisplayState
+    ) -> [StaffControlRow] {
+        let optionRows = StaffOptionControlItem.ID.allCases
+            .filter { $0.sectionID == sectionID }
+            .map {
+                StaffControlRow.option(
+                    makeOption(
+                        for: $0,
+                        displayState: displayState
+                    )
+                )
+            }
+
+        let sliderRows = StaffSliderControlItem.ID.allCases
+            .filter { $0.sectionID == sectionID }
+            .map {
+                StaffControlRow.slider(
+                    makeSlider(
+                        for: $0,
+                        displayState: displayState
+                    )
+                )
+            }
+
+        return optionRows + sliderRows
+    }
+
+    private static func makeOption(
+        for optionID: StaffOptionControlItem.ID,
+        displayState: StaffDisplayState
+    ) -> StaffOptionControlItem {
+        switch optionID {
+        case .clef:
+            return StaffOptionControlItem(
+                id: optionID,
+                title: optionID.title,
+                accessibilityLabel: optionID.accessibilityLabel,
+                choices: StaffClef.allCases.map {
+                    StaffOptionChoice(
+                        clef: $0,
+                        title: $0.title,
+                        isSelected: $0 == displayState.configuration.clef
+                    )
+                },
+                isEnabled: true
+            )
+        }
     }
 
     private static func makeSlider(
@@ -79,8 +126,10 @@ enum StaffControlPanelSnapshotBuilder {
         switch sliderID {
         case .clefScale:
             return displayState.configuration.layoutMetrics.clefScale
-        case .trebleClefAnchorYOffset:
-            return displayState.configuration.trebleClefAnchorLogicalDownwardShiftRatio
+        case .clefAnchorYOffset:
+            return displayState.configuration.clefAnchorLogicalDownwardShiftRatio(
+                for: displayState.configuration.clef
+            )
         }
     }
 
@@ -89,7 +138,7 @@ enum StaffControlPanelSnapshotBuilder {
         displayState _: StaffDisplayState
     ) -> Bool {
         switch sliderID {
-        case .clefScale, .trebleClefAnchorYOffset:
+        case .clefScale, .clefAnchorYOffset:
             return true
         }
     }
@@ -101,7 +150,7 @@ enum StaffControlPanelSnapshotBuilder {
         switch sliderID {
         case .clefScale:
             return String(format: "%.2fx", Double(value))
-        case .trebleClefAnchorYOffset:
+        case .clefAnchorYOffset:
             // 避免接近 0 的值在 UI 上显示成 -0.00。
             let normalizedValue: CGFloat = abs(value) < 0.005 ? 0 : value
             return String(format: "%+.2f", Double(normalizedValue))

@@ -50,6 +50,12 @@ struct MusicGlyph: Equatable, Sendable {
         fontFace: .bravura,
         scalarValue: 0xE050
     )
+
+    // SMuFL fClef，对应 Bravura 中的 bass clef。
+    static let bassClef = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE062
+    )
 }
 
 extension StaffGlyphSymbolID {
@@ -57,6 +63,8 @@ extension StaffGlyphSymbolID {
         switch self {
         case .trebleClef:
             return .trebleClef
+        case .bassClef:
+            return .bassClef
         }
     }
 }

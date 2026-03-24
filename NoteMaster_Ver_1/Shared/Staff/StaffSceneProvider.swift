@@ -47,6 +47,8 @@ struct StaffSceneProvider: Equatable, Sendable {
         switch clef {
         case .treble:
             return .trebleClef
+        case .bass:
+            return .bassClef
         }
     }
 }

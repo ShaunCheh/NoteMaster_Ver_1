@@ -338,15 +338,26 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         for semantic: ClefAnchor.Semantic,
         geometry: StaffGeometry
     ) -> AnchorMetrics {
+        let downwardShiftRatio = geometry.configuration.clefAnchorLogicalDownwardShiftRatio(
+            for: semantic.clef
+        )
+
         switch semantic {
         case .trebleGLine:
-            // 基于 Bravura gClef 的 CoreText optical bounds 做经验对齐，
+            // 基于 Bravura clef glyph 的 CoreText optical bounds 做经验对齐，
             // 这里额外把 glyph 内部锚点按共享逻辑语义“向下”微调配置值，以新的锚点参与对齐；
             // 注意：optical bounds 的局部坐标是 y-up，因此逻辑下移要体现在更小的 yRatio 上。
             // 后续切到 CGPath renderer 时应把这类补偿迁移到新的后端实现中。
             return AnchorMetrics(
                 xRatio: 0.5,
-                yRatio: 0.56 - geometry.configuration.trebleClefAnchorLogicalDownwardShiftRatio
+                yRatio: 0.56 - downwardShiftRatio
+            )
+        case .bassFLine:
+            // bass clef 的语义锚点对齐到 F line 穿过双点之间的位置，
+            // 因此 xRatio 需要落在 glyph 偏右的双点区域，而不是整个 glyph 的几何中心。
+            return AnchorMetrics(
+                xRatio: 0.74,
+                yRatio: 0.5 - downwardShiftRatio
             )
         }
     }

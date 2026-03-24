@@ -33,7 +33,7 @@ final class macOSStaffControlPanelView: NSView {
 
     private let sectionsStackView = NSStackView()
     private var sectionViews: [StaffControlSectionID: SectionView] = [:]
-    private var sliderRowsByID: [StaffSliderControlItem.ID: SliderRowView] = [:]
+    private var controlViewsByID: [StaffControlRowID: NSView] = [:]
 
     override init(frame frameRect: NSRect) {
         model = .empty
@@ -92,13 +92,13 @@ final class macOSStaffControlPanelView: NSView {
     }
 
     private func applyModel() {
-        removeObsoleteSliderRows(notIn: Set(model.sliders.map(\.id)))
+        removeObsoleteControlViews(notIn: Set(model.rows.map(\.id)))
         removeObsoleteSectionViews(notIn: Set(model.sections.map(\.id)))
 
         let orderedSectionViews = model.sections.map { section -> SectionView in
             let sectionView = self.sectionView(for: section.id)
             sectionView.titleText = section.title
-            syncSliderRows(
+            syncControlRows(
                 in: sectionView,
                 for: section
             )
@@ -114,14 +114,12 @@ final class macOSStaffControlPanelView: NSView {
         needsLayout = true
     }
 
-    private func syncSliderRows(
+    private func syncControlRows(
         in sectionView: SectionView,
         for section: StaffControlSection
     ) {
-        let orderedRows = section.sliders.map { slider -> SliderRowView in
-            let rowView = sliderRow(for: slider)
-            rowView.apply(item: slider)
-            return rowView
+        let orderedRows = section.rows.map { row -> NSView in
+            controlView(for: row)
         }
 
         sectionView.rows = orderedRows
@@ -137,24 +135,48 @@ final class macOSStaffControlPanelView: NSView {
         return sectionView
     }
 
-    private func sliderRow(for item: StaffSliderControlItem) -> SliderRowView {
-        if let existingRow = sliderRowsByID[item.id] {
-            return existingRow
-        }
+    private func controlView(for row: StaffControlRow) -> NSView {
+        switch row {
+        case let .option(item):
+            let rowID = row.id
+            if let existingRow = controlViewsByID[rowID] as? OptionRowView {
+                existingRow.apply(item: item)
+                return existingRow
+            }
 
-        let rowView = SliderRowView(frame: .zero)
-        rowView.onEvent = { [weak self] event in
-            self?.onEvent?(event)
+            detachControlViewIfNeeded(for: rowID)
+
+            let rowView = OptionRowView(frame: .zero)
+            rowView.onEvent = { [weak self] event in
+                self?.onEvent?(event)
+            }
+            rowView.apply(item: item)
+            controlViewsByID[rowID] = rowView
+            return rowView
+        case let .slider(item):
+            let rowID = row.id
+            if let existingRow = controlViewsByID[rowID] as? SliderRowView {
+                existingRow.apply(item: item)
+                return existingRow
+            }
+
+            detachControlViewIfNeeded(for: rowID)
+
+            let rowView = SliderRowView(frame: .zero)
+            rowView.onEvent = { [weak self] event in
+                self?.onEvent?(event)
+            }
+            rowView.apply(item: item)
+            controlViewsByID[rowID] = rowView
+            return rowView
         }
-        sliderRowsByID[item.id] = rowView
-        return rowView
     }
 
-    private func removeObsoleteSliderRows(notIn validIDs: Set<StaffSliderControlItem.ID>) {
-        let obsoleteIDs = sliderRowsByID.keys.filter { !validIDs.contains($0) }
+    private func removeObsoleteControlViews(notIn validIDs: Set<StaffControlRowID>) {
+        let obsoleteIDs = controlViewsByID.keys.filter { !validIDs.contains($0) }
 
         for id in obsoleteIDs {
-            guard let rowView = sliderRowsByID.removeValue(forKey: id) else {
+            guard let rowView = controlViewsByID.removeValue(forKey: id) else {
                 continue
             }
 
@@ -163,6 +185,18 @@ final class macOSStaffControlPanelView: NSView {
             }
             rowView.removeFromSuperview()
         }
+    }
+
+    private func detachControlViewIfNeeded(for id: StaffControlRowID) {
+        guard let rowView = controlViewsByID[id] else {
+            return
+        }
+
+        if let stackView = rowView.superview as? NSStackView {
+            stackView.removeArrangedSubview(rowView)
+        }
+        rowView.removeFromSuperview()
+        controlViewsByID.removeValue(forKey: id)
     }
 
     private func removeObsoleteSectionViews(notIn validIDs: Set<StaffControlSectionID>) {
@@ -194,6 +228,93 @@ final class macOSStaffControlPanelView: NSView {
             view.removeFromSuperview()
             stackView.addArrangedSubview(view)
         }
+    }
+}
+
+private final class OptionRowView: NSView {
+    var onEvent: ((StaffControlEvent) -> Void)?
+
+    private var choices: [StaffOptionChoice] = []
+    private var isApplyingItem = false
+
+    private let contentStackView = NSStackView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let segmentedControl = NSSegmentedControl()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        configureView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureView()
+    }
+
+    func apply(item: StaffOptionControlItem) {
+        titleLabel.stringValue = item.title
+        segmentedControl.toolTip = item.accessibilityLabel
+        segmentedControl.identifier = NSUserInterfaceItemIdentifier(
+            "staff-control-option-\(String(describing: item.id))"
+        )
+        segmentedControl.isEnabled = item.isEnabled
+        choices = item.choices
+
+        isApplyingItem = true
+        segmentedControl.segmentCount = item.choices.count
+
+        var selectedSegment = -1
+        for (index, choice) in item.choices.enumerated() {
+            segmentedControl.setLabel(choice.title, forSegment: index)
+            segmentedControl.setEnabled(item.isEnabled, forSegment: index)
+
+            if choice.isSelected {
+                selectedSegment = index
+            }
+        }
+
+        segmentedControl.selectedSegment = selectedSegment
+        isApplyingItem = false
+    }
+
+    private func configureView() {
+        contentStackView.orientation = .vertical
+        contentStackView.alignment = .leading
+        contentStackView.distribution = .fill
+        contentStackView.spacing = Style.optionContentSpacing
+        contentStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        titleLabel.font = .systemFont(ofSize: Style.bodyFontSize, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.lineBreakMode = .byTruncatingTail
+
+        segmentedControl.segmentStyle = .rounded
+        segmentedControl.trackingMode = .selectOne
+        segmentedControl.target = self
+        segmentedControl.action = #selector(handleSelectionChanged(_:))
+
+        addSubview(contentStackView)
+        contentStackView.addArrangedSubview(titleLabel)
+        contentStackView.addArrangedSubview(segmentedControl)
+
+        NSLayoutConstraint.activate([
+            contentStackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentStackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            contentStackView.topAnchor.constraint(equalTo: topAnchor),
+            contentStackView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
+    @objc
+    private func handleSelectionChanged(_ sender: NSSegmentedControl) {
+        guard
+            !isApplyingItem,
+            choices.indices.contains(sender.selectedSegment)
+        else {
+            return
+        }
+
+        onEvent?(.setClef(choices[sender.selectedSegment].clef))
     }
 }
 
@@ -375,8 +496,8 @@ private extension StaffSliderControlItem.ID {
         switch self {
         case .clefScale:
             return .setClefScale(value)
-        case .trebleClefAnchorYOffset:
-            return .setTrebleClefAnchorLogicalDownwardShiftRatio(value)
+        case .clefAnchorYOffset:
+            return .setClefAnchorLogicalDownwardShiftRatio(value)
         }
     }
 }
@@ -392,6 +513,7 @@ private enum Style {
     static let sectionSpacing: CGFloat = 12
     static let sectionContentSpacing: CGFloat = 6
     static let rowSpacing: CGFloat = 12
+    static let optionContentSpacing: CGFloat = 8
     static let sliderContentSpacing: CGFloat = 8
     static let headerSpacing: CGFloat = 8
     static let minimumSliderWidth: CGFloat = 220

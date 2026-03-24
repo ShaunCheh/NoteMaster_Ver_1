@@ -10,6 +10,7 @@ import CoreGraphics
 struct ClefAnchor: Equatable, Sendable {
     enum Semantic: Equatable, Sendable {
         case trebleGLine
+        case bassFLine
     }
 
     // 语义锚点使用共享逻辑坐标，不暴露 CoreText baseline。
@@ -20,6 +21,7 @@ struct ClefAnchor: Equatable, Sendable {
 
 enum StaffGlyphSymbolID: Equatable, Sendable {
     case trebleClef
+    case bassClef
 }
 
 struct StaffSceneColor: Equatable, Sendable {
@@ -111,4 +113,15 @@ struct StaffScene: Equatable, Sendable {
         lineSegments: [],
         glyphs: []
     )
+}
+
+extension ClefAnchor.Semantic {
+    var clef: StaffClef {
+        switch self {
+        case .trebleGLine:
+            return .treble
+        case .bassFLine:
+            return .bass
+        }
+    }
 }

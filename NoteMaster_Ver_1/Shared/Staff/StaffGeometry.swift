@@ -120,6 +120,15 @@ struct StaffGeometry: Equatable, Sendable {
                 semantic: .trebleGLine,
                 targetHeight: max(staffRect.height * configuration.layoutMetrics.clefScale, 1)
             )
+        case .bass:
+            return ClefAnchor(
+                point: CGPoint(
+                    x: clefAreaRect.midX,
+                    y: lineY(at: 1) ?? staffRect.midY
+                ),
+                semantic: .bassFLine,
+                targetHeight: max(staffRect.height * configuration.layoutMetrics.clefScale, 1)
+            )
         }
     }
 

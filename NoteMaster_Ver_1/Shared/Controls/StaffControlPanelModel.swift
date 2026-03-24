@@ -19,35 +19,80 @@ enum StaffControlSectionID: CaseIterable, Equatable, Hashable, Sendable {
 }
 
 enum StaffControlEvent: Equatable, Sendable {
+    case setClef(StaffClef)
     case setClefScale(CGFloat)
-    case setTrebleClefAnchorLogicalDownwardShiftRatio(CGFloat)
+    case setClefAnchorLogicalDownwardShiftRatio(CGFloat)
 
     // 连续值的约束统一收口在共享层，避免 iOS/macOS 各自重复 clamp。
     static let clefScaleRange: ClosedRange<CGFloat> = 1.0...5
-    static let trebleClefAnchorLogicalDownwardShiftRatioRange: ClosedRange<CGFloat> = (-0.25)...0.25
+    static let clefAnchorLogicalDownwardShiftRatioRange: ClosedRange<CGFloat> = (-0.25)...0.25
 
     func apply(to displayState: inout StaffDisplayState) {
         switch self {
+        case let .setClef(clef):
+            displayState.configuration.clef = clef
         case let .setClefScale(value):
             displayState.configuration.layoutMetrics.clefScale = value.clamped(
                 to: Self.clefScaleRange
             )
-        case let .setTrebleClefAnchorLogicalDownwardShiftRatio(value):
-            displayState.configuration.trebleClefAnchorLogicalDownwardShiftRatio = value.clamped(
-                to: Self.trebleClefAnchorLogicalDownwardShiftRatioRange
+        case let .setClefAnchorLogicalDownwardShiftRatio(value):
+            displayState.configuration.setClefAnchorLogicalDownwardShiftRatio(
+                value.clamped(
+                    to: Self.clefAnchorLogicalDownwardShiftRatioRange
+                ),
+                for: displayState.configuration.clef
             )
         }
     }
 }
 
-struct StaffSliderControlItem: Equatable, Hashable, Sendable {
+struct StaffOptionChoice: Equatable, Hashable, Sendable {
+    var clef: StaffClef
+    var title: String
+    var isSelected: Bool
+}
+
+struct StaffOptionControlItem: Equatable, Hashable, Sendable {
     enum ID: CaseIterable, Equatable, Hashable, Sendable {
-        case clefScale
-        case trebleClefAnchorYOffset
+        case clef
 
         var sectionID: StaffControlSectionID {
             switch self {
-            case .clefScale, .trebleClefAnchorYOffset:
+            case .clef:
+                return .clef
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .clef:
+                return "Type"
+            }
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .clef:
+                return "Select clef"
+            }
+        }
+    }
+
+    var id: ID
+    var title: String
+    var accessibilityLabel: String
+    var choices: [StaffOptionChoice]
+    var isEnabled: Bool
+}
+
+struct StaffSliderControlItem: Equatable, Hashable, Sendable {
+    enum ID: CaseIterable, Equatable, Hashable, Sendable {
+        case clefScale
+        case clefAnchorYOffset
+
+        var sectionID: StaffControlSectionID {
+            switch self {
+            case .clefScale, .clefAnchorYOffset:
                 return .clef
             }
         }
@@ -56,7 +101,7 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
             switch self {
             case .clefScale:
                 return "Scale"
-            case .trebleClefAnchorYOffset:
+            case .clefAnchorYOffset:
                 return "Anchor Y Offset"
             }
         }
@@ -65,8 +110,8 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
             switch self {
             case .clefScale:
                 return "Adjust clef scale"
-            case .trebleClefAnchorYOffset:
-                return "Adjust treble clef anchor vertical offset"
+            case .clefAnchorYOffset:
+                return "Adjust clef anchor vertical offset"
             }
         }
 
@@ -74,8 +119,8 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
             switch self {
             case .clefScale:
                 return StaffControlEvent.clefScaleRange
-            case .trebleClefAnchorYOffset:
-                return StaffControlEvent.trebleClefAnchorLogicalDownwardShiftRatioRange
+            case .clefAnchorYOffset:
+                return StaffControlEvent.clefAnchorLogicalDownwardShiftRatioRange
             }
         }
     }
@@ -89,10 +134,29 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
     var isEnabled: Bool
 }
 
+enum StaffControlRowID: Equatable, Hashable, Sendable {
+    case option(StaffOptionControlItem.ID)
+    case slider(StaffSliderControlItem.ID)
+}
+
+enum StaffControlRow: Equatable, Sendable {
+    case option(StaffOptionControlItem)
+    case slider(StaffSliderControlItem)
+
+    var id: StaffControlRowID {
+        switch self {
+        case let .option(item):
+            return .option(item.id)
+        case let .slider(item):
+            return .slider(item.id)
+        }
+    }
+}
+
 struct StaffControlSection: Equatable, Sendable {
     var id: StaffControlSectionID
     var title: String
-    var sliders: [StaffSliderControlItem]
+    var rows: [StaffControlRow]
 }
 
 struct StaffControlPanelModel: Equatable, Sendable {
@@ -100,12 +164,28 @@ struct StaffControlPanelModel: Equatable, Sendable {
 
     static let empty = StaffControlPanelModel(sections: [])
 
-    var sliders: [StaffSliderControlItem] {
-        sections.flatMap(\.sliders)
+    var rows: [StaffControlRow] {
+        sections.flatMap(\.rows)
     }
 
     func slider(for id: StaffSliderControlItem.ID) -> StaffSliderControlItem? {
-        sliders.first { $0.id == id }
+        rows.compactMap { row in
+            guard case let .slider(item) = row else {
+                return nil
+            }
+
+            return item
+        }.first { $0.id == id }
+    }
+
+    func option(for id: StaffOptionControlItem.ID) -> StaffOptionControlItem? {
+        rows.compactMap { row in
+            guard case let .option(item) = row else {
+                return nil
+            }
+
+            return item
+        }.first { $0.id == id }
     }
 }
 
