@@ -20,6 +20,10 @@ final class macOSViewController: NSViewController {
         }
     }
 
+    private let staffDisplayState = StaffDisplayState(
+        configuration: StaffConfiguration(renderMode: .coreText)
+    )
+
     private lazy var buttonPanelView: macOSButtonPanelView = {
         let buttonPanelView = macOSButtonPanelView(
             model: ButtonPanelSnapshotBuilder.makeModel(from: displayState)
@@ -38,6 +42,13 @@ final class macOSViewController: NSViewController {
         return fretboardView
     }()
 
+    private lazy var staffView: macOSStaffView = {
+        macOSStaffView(
+            configuration: staffDisplayState.configuration,
+            sceneProvider: staffDisplayState.sceneProvider
+        )
+    }()
+
     override func loadView() {
         view = NSView()
     }
@@ -52,8 +63,10 @@ final class macOSViewController: NSViewController {
 
     private func configureLayout() {
         buttonPanelView.translatesAutoresizingMaskIntoConstraints = false
+        staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(buttonPanelView)
+        view.addSubview(staffView)
         view.addSubview(fretboardView)
 
         let safeArea = view.safeAreaLayoutGuide
@@ -71,10 +84,16 @@ final class macOSViewController: NSViewController {
                 equalTo: safeArea.topAnchor,
                 constant: Layout.topInset
             ),
+            staffView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
+            staffView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            staffView.topAnchor.constraint(
+                equalTo: buttonPanelView.bottomAnchor,
+                constant: Layout.verticalSpacing
+            ),
             fretboardView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
             fretboardView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
             fretboardView.topAnchor.constraint(
-                equalTo: buttonPanelView.bottomAnchor,
+                equalTo: staffView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
             fretboardView.bottomAnchor.constraint(
@@ -86,6 +105,8 @@ final class macOSViewController: NSViewController {
 
     private func applyDisplayState() {
         buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
+        staffView.configuration = staffDisplayState.configuration
+        staffView.sceneProvider = staffDisplayState.sceneProvider
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
         view.needsLayout = true
