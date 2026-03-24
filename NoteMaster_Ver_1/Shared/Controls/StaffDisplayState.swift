@@ -34,3 +34,9 @@ struct StaffDisplayState: Equatable, Sendable {
         )
     }
 }
+
+extension StaffDisplayState {
+    mutating func apply(_ event: StaffControlEvent) {
+        event.apply(to: &self)
+    }
+}
