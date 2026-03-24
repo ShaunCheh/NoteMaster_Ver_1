@@ -18,6 +18,19 @@ struct StaffDisplayState: Equatable, Sendable {
 
     // 控制器只维护共享状态，scene provider 统一从状态派生。
     var sceneProvider: StaffSceneProvider {
-        StaffSceneProvider(clef: configuration.clef)
+        StaffSceneProvider(
+            clef: configuration.clef,
+            renderHint: .staffClef(
+                boundsOverlayStyle: configuration.debugOptions.showsClefBounds
+                ? .clefDebug(lineWidth: configuration.debugOptions.clefBoundsLineWidth)
+                : nil,
+                anchorOverlayStyle: configuration.debugOptions.showsClefAnchor
+                ? .clefDebug(
+                    lineWidth: configuration.debugOptions.clefAnchorLineWidth,
+                    crossHalfLength: configuration.debugOptions.clefAnchorCrossHalfLength
+                )
+                : nil
+            )
+        )
     }
 }

@@ -21,7 +21,13 @@ final class macOSViewController: NSViewController {
     }
 
     private let staffDisplayState = StaffDisplayState(
-        configuration: StaffConfiguration(renderMode: .coreText)
+        configuration: StaffConfiguration(
+            renderMode: .coreText,
+            debugOptions: .init(
+                showsClefBounds: true,
+                showsClefAnchor: true
+            )
+        )
     )
 
     private lazy var buttonPanelView: macOSButtonPanelView = {

@@ -34,16 +34,61 @@ struct StaffSceneColor: Equatable, Sendable {
         blue: 0.14,
         alpha: 1
     )
+
+    static let debugRed = StaffSceneColor(
+        red: 0.88,
+        green: 0.18,
+        blue: 0.18,
+        alpha: 1
+    )
+}
+
+struct StaffGlyphBoundsOverlayStyle: Equatable, Sendable {
+    var strokeColor: StaffSceneColor
+    var lineWidth: CGFloat
+
+    static func clefDebug(lineWidth: CGFloat = 1) -> Self {
+        StaffGlyphBoundsOverlayStyle(
+            strokeColor: .debugRed,
+            lineWidth: max(lineWidth, 0.5)
+        )
+    }
+}
+
+struct StaffGlyphAnchorOverlayStyle: Equatable, Sendable {
+    var strokeColor: StaffSceneColor
+    var lineWidth: CGFloat
+    var crossHalfLength: CGFloat
+
+    static func clefDebug(
+        lineWidth: CGFloat = 1,
+        crossHalfLength: CGFloat = 4
+    ) -> Self {
+        StaffGlyphAnchorOverlayStyle(
+            strokeColor: .debugRed,
+            lineWidth: max(lineWidth, 0.5),
+            crossHalfLength: max(crossHalfLength, 2)
+        )
+    }
 }
 
 struct StaffGlyphRenderHint: Equatable, Sendable {
     var preservesAspectRatio: Bool
     var prefersOpticalBoundsAlignment: Bool
+    var boundsOverlayStyle: StaffGlyphBoundsOverlayStyle?
+    var anchorOverlayStyle: StaffGlyphAnchorOverlayStyle?
 
-    static let staffClef = StaffGlyphRenderHint(
-        preservesAspectRatio: true,
-        prefersOpticalBoundsAlignment: true
-    )
+    static func staffClef(
+        boundsOverlayStyle: StaffGlyphBoundsOverlayStyle? = nil,
+        anchorOverlayStyle: StaffGlyphAnchorOverlayStyle? = nil
+    ) -> StaffGlyphRenderHint {
+        StaffGlyphRenderHint(
+            preservesAspectRatio: true,
+            prefersOpticalBoundsAlignment: true,
+            boundsOverlayStyle: boundsOverlayStyle,
+            anchorOverlayStyle: anchorOverlayStyle
+        )
+    }
 }
 
 enum StaffGlyphPlacement: Equatable, Sendable {

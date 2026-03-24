@@ -59,6 +59,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             drawAnchoredGlyph(
                 resolvedLine,
                 anchor: anchor,
+                renderHint: glyphItem.renderHint,
                 in: context,
                 geometry: geometry
             )
@@ -66,6 +67,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             drawGlyph(
                 resolvedLine,
                 centeredIn: frame,
+                renderHint: glyphItem.renderHint,
                 in: context,
                 geometry: geometry
             )
@@ -165,6 +167,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private func drawAnchoredGlyph(
         _ resolvedLine: ResolvedGlyphLine,
         anchor: ClefAnchor,
+        renderHint: StaffGlyphRenderHint,
         in context: CGContext,
         geometry: StaffGeometry
     ) {
@@ -188,11 +191,26 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             in: context,
             geometry: geometry
         )
+        drawBoundsOverlayIfNeeded(
+            logicalBounds(
+                for: resolvedLine,
+                drawOrigin: drawOrigin,
+                geometry: geometry
+            ),
+            renderHint: renderHint,
+            in: context
+        )
+        drawAnchorOverlayIfNeeded(
+            anchor.point,
+            renderHint: renderHint,
+            in: context
+        )
     }
 
     private func drawGlyph(
         _ resolvedLine: ResolvedGlyphLine,
         centeredIn frame: CGRect,
+        renderHint: StaffGlyphRenderHint,
         in context: CGContext,
         geometry: StaffGeometry
     ) {
@@ -211,6 +229,15 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             in: context,
             geometry: geometry
         )
+        drawBoundsOverlayIfNeeded(
+            logicalBounds(
+                for: resolvedLine,
+                drawOrigin: drawOrigin,
+                geometry: geometry
+            ),
+            renderHint: renderHint,
+            in: context
+        )
     }
 
     private func drawLine(
@@ -227,6 +254,80 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         context.scaleBy(x: 1, y: -1)
         context.textPosition = origin
         CTLineDraw(line, context)
+        context.restoreGState()
+    }
+
+    private func logicalBounds(
+        for resolvedLine: ResolvedGlyphLine,
+        drawOrigin: CGPoint,
+        geometry: StaffGeometry
+    ) -> CGRect {
+        let flippedBounds = CGRect(
+            x: drawOrigin.x + resolvedLine.bounds.minX,
+            y: drawOrigin.y + resolvedLine.bounds.minY,
+            width: resolvedLine.bounds.width,
+            height: resolvedLine.bounds.height
+        )
+
+        return CGRect(
+            x: flippedBounds.minX,
+            y: geometry.bounds.height - flippedBounds.maxY,
+            width: flippedBounds.width,
+            height: flippedBounds.height
+        )
+    }
+
+    private func drawBoundsOverlayIfNeeded(
+        _ rect: CGRect,
+        renderHint: StaffGlyphRenderHint,
+        in context: CGContext
+    ) {
+        guard
+            let boundsOverlayStyle = renderHint.boundsOverlayStyle,
+            !rect.isNull,
+            !rect.isEmpty
+        else {
+            return
+        }
+
+        context.saveGState()
+        context.setStrokeColor(boundsOverlayStyle.strokeColor.cgColor)
+        context.setLineWidth(boundsOverlayStyle.lineWidth)
+        context.stroke(rect)
+        context.restoreGState()
+    }
+
+    private func drawAnchorOverlayIfNeeded(
+        _ point: CGPoint,
+        renderHint: StaffGlyphRenderHint,
+        in context: CGContext
+    ) {
+        guard let anchorOverlayStyle = renderHint.anchorOverlayStyle else {
+            return
+        }
+
+        context.saveGState()
+        context.setStrokeColor(anchorOverlayStyle.strokeColor.cgColor)
+        context.setLineWidth(anchorOverlayStyle.lineWidth)
+        context.setLineCap(.round)
+
+        context.move(to: CGPoint(
+            x: point.x - anchorOverlayStyle.crossHalfLength,
+            y: point.y
+        ))
+        context.addLine(to: CGPoint(
+            x: point.x + anchorOverlayStyle.crossHalfLength,
+            y: point.y
+        ))
+        context.move(to: CGPoint(
+            x: point.x,
+            y: point.y - anchorOverlayStyle.crossHalfLength
+        ))
+        context.addLine(to: CGPoint(
+            x: point.x,
+            y: point.y + anchorOverlayStyle.crossHalfLength
+        ))
+        context.strokePath()
         context.restoreGState()
     }
 

@@ -11,13 +11,16 @@ import CoreGraphics
 struct StaffSceneProvider: Equatable, Sendable {
     var clef: StaffClef
     var glyphTintColor: StaffSceneColor
+    var renderHint: StaffGlyphRenderHint
 
     init(
         clef: StaffClef = .treble,
-        glyphTintColor: StaffSceneColor = .primaryInk
+        glyphTintColor: StaffSceneColor = .primaryInk,
+        renderHint: StaffGlyphRenderHint = .staffClef()
     ) {
         self.clef = clef
         self.glyphTintColor = glyphTintColor
+        self.renderHint = renderHint
     }
 
     func makeScene(geometry: StaffGeometry) -> StaffScene {
@@ -30,7 +33,7 @@ struct StaffSceneProvider: Equatable, Sendable {
                 symbolID: symbolID(for: clef),
                 placement: .anchor(geometry.clefAnchor(for: clef)),
                 tintColor: glyphTintColor,
-                renderHint: .staffClef
+                renderHint: renderHint
             )
         ]
 

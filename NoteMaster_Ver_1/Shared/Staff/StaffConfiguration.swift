@@ -19,6 +19,31 @@ enum StaffClef: Equatable, Sendable {
 }
 
 struct StaffConfiguration: Equatable, Sendable {
+    struct DebugOptions: Equatable, Sendable {
+        // 调试开关只表达“要不要看包围框/锚点”等调试信息，不把具体绘制实现泄漏到控制器层。
+        var showsClefBounds: Bool
+        var clefBoundsLineWidth: CGFloat
+        var showsClefAnchor: Bool
+        var clefAnchorLineWidth: CGFloat
+        var clefAnchorCrossHalfLength: CGFloat
+
+        static let `default` = DebugOptions()
+
+        init(
+            showsClefBounds: Bool = false,
+            clefBoundsLineWidth: CGFloat = 1,
+            showsClefAnchor: Bool = false,
+            clefAnchorLineWidth: CGFloat = 1,
+            clefAnchorCrossHalfLength: CGFloat = 4
+        ) {
+            self.showsClefBounds = showsClefBounds
+            self.clefBoundsLineWidth = max(clefBoundsLineWidth, 0.5)
+            self.showsClefAnchor = showsClefAnchor
+            self.clefAnchorLineWidth = max(clefAnchorLineWidth, 0.5)
+            self.clefAnchorCrossHalfLength = max(clefAnchorCrossHalfLength, 2)
+        }
+    }
+
     struct LayoutMetrics: Equatable, Sendable {
         var horizontalInsetRatio: CGFloat
         var verticalInsetRatio: CGFloat
@@ -74,17 +99,20 @@ struct StaffConfiguration: Equatable, Sendable {
     var clef: StaffClef
     var renderMode: MusicGlyphRenderMode
     var layoutMetrics: LayoutMetrics
+    var debugOptions: DebugOptions
 
     init(
         canvasOrientation: StaffCanvasOrientation = .standard,
         clef: StaffClef = .treble,
         renderMode: MusicGlyphRenderMode = .automatic,
-        layoutMetrics: LayoutMetrics = .default
+        layoutMetrics: LayoutMetrics = .default,
+        debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation
         self.clef = clef
         self.renderMode = renderMode
         self.layoutMetrics = layoutMetrics
+        self.debugOptions = debugOptions
     }
 
     var preferredHeight: CGFloat {
