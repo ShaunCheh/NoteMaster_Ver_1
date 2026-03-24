@@ -124,8 +124,8 @@ struct StaffConfiguration: Equatable, Sendable {
         layoutMetrics: LayoutMetrics = .default,
         trebleClefAnchorLogicalDownwardShiftRatio: CGFloat = 0.06,
         bassClefAnchorLogicalDownwardShiftRatio: CGFloat = 0,
-        trebleClefVerticalTrimRatio: CGFloat = 0,
-        bassClefVerticalTrimRatio: CGFloat = 0,
+        trebleClefVerticalTrimRatio: CGFloat = 0.2,
+        bassClefVerticalTrimRatio: CGFloat = 0.33,
         debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation
