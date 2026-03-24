@@ -12,8 +12,10 @@ import CoreText
 struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private struct ResolvedGlyphLine {
         var line: CTLine
+        // opticalBounds 参与 glyph 的缩放拟合与定位；vertical clip 不应改变这部分语义。
         var opticalBounds: CGRect
-        var effectiveBounds: CGRect
+        // clippedBounds 只描述最终可见裁切窗口，用于 clip 和调试显示。
+        var clippedBounds: CGRect
     }
 
     private struct AnchorMetrics {
@@ -115,11 +117,13 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             return nil
         }
 
-        let widthScale = targetSize.width / max(resolved.effectiveBounds.width, 1)
-        let heightScale = targetSize.height / max(resolved.effectiveBounds.height, 1)
-        let fitScale = min(widthScale, heightScale)
+        // vertical clip 只影响可见窗口，不参与 glyph 的尺寸拟合；
+        // 因此这里继续基于完整 opticalBounds 做 shrink-to-fit，保持和引入裁切前一致的大小语义。
+        let widthScale = targetSize.width / max(resolved.opticalBounds.width, 1)
+        let heightScale = targetSize.height / max(resolved.opticalBounds.height, 1)
+        let fitScale = min(1, widthScale, heightScale)
 
-        if fitScale.isFinite, fitScale > 0, abs(fitScale - 1) > 0.0001 {
+        if fitScale < 1 {
             resolved = makeResolvedGlyphLine(
                 glyph: glyph,
                 fontSize: max(baseFontSize * fitScale, 1),
@@ -131,8 +135,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         guard
             !resolved.opticalBounds.isNull,
             !resolved.opticalBounds.isEmpty,
-            !resolved.effectiveBounds.isNull,
-            !resolved.effectiveBounds.isEmpty
+            !resolved.clippedBounds.isNull,
+            !resolved.clippedBounds.isEmpty
         else {
             return nil
         }
@@ -169,7 +173,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             [.useOpticalBounds]
         )
 
-        let effectiveBounds = trimmedBounds(
+        let clippedBounds = trimmedBounds(
             from: opticalBounds,
             verticalTrimRatio: verticalTrimRatio
         )
@@ -177,8 +181,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         guard
             !opticalBounds.isNull,
             !opticalBounds.isEmpty,
-            !effectiveBounds.isNull,
-            !effectiveBounds.isEmpty
+            !clippedBounds.isNull,
+            !clippedBounds.isEmpty
         else {
             return nil
         }
@@ -186,7 +190,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         return ResolvedGlyphLine(
             line: line,
             opticalBounds: opticalBounds,
-            effectiveBounds: effectiveBounds
+            clippedBounds: clippedBounds
         )
     }
 
@@ -218,7 +222,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             resolvedLine.line,
             at: drawOrigin,
             clipBounds: flippedBounds(
-                for: resolvedLine.effectiveBounds,
+                for: resolvedLine.clippedBounds,
                 drawOrigin: drawOrigin
             ),
             in: context,
@@ -226,7 +230,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         )
         drawBoundsOverlayIfNeeded(
             logicalBounds(
-                for: resolvedLine.effectiveBounds,
+                for: resolvedLine.clippedBounds,
                 drawOrigin: drawOrigin,
                 geometry: geometry
             ),
@@ -251,16 +255,17 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             x: frame.midX,
             y: geometry.bounds.height - frame.midY
         )
+        // frame 布局继续按完整 opticalBounds 居中，避免 vertical clip 改变 glyph 的视觉尺寸和位置。
         let drawOrigin = CGPoint(
-            x: frameCenter.x - resolvedLine.effectiveBounds.midX,
-            y: frameCenter.y - resolvedLine.effectiveBounds.midY
+            x: frameCenter.x - resolvedLine.opticalBounds.midX,
+            y: frameCenter.y - resolvedLine.opticalBounds.midY
         )
 
         drawLine(
             resolvedLine.line,
             at: drawOrigin,
             clipBounds: flippedBounds(
-                for: resolvedLine.effectiveBounds,
+                for: resolvedLine.clippedBounds,
                 drawOrigin: drawOrigin
             ),
             in: context,
@@ -268,7 +273,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         )
         drawBoundsOverlayIfNeeded(
             logicalBounds(
-                for: resolvedLine.effectiveBounds,
+                for: resolvedLine.clippedBounds,
                 drawOrigin: drawOrigin,
                 geometry: geometry
             ),
