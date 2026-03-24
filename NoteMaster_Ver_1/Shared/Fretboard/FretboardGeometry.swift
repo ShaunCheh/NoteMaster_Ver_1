@@ -50,11 +50,14 @@ struct FretboardGeometry: Equatable {
     }
 
     var drawingRect: CGRect {
-        Self.makeDrawingRect(bounds: bounds, metrics: configuration.layoutMetrics)
+        Self.makeDrawingRect(
+            bounds: bounds,
+            configuration: configuration
+        )
     }
 
     var displayPositionCount: Int {
-        configuration.maxFret + 1
+        configuration.displayPositionCount
     }
 
     var displaySlotWidth: CGFloat {
@@ -156,30 +159,25 @@ struct FretboardGeometry: Equatable {
     }
 
     var stringLaneHeight: CGFloat {
-        guard !drawingRect.isNull else {
+        guard
+            !drawingRect.isNull,
+            configuration.stringCount > 0
+        else {
             return 0
         }
 
-        return resolvedStringLaneHeight(in: drawingRect.height)
+        return drawingRect.height / CGFloat(configuration.stringCount)
     }
 
     var stringColumnRect: CGRect {
-        let laneHeight = stringLaneHeight
         guard
             !drawingRect.isNull,
-            configuration.stringCount > 0,
-            laneHeight > 0
+            configuration.stringCount > 0
         else {
             return .null
         }
 
-        let occupiedHeight = laneHeight * CGFloat(configuration.stringCount)
-        return CGRect(
-            x: drawingRect.minX,
-            y: drawingRect.midY - (occupiedHeight / 2),
-            width: drawingRect.width,
-            height: occupiedHeight
-        )
+        return drawingRect
     }
 
     var stringYPositions: [CGFloat] {
@@ -378,21 +376,6 @@ struct FretboardGeometry: Equatable {
             }
     }
 
-    private func resolvedStringLaneHeight(
-        in availableHeight: CGFloat
-    ) -> CGFloat {
-        guard
-            availableHeight > 0,
-            configuration.stringCount > 0
-        else {
-            return 0
-        }
-
-        let preferredLaneHeight = max(configuration.layoutMetrics.stringLaneHeight, 1)
-        let availableLaneHeight = availableHeight / CGFloat(configuration.stringCount)
-        return min(preferredLaneHeight, max(availableLaneHeight, 0))
-    }
-
     private func contains(
         _ point: CGPoint,
         inInclusiveBoundsOf rect: CGRect
@@ -415,21 +398,36 @@ struct FretboardGeometry: Equatable {
 
     private static func makeDrawingRect(
         bounds: CGRect,
-        metrics: FretboardConfiguration.LayoutMetrics
+        configuration: FretboardConfiguration
     ) -> CGRect {
         guard bounds.width > 0, bounds.height > 0 else {
             return .null
         }
 
+        let metrics = configuration.layoutMetrics
         let horizontalInset = min(
             max(bounds.width * metrics.horizontalInsetRatio, 0),
             bounds.width / 2
         )
-        let verticalInset = min(
-            max(bounds.height * metrics.verticalInsetRatio, 0),
-            bounds.height / 2
+        let drawingWidth = bounds.width - (horizontalInset * 2)
+        guard drawingWidth > 0 else {
+            return .null
+        }
+
+        // 在平台层尚未完成宽度驱动高度出口前，当前 bounds.height 可能仍来自旧链路；
+        // 这里优先按宽度推导理想 drawingHeight，并在必要时裁剪到可用高度，避免几何越界。
+        let idealDrawingHeight = configuration.layoutMetrics.drawingHeight(
+            forAvailableWidth: bounds.width,
+            displayPositionCount: configuration.displayPositionCount,
+            stringCount: configuration.stringCount
         )
-        let rect = bounds.insetBy(dx: horizontalInset, dy: verticalInset)
+        let drawingHeight = min(max(idealDrawingHeight, 0), bounds.height)
+        let rect = CGRect(
+            x: bounds.minX + horizontalInset,
+            y: bounds.midY - (drawingHeight / 2),
+            width: drawingWidth,
+            height: drawingHeight
+        )
 
         return rect.isNull || rect.isEmpty ? .null : rect
     }
