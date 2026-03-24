@@ -31,7 +31,7 @@ final class macOSFretboardView: NSView {
     override var intrinsicContentSize: NSSize {
         NSSize(
             width: NSView.noIntrinsicMetric,
-            height: configuration.preferredHeight
+            height: resolvedIntrinsicHeight
         )
     }
 
@@ -60,6 +60,17 @@ final class macOSFretboardView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateContentsScale()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let previousWidth = frame.size.width
+        super.setFrameSize(newSize)
+
+        guard previousWidth != newSize.width else {
+            return
+        }
+
+        invalidateIntrinsicContentSize()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -99,6 +110,14 @@ final class macOSFretboardView: NSView {
 
     private func updateContentsScale() {
         fretboardLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    private var resolvedIntrinsicHeight: CGFloat {
+        guard bounds.width > 0 else {
+            return configuration.preferredHeight
+        }
+
+        return configuration.resolvedHeight(forAvailableWidth: bounds.width)
     }
 
     private func handleRawMouseEvent(

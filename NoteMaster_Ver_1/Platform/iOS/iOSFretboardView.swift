@@ -9,6 +9,8 @@
 import UIKit
 
 final class iOSFretboardView: UIView {
+    private var lastMeasuredLayoutWidth: CGFloat?
+
     var configuration: FretboardConfiguration {
         didSet {
             guard oldValue != configuration else {
@@ -35,7 +37,7 @@ final class iOSFretboardView: UIView {
     override var intrinsicContentSize: CGSize {
         CGSize(
             width: UIView.noIntrinsicMetric,
-            height: configuration.preferredHeight
+            height: resolvedIntrinsicHeight
         )
     }
 
@@ -65,6 +67,11 @@ final class iOSFretboardView: UIView {
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         updateContentsScale()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        invalidateIntrinsicSizeForCurrentWidthIfNeeded()
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -113,6 +120,24 @@ final class iOSFretboardView: UIView {
 
     private func updateContentsScale() {
         fretboardLayer.contentsScale = window?.screen.scale ?? UIScreen.main.scale
+    }
+
+    private var resolvedIntrinsicHeight: CGFloat {
+        guard bounds.width > 0 else {
+            return configuration.preferredHeight
+        }
+
+        return configuration.resolvedHeight(forAvailableWidth: bounds.width)
+    }
+
+    private func invalidateIntrinsicSizeForCurrentWidthIfNeeded() {
+        let currentWidth = bounds.width
+        guard lastMeasuredLayoutWidth != currentWidth else {
+            return
+        }
+
+        lastMeasuredLayoutWidth = currentWidth
+        invalidateIntrinsicContentSize()
     }
 
     private func handleRawTouchEvent(
