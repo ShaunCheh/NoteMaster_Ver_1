@@ -92,6 +92,12 @@ final class iOSViewController: UIViewController {
         staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
+        scrollView.alwaysBounceHorizontal = false
+        scrollView.showsHorizontalScrollIndicator = false
+        // 点击直接透传给指板；一旦用户开始纵向拖动，scroll view 可以取消当前触摸序列并接管滚动。
+        scrollView.delaysContentTouches = false
+        scrollView.canCancelContentTouches = true
+        scrollView.panGestureRecognizer.cancelsTouchesInView = true
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
         contentView.addSubview(buttonPanelView)
