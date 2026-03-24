@@ -11,7 +11,9 @@ struct FretboardConfiguration: Equatable, Sendable {
     struct LayoutMetrics: Equatable, Sendable {
         var horizontalInsetRatio: CGFloat
         var verticalInsetRatio: CGFloat
-        // 每根弦占据的垂直车道高度，弦位应落在车道中心。
+        // 宽度优先链路的真相来源：单个显示格子的宽高比（width / height）。
+        var cellWidthToHeightRatio: CGFloat
+        // 兼容旧的固定弦高链路；后续平台尺寸出口迁移完成后移除。
         var stringLaneHeight: CGFloat
         var nutWidthRatio: CGFloat
         var fretLineWidth: CGFloat
@@ -22,6 +24,7 @@ struct FretboardConfiguration: Equatable, Sendable {
         static let `default` = LayoutMetrics(
             horizontalInsetRatio: 0.04,
             verticalInsetRatio: 0.16,
+            cellWidthToHeightRatio: 1.6,
             stringLaneHeight: 17,
             nutWidthRatio: 0.014,
             fretLineWidth: 1,
@@ -31,22 +34,80 @@ struct FretboardConfiguration: Equatable, Sendable {
         )
 
         private static let minimumLayoutFactor: CGFloat = 0.01
+        private static let minimumAspectRatio: CGFloat = 0.01
 
-        func stringBandHeight(forStringCount stringCount: Int) -> CGFloat {
-            CGFloat(max(stringCount, 1)) * max(stringLaneHeight, 1)
+        private var drawingWidthFactor: CGFloat {
+            max(1 - (horizontalInsetRatio * 2), Self.minimumLayoutFactor)
         }
 
-        func drawingHeight(forStringCount stringCount: Int) -> CGFloat {
-            stringBandHeight(forStringCount: stringCount)
+        private var drawingHeightFactor: CGFloat {
+            max(1 - (verticalInsetRatio * 2), Self.minimumLayoutFactor)
         }
 
-        func preferredHeight(forStringCount stringCount: Int) -> CGFloat {
-            let drawingHeight = drawingHeight(forStringCount: stringCount)
-            let drawingFactor = max(
-                1 - (verticalInsetRatio * 2),
-                Self.minimumLayoutFactor
+        private var resolvedCellWidthToHeightRatio: CGFloat {
+            max(cellWidthToHeightRatio, Self.minimumAspectRatio)
+        }
+
+        func drawingWidth(forAvailableWidth width: CGFloat) -> CGFloat {
+            max(width, 0) * drawingWidthFactor
+        }
+
+        func cellWidth(
+            forAvailableWidth width: CGFloat,
+            displayPositionCount: Int
+        ) -> CGFloat {
+            let resolvedDisplayPositionCount = max(displayPositionCount, 1)
+            return drawingWidth(forAvailableWidth: width) / CGFloat(resolvedDisplayPositionCount)
+        }
+
+        func cellHeight(
+            forAvailableWidth width: CGFloat,
+            displayPositionCount: Int
+        ) -> CGFloat {
+            cellWidth(
+                forAvailableWidth: width,
+                displayPositionCount: displayPositionCount
+            ) / resolvedCellWidthToHeightRatio
+        }
+
+        func drawingHeight(
+            forAvailableWidth width: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            CGFloat(max(stringCount, 1)) * cellHeight(
+                forAvailableWidth: width,
+                displayPositionCount: displayPositionCount
             )
-            return drawingHeight / drawingFactor
+        }
+
+        func totalHeight(
+            forAvailableWidth width: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            drawingHeight(
+                forAvailableWidth: width,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            ) / drawingHeightFactor
+        }
+
+        func heightToWidthMultiplier(
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            let resolvedDisplayPositionCount = max(displayPositionCount, 1)
+            let resolvedStringCount = max(stringCount, 1)
+            return drawingWidthFactor
+                / drawingHeightFactor
+                * CGFloat(resolvedStringCount)
+                / (CGFloat(resolvedDisplayPositionCount) * resolvedCellWidthToHeightRatio)
+        }
+
+        func legacyPreferredHeight(forStringCount stringCount: Int) -> CGFloat {
+            let stringBandHeight = CGFloat(max(stringCount, 1)) * max(stringLaneHeight, 1)
+            return stringBandHeight / drawingHeightFactor
         }
     }
 
@@ -123,7 +184,27 @@ struct FretboardConfiguration: Equatable, Sendable {
         tuning.stringCount
     }
 
+    var displayPositionCount: Int {
+        maxFret + 1
+    }
+
+    func resolvedHeight(forAvailableWidth width: CGFloat) -> CGFloat {
+        layoutMetrics.totalHeight(
+            forAvailableWidth: width,
+            displayPositionCount: displayPositionCount,
+            stringCount: stringCount
+        )
+    }
+
+    var heightToWidthMultiplier: CGFloat {
+        layoutMetrics.heightToWidthMultiplier(
+            displayPositionCount: displayPositionCount,
+            stringCount: stringCount
+        )
+    }
+
+    // 兼容当前平台尺寸出口；后续阶段改为消费宽度优先的 resolvedHeight/heightToWidthMultiplier。
     var preferredHeight: CGFloat {
-        layoutMetrics.preferredHeight(forStringCount: stringCount)
+        layoutMetrics.legacyPreferredHeight(forStringCount: stringCount)
     }
 }
