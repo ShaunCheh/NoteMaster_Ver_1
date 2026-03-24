@@ -5,6 +5,8 @@
 //  Created by Cursor on 2026/3/24.
 //
 
+import CoreGraphics
+
 // provider 只负责把共享状态投影成语义场景，不处理字体度量和绘制细节。
 struct StaffSceneProvider: Equatable, Sendable {
     var clef: StaffClef
