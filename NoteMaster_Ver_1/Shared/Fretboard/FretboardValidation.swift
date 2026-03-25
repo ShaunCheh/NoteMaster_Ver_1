@@ -173,8 +173,10 @@ private extension FretboardValidationRunner {
             tuning: .standard(for: instrument),
             maxFret: 12
         )
-        let resolvedWidth = configuration.resolvedWidth(forAvailableHeight: verticalFixtureHeight)
-        let width = widthOverride ?? resolvedWidth
+        let contentLayout = configuration.verticalContentLayout(
+            forViewportHeight: verticalFixtureHeight
+        )
+        let width = widthOverride ?? contentLayout.contentWidth
 
         return FretboardValidationFixture(
             name: name,
@@ -183,7 +185,7 @@ private extension FretboardValidationRunner {
                 origin: .zero,
                 size: CGSize(
                     width: width,
-                    height: verticalFixtureHeight
+                    height: contentLayout.contentSize.height
                 )
             )
         )

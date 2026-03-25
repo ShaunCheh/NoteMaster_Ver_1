@@ -177,12 +177,38 @@ struct FretboardConfiguration: Equatable, Sendable {
             )
         }
 
+        // vertical 局部横滚场景下，高度来自页面分配；这里显式表达“给定视口高度时，整把指板内容需要的总宽度”。
+        func verticalContentWidth(
+            forViewportHeight viewportHeight: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            verticalTotalWidth(
+                forAvailableHeight: viewportHeight,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
+
         func verticalTotalHeight(
             forAvailableWidth width: CGFloat,
             displayPositionCount: Int,
             stringCount: Int
         ) -> CGFloat {
             max(width, 0) * verticalHeightToWidthMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
+
+        // 当平台层拿到某个竖向内容宽度时，可通过这条反向链路恢复保持同一比例所需的内容高度。
+        func verticalContentHeight(
+            forContentWidth contentWidth: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            verticalTotalHeight(
+                forAvailableWidth: contentWidth,
                 displayPositionCount: displayPositionCount,
                 stringCount: stringCount
             )
@@ -220,6 +246,18 @@ struct FretboardConfiguration: Equatable, Sendable {
 
         private static func normalize(_ frets: [Int], maxFret: Int) -> [Int] {
             Array(Set(frets.filter { $0 > 0 && $0 <= maxFret })).sorted()
+        }
+    }
+
+    struct VerticalContentLayout: Equatable, Sendable {
+        var viewportHeight: CGFloat
+        var contentWidth: CGFloat
+
+        var contentSize: CGSize {
+            CGSize(
+                width: contentWidth,
+                height: viewportHeight
+            )
         }
     }
 
@@ -276,6 +314,37 @@ struct FretboardConfiguration: Equatable, Sendable {
         maxFret + 1
     }
 
+    // 竖向局部横滚阶段的共享尺寸真相：页面决定可见高度，shared 几何反推出整把指板内容宽度。
+    func verticalContentLayout(
+        forViewportHeight viewportHeight: CGFloat
+    ) -> VerticalContentLayout {
+        let resolvedViewportHeight = max(viewportHeight, 0)
+        return VerticalContentLayout(
+            viewportHeight: resolvedViewportHeight,
+            contentWidth: layoutMetrics.verticalContentWidth(
+                forViewportHeight: resolvedViewportHeight,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        )
+    }
+
+    func verticalContentWidth(
+        forViewportHeight viewportHeight: CGFloat
+    ) -> CGFloat {
+        verticalContentLayout(forViewportHeight: viewportHeight).contentWidth
+    }
+
+    func verticalContentHeight(
+        forContentWidth contentWidth: CGFloat
+    ) -> CGFloat {
+        layoutMetrics.verticalContentHeight(
+            forContentWidth: contentWidth,
+            displayPositionCount: displayPositionCount,
+            stringCount: stringCount
+        )
+    }
+
     func resolvedHeight(forAvailableWidth width: CGFloat) -> CGFloat {
         switch displayMode {
         case .horizontal:
@@ -285,11 +354,8 @@ struct FretboardConfiguration: Equatable, Sendable {
                 stringCount: stringCount
             )
         case .vertical:
-            return layoutMetrics.verticalTotalHeight(
-                forAvailableWidth: width,
-                displayPositionCount: displayPositionCount,
-                stringCount: stringCount
-            )
+            // 兼容当前平台层旧调用；后续竖向局部横滚新链路应优先使用 verticalContentHeight / Layout。
+            return verticalContentHeight(forContentWidth: width)
         }
     }
 
@@ -302,11 +368,8 @@ struct FretboardConfiguration: Equatable, Sendable {
                 stringCount: stringCount
             )
         case .vertical:
-            return layoutMetrics.verticalTotalWidth(
-                forAvailableHeight: height,
-                displayPositionCount: displayPositionCount,
-                stringCount: stringCount
-            )
+            // 兼容当前平台层旧调用；后续竖向局部横滚新链路应优先使用 verticalContentWidth / Layout。
+            return verticalContentWidth(forViewportHeight: height)
         }
     }
 
