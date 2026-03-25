@@ -86,8 +86,10 @@ final class iOSViewController: UIViewController {
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let fretboardHostView = UIView()
-    private var horizontalFretboardConstraints: [NSLayoutConstraint] = []
-    private var verticalFretboardConstraints: [NSLayoutConstraint] = []
+    private let fretboardViewportScrollView = UIScrollView()
+    private let fretboardScrollContentView = UIView()
+    private var horizontalFretboardContentWidthConstraint: NSLayoutConstraint?
+    private var verticalFretboardContentWidthConstraint: NSLayoutConstraint?
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: iOSFretboardView = {
@@ -112,6 +114,12 @@ final class iOSViewController: UIViewController {
         applyDisplayState()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        syncVerticalFretboardContentWidthConstraint()
+        updateFretboardViewportPresentation()
+    }
+
     private func configureLayout() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
@@ -119,32 +127,46 @@ final class iOSViewController: UIViewController {
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
+        fretboardViewportScrollView.translatesAutoresizingMaskIntoConstraints = false
+        fretboardScrollContentView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
+        scrollView.isDirectionalLockEnabled = true
         // 点击直接透传给指板；一旦用户开始纵向拖动，scroll view 可以取消当前触摸序列并接管滚动。
         scrollView.delaysContentTouches = false
         scrollView.canCancelContentTouches = true
         scrollView.panGestureRecognizer.cancelsTouchesInView = true
+        fretboardViewportScrollView.alwaysBounceVertical = false
+        fretboardViewportScrollView.alwaysBounceHorizontal = false
+        fretboardViewportScrollView.showsVerticalScrollIndicator = false
+        fretboardViewportScrollView.showsHorizontalScrollIndicator = false
+        fretboardViewportScrollView.isDirectionalLockEnabled = true
+        fretboardViewportScrollView.delaysContentTouches = false
+        fretboardViewportScrollView.canCancelContentTouches = true
+        fretboardViewportScrollView.panGestureRecognizer.cancelsTouchesInView = true
+        fretboardViewportScrollView.contentInsetAdjustmentBehavior = .never
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
         contentView.addSubview(staffView)
         contentView.addSubview(fretboardHostView)
-        fretboardHostView.addSubview(fretboardView)
+        fretboardHostView.addSubview(fretboardViewportScrollView)
+        fretboardViewportScrollView.addSubview(fretboardScrollContentView)
+        fretboardScrollContentView.addSubview(fretboardView)
         view.addSubview(settingsButton)
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
         rebuildVerticalFretboardHostHeightConstraint()
-        horizontalFretboardConstraints = [
-            fretboardView.leadingAnchor.constraint(equalTo: fretboardHostView.leadingAnchor),
-            fretboardView.trailingAnchor.constraint(equalTo: fretboardHostView.trailingAnchor)
-        ]
-        verticalFretboardConstraints = [
-            fretboardView.centerXAnchor.constraint(equalTo: fretboardHostView.centerXAnchor),
-            fretboardView.widthAnchor.constraint(lessThanOrEqualTo: fretboardHostView.widthAnchor)
-        ]
+        horizontalFretboardContentWidthConstraint = fretboardScrollContentView.widthAnchor.constraint(
+            equalTo: fretboardViewportScrollView.frameLayoutGuide.widthAnchor
+        )
+        verticalFretboardContentWidthConstraint = fretboardView.widthAnchor.constraint(
+            equalToConstant: displayState.configuration.verticalContentWidth(
+                forViewportHeight: displayState.configuration.preferredHeight
+            )
+        )
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
@@ -172,8 +194,29 @@ final class iOSViewController: UIViewController {
                 equalTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
             ),
-            fretboardView.topAnchor.constraint(equalTo: fretboardHostView.topAnchor),
-            fretboardView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor),
+            fretboardViewportScrollView.leadingAnchor.constraint(equalTo: fretboardHostView.leadingAnchor),
+            fretboardViewportScrollView.trailingAnchor.constraint(equalTo: fretboardHostView.trailingAnchor),
+            fretboardViewportScrollView.topAnchor.constraint(equalTo: fretboardHostView.topAnchor),
+            fretboardViewportScrollView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor),
+            fretboardScrollContentView.leadingAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentLayoutGuide.leadingAnchor
+            ),
+            fretboardScrollContentView.trailingAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentLayoutGuide.trailingAnchor
+            ),
+            fretboardScrollContentView.topAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentLayoutGuide.topAnchor
+            ),
+            fretboardScrollContentView.bottomAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentLayoutGuide.bottomAnchor
+            ),
+            fretboardScrollContentView.heightAnchor.constraint(
+                equalTo: fretboardViewportScrollView.frameLayoutGuide.heightAnchor
+            ),
+            fretboardView.leadingAnchor.constraint(equalTo: fretboardScrollContentView.leadingAnchor),
+            fretboardView.trailingAnchor.constraint(equalTo: fretboardScrollContentView.trailingAnchor),
+            fretboardView.topAnchor.constraint(equalTo: fretboardScrollContentView.topAnchor),
+            fretboardView.bottomAnchor.constraint(equalTo: fretboardScrollContentView.bottomAnchor),
             settingsButton.leadingAnchor.constraint(
                 equalTo: safeArea.leadingAnchor,
                 constant: Layout.horizontalInset
@@ -198,8 +241,14 @@ final class iOSViewController: UIViewController {
     private func updateFretboardLayoutModeConstraints() {
         let isVertical = displayState.displayMode == .vertical
         verticalFretboardHostHeightConstraint?.isActive = isVertical
-        horizontalFretboardConstraints.forEach { $0.isActive = !isVertical }
-        verticalFretboardConstraints.forEach { $0.isActive = isVertical }
+        horizontalFretboardContentWidthConstraint?.isActive = !isVertical
+        verticalFretboardContentWidthConstraint?.isActive = isVertical
+
+        if !isVertical {
+            fretboardViewportScrollView.contentInset = .zero
+            fretboardViewportScrollView.scrollIndicatorInsets = .zero
+            fretboardViewportScrollView.setContentOffset(.zero, animated: false)
+        }
     }
 
     private func rebuildVerticalFretboardHostHeightConstraint() {
@@ -223,6 +272,9 @@ final class iOSViewController: UIViewController {
         applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
         updateLayoutIfNeeded()
+        syncVerticalFretboardContentWidthConstraint()
+        updateLayoutIfNeeded()
+        updateFretboardViewportPresentation()
     }
 
     private func applyStaffDisplayState() {
@@ -243,6 +295,77 @@ final class iOSViewController: UIViewController {
     private func updateLayoutIfNeeded() {
         view.setNeedsLayout()
         view.layoutIfNeeded()
+    }
+
+    private func syncVerticalFretboardContentWidthConstraint() {
+        guard
+            displayState.displayMode == .vertical,
+            let verticalFretboardContentWidthConstraint
+        else {
+            return
+        }
+
+        let targetWidth = fretboardView.verticalContentSize.width
+        guard targetWidth > 0 else {
+            return
+        }
+
+        if abs(verticalFretboardContentWidthConstraint.constant - targetWidth) > Layout.contentSizeTolerance {
+            verticalFretboardContentWidthConstraint.constant = targetWidth
+        }
+    }
+
+    private func updateFretboardViewportPresentation() {
+        let isVertical = displayState.displayMode == .vertical
+        guard isVertical else {
+            fretboardViewportScrollView.isScrollEnabled = false
+            fretboardViewportScrollView.alwaysBounceHorizontal = false
+            fretboardViewportScrollView.showsHorizontalScrollIndicator = false
+            return
+        }
+
+        let viewportWidth = fretboardViewportScrollView.bounds.width
+        let contentWidth = verticalFretboardContentWidthConstraint?.constant ?? fretboardView.verticalContentSize.width
+        guard viewportWidth > 0, contentWidth > 0 else {
+            return
+        }
+
+        let needsHorizontalScroll = contentWidth > viewportWidth + Layout.contentSizeTolerance
+        let horizontalInset = needsHorizontalScroll
+            ? 0
+            : max((viewportWidth - contentWidth) / 2, 0)
+        let inset = UIEdgeInsets(
+            top: 0,
+            left: horizontalInset,
+            bottom: 0,
+            right: horizontalInset
+        )
+
+        fretboardViewportScrollView.contentInset = inset
+        fretboardViewportScrollView.scrollIndicatorInsets = inset
+        fretboardViewportScrollView.isScrollEnabled = needsHorizontalScroll
+        fretboardViewportScrollView.alwaysBounceHorizontal = needsHorizontalScroll
+        fretboardViewportScrollView.showsHorizontalScrollIndicator = needsHorizontalScroll
+
+        let minOffsetX = -inset.left
+        let maxOffsetX = max(minOffsetX, contentWidth - viewportWidth + inset.right)
+        let clampedOffsetX: CGFloat
+        if needsHorizontalScroll {
+            clampedOffsetX = min(
+                max(fretboardViewportScrollView.contentOffset.x, minOffsetX),
+                maxOffsetX
+            )
+        } else {
+            clampedOffsetX = minOffsetX
+        }
+
+        if abs(fretboardViewportScrollView.contentOffset.x - clampedOffsetX) > Layout.contentSizeTolerance
+            || abs(fretboardViewportScrollView.contentOffset.y) > Layout.contentSizeTolerance {
+            fretboardViewportScrollView.setContentOffset(
+                CGPoint(x: clampedOffsetX, y: 0),
+                animated: false
+            )
+        }
     }
 
     private func setSettingsPresented(_ presented: Bool) {
@@ -307,5 +430,6 @@ private enum Layout {
     static let verticalSpacing: CGFloat = 20
     static let bottomInset: CGFloat = 16
     static let settingsButtonSize: CGFloat = 40
+    static let contentSizeTolerance: CGFloat = 0.5
 }
 #endif
