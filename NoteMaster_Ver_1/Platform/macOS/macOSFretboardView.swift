@@ -49,10 +49,28 @@ final class macOSFretboardView: NSView {
             )
         case .vertical:
             return NSSize(
-                width: resolvedIntrinsicWidth,
+                width: verticalContentSize.width,
                 height: NSView.noIntrinsicMetric
             )
         }
+    }
+
+    // 阶段 2 显式暴露“当前竖向视口高度 -> 内容宽度”的平台出口，供后续局部横向滚动直接消费。
+    var verticalContentLayout: FretboardConfiguration.VerticalContentLayout {
+        guard configuration.displayMode == .vertical else {
+            return .init(
+                viewportHeight: 0,
+                contentWidth: 0
+            )
+        }
+
+        return configuration.verticalContentLayout(
+            forViewportHeight: resolvedVerticalViewportHeight
+        )
+    }
+
+    var verticalContentSize: CGSize {
+        verticalContentLayout.contentSize
     }
 
     override init(frame frameRect: NSRect) {
@@ -135,12 +153,12 @@ final class macOSFretboardView: NSView {
         return configuration.resolvedHeight(forAvailableWidth: bounds.width)
     }
 
-    private var resolvedIntrinsicWidth: CGFloat {
+    private var resolvedVerticalViewportHeight: CGFloat {
         guard bounds.height > 0 else {
-            return configuration.resolvedWidth(forAvailableHeight: configuration.preferredHeight)
+            return configuration.preferredHeight
         }
 
-        return configuration.resolvedWidth(forAvailableHeight: bounds.height)
+        return bounds.height
     }
 
     private func updateContentPriorities() {
