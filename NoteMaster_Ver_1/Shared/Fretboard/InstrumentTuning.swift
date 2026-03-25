@@ -7,29 +7,29 @@
 
 struct InstrumentTuning: Equatable, Hashable, Sendable {
     var instrument: InstrumentType
-    // 空弦顺序固定为视觉上从上到下，对应几何层的 stringIndex 方向。
-    var openStringsTopToBottom: [NotePitch]
+    // 空弦数组按逻辑弦序从低音到高音排列；屏幕显示方向由外层 displayMode 与几何映射决定。
+    var openStringsLowToHigh: [NotePitch]
 
-    init(instrument: InstrumentType, openStringsTopToBottom: [NotePitch]) {
+    init(instrument: InstrumentType, openStringsLowToHigh: [NotePitch]) {
         precondition(
-            openStringsTopToBottom.count == instrument.stringCount,
+            openStringsLowToHigh.count == instrument.stringCount,
             "Open string count must match instrument string count."
         )
 
         self.instrument = instrument
-        self.openStringsTopToBottom = openStringsTopToBottom
+        self.openStringsLowToHigh = openStringsLowToHigh
     }
 
     var stringCount: Int {
-        openStringsTopToBottom.count
+        openStringsLowToHigh.count
     }
 
     func openStringPitch(for stringIndex: Int) -> NotePitch? {
-        guard openStringsTopToBottom.indices.contains(stringIndex) else {
+        guard openStringsLowToHigh.indices.contains(stringIndex) else {
             return nil
         }
 
-        return openStringsTopToBottom[stringIndex]
+        return openStringsLowToHigh[stringIndex]
     }
 
     static func standard(for instrument: InstrumentType) -> InstrumentTuning {
@@ -45,7 +45,7 @@ struct InstrumentTuning: Equatable, Hashable, Sendable {
 
     static let guitar6Standard = InstrumentTuning(
         instrument: .guitar6,
-        openStringsTopToBottom: [
+        openStringsLowToHigh: [
             NotePitch(pitchClass: .e, octave: 2),
             NotePitch(pitchClass: .a, octave: 2),
             NotePitch(pitchClass: .d, octave: 3),
@@ -57,7 +57,7 @@ struct InstrumentTuning: Equatable, Hashable, Sendable {
 
     static let bass4Standard = InstrumentTuning(
         instrument: .bass4,
-        openStringsTopToBottom: [
+        openStringsLowToHigh: [
             NotePitch(pitchClass: .e, octave: 1),
             NotePitch(pitchClass: .a, octave: 1),
             NotePitch(pitchClass: .d, octave: 2),
@@ -67,7 +67,7 @@ struct InstrumentTuning: Equatable, Hashable, Sendable {
 
     static let bass5Standard = InstrumentTuning(
         instrument: .bass5,
-        openStringsTopToBottom: [
+        openStringsLowToHigh: [
             NotePitch(pitchClass: .b, octave: 0),
             NotePitch(pitchClass: .e, octave: 1),
             NotePitch(pitchClass: .a, octave: 1),

@@ -93,6 +93,23 @@ struct FretboardConfiguration: Equatable, Sendable {
             ) / drawingHeightFactor
         }
 
+        // 为后续高度驱动宽度的竖向布局提供对称出口；当前先基于同一比例真相反推。
+        func totalWidth(
+            forAvailableHeight height: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            let resolvedHeightToWidthMultiplier = heightToWidthMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+            guard resolvedHeightToWidthMultiplier > 0 else {
+                return 0
+            }
+
+            return max(height, 0) / resolvedHeightToWidthMultiplier
+        }
+
         func heightToWidthMultiplier(
             displayPositionCount: Int,
             stringCount: Int
@@ -103,6 +120,21 @@ struct FretboardConfiguration: Equatable, Sendable {
                 / drawingHeightFactor
                 * CGFloat(resolvedStringCount)
                 / (CGFloat(resolvedDisplayPositionCount) * resolvedCellWidthToHeightRatio)
+        }
+
+        func widthToHeightMultiplier(
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            let resolvedHeightToWidthMultiplier = heightToWidthMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+            guard resolvedHeightToWidthMultiplier > 0 else {
+                return 0
+            }
+
+            return 1 / resolvedHeightToWidthMultiplier
         }
 
         func legacyPreferredHeight(forStringCount stringCount: Int) -> CGFloat {
@@ -141,17 +173,20 @@ struct FretboardConfiguration: Equatable, Sendable {
     }
 
     // 运行期配置以 tuning 为真相来源，instrument 由 tuning 派生。
+    var displayMode: FretboardDisplayMode
     var tuning: InstrumentTuning
     var maxFret: Int
     var layoutMetrics: LayoutMetrics
     var markerLayout: MarkerLayout
 
     init(
+        displayMode: FretboardDisplayMode = .horizontal,
         tuning: InstrumentTuning = .standard(for: .guitar6),
         maxFret: Int = 12,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
+        self.displayMode = displayMode
         self.tuning = tuning
         self.maxFret = max(0, maxFret)
         self.layoutMetrics = layoutMetrics
@@ -160,11 +195,13 @@ struct FretboardConfiguration: Equatable, Sendable {
 
     init(
         instrument: InstrumentType,
+        displayMode: FretboardDisplayMode = .horizontal,
         maxFret: Int = 12,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
         self.init(
+            displayMode: displayMode,
             tuning: .standard(for: instrument),
             maxFret: maxFret,
             layoutMetrics: layoutMetrics,
@@ -196,8 +233,23 @@ struct FretboardConfiguration: Equatable, Sendable {
         )
     }
 
+    func resolvedWidth(forAvailableHeight height: CGFloat) -> CGFloat {
+        layoutMetrics.totalWidth(
+            forAvailableHeight: height,
+            displayPositionCount: displayPositionCount,
+            stringCount: stringCount
+        )
+    }
+
     var heightToWidthMultiplier: CGFloat {
         layoutMetrics.heightToWidthMultiplier(
+            displayPositionCount: displayPositionCount,
+            stringCount: stringCount
+        )
+    }
+
+    var widthToHeightMultiplier: CGFloat {
+        layoutMetrics.widthToHeightMultiplier(
             displayPositionCount: displayPositionCount,
             stringCount: stringCount
         )

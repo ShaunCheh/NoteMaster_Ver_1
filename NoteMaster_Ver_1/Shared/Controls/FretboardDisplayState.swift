@@ -15,6 +15,7 @@ struct FretboardDisplayState: Equatable, Sendable {
 
     static let `default` = FretboardDisplayState(
         configuration: FretboardConfiguration(
+            displayMode: .horizontal,
             tuning: .standard(for: .guitar6),
             maxFret: 12
         )
@@ -30,6 +31,12 @@ struct FretboardDisplayState: Equatable, Sendable {
         self.visibility = visibility
         self.spelling = spelling
         self.showsOctave = showsOctave
+    }
+
+    // displayMode 仍以 configuration 为真相来源；这里提供共享状态级别的语义代理。
+    var displayMode: FretboardDisplayMode {
+        get { configuration.displayMode }
+        set { configuration.displayMode = newValue }
     }
 
     // 控制器只维护共享状态，provider 统一从状态派生。
