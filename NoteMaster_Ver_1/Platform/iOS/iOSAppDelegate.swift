@@ -19,8 +19,10 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         MusicFontRegistry.bootstrapIfNeeded()
 
         let window = UIWindow(frame: UIScreen.main.bounds)
+        // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。
+        window.overrideUserInterfaceStyle = .light
         window.rootViewController = iOSViewController()
-        window.backgroundColor = .white
+        window.backgroundColor = .systemBackground
         window.makeKeyAndVisible()
         self.window = window
         return true

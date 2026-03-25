@@ -22,6 +22,8 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         MusicFontRegistry.bootstrapIfNeeded()
+        // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。
+        NSApp.appearance = NSAppearance(named: .aqua)
 
         let viewController = macOSViewController()
         let window = NSWindow(
