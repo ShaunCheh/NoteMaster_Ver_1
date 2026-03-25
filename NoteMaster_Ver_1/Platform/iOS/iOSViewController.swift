@@ -39,34 +39,48 @@ final class iOSViewController: UIViewController {
         }
     }
 
-    private lazy var buttonPanelView: iOSButtonPanelView = {
-        let buttonPanelView = iOSButtonPanelView(
-            model: ButtonPanelSnapshotBuilder.makeModel(from: displayState)
+    private var isSettingsPresented = false
+
+    private lazy var settingsButton: UIButton = {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.filled()
+        configuration.buttonSize = .medium
+        configuration.cornerStyle = .capsule
+        configuration.image = UIImage(systemName: "gearshape.fill")
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 10,
+            leading: 10,
+            bottom: 10,
+            trailing: 10
         )
-        buttonPanelView.onAction = { [weak self] actionID in
-            self?.handleButtonAction(actionID)
-        }
-        return buttonPanelView
+        button.configuration = configuration
+        button.accessibilityIdentifier = "floating-settings-button"
+        button.addTarget(
+            self,
+            action: #selector(handleSettingsButtonTap),
+            for: .touchUpInside
+        )
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.12
+        button.layer.shadowRadius = 12
+        button.layer.shadowOffset = CGSize(width: 0, height: 4)
+        return button
     }()
 
-    private lazy var staffControlPanelView: iOSStaffControlPanelView = {
-        let staffControlPanelView = iOSStaffControlPanelView(
-            model: StaffControlPanelSnapshotBuilder.makeModel(from: staffDisplayState)
+    private lazy var settingsContainerView: iOSSettingsContainerView = {
+        let settingsContainerView = iOSSettingsContainerView(
+            model: SettingsPanelSnapshotBuilder.makeModel(
+                fretboardDisplayState: displayState,
+                staffDisplayState: staffDisplayState
+            )
         )
-        staffControlPanelView.onEvent = { [weak self] event in
-            self?.handleStaffControlEvent(event)
+        settingsContainerView.onEvent = { [weak self] event in
+            self?.handleSettingsPanelEvent(event)
         }
-        return staffControlPanelView
-    }()
-
-    private lazy var fretboardControlPanelView: iOSFretboardControlPanelView = {
-        let fretboardControlPanelView = iOSFretboardControlPanelView(
-            model: FretboardControlPanelSnapshotBuilder.makeModel(from: displayState)
-        )
-        fretboardControlPanelView.onEvent = { [weak self] event in
-            self?.handleFretboardControlEvent(event)
+        settingsContainerView.onDismissRequest = { [weak self] in
+            self?.setSettingsPresented(false)
         }
-        return fretboardControlPanelView
+        return settingsContainerView
     }()
 
     private let scrollView = UIScrollView()
@@ -75,9 +89,6 @@ final class iOSViewController: UIViewController {
     private var horizontalFretboardConstraints: [NSLayoutConstraint] = []
     private var verticalFretboardConstraints: [NSLayoutConstraint] = []
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
-    private var collapsedFretboardControlPanelHeightConstraint: NSLayoutConstraint?
-    private var staffViewTopToStaffControlPanelConstraint: NSLayoutConstraint?
-    private var staffViewTopToFretboardControlPanelConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: iOSFretboardView = {
         let fretboardView = iOSFretboardView(configuration: displayState.configuration)
@@ -104,9 +115,8 @@ final class iOSViewController: UIViewController {
     private func configureLayout() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
-        buttonPanelView.translatesAutoresizingMaskIntoConstraints = false
-        staffControlPanelView.translatesAutoresizingMaskIntoConstraints = false
-        fretboardControlPanelView.translatesAutoresizingMaskIntoConstraints = false
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
@@ -119,26 +129,14 @@ final class iOSViewController: UIViewController {
         scrollView.panGestureRecognizer.cancelsTouchesInView = true
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
-        contentView.addSubview(buttonPanelView)
-        contentView.addSubview(staffControlPanelView)
-        contentView.addSubview(fretboardControlPanelView)
         contentView.addSubview(staffView)
         contentView.addSubview(fretboardHostView)
         fretboardHostView.addSubview(fretboardView)
+        view.addSubview(settingsButton)
+        view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
         rebuildVerticalFretboardHostHeightConstraint()
-        collapsedFretboardControlPanelHeightConstraint = fretboardControlPanelView.heightAnchor.constraint(
-            equalToConstant: 0
-        )
-        staffViewTopToStaffControlPanelConstraint = staffView.topAnchor.constraint(
-            equalTo: staffControlPanelView.bottomAnchor,
-            constant: Layout.verticalSpacing
-        )
-        staffViewTopToFretboardControlPanelConstraint = staffView.topAnchor.constraint(
-            equalTo: fretboardControlPanelView.bottomAnchor,
-            constant: Layout.verticalSpacing
-        )
         horizontalFretboardConstraints = [
             fretboardView.leadingAnchor.constraint(equalTo: fretboardHostView.leadingAnchor),
             fretboardView.trailingAnchor.constraint(equalTo: fretboardHostView.trailingAnchor)
@@ -158,41 +156,9 @@ final class iOSViewController: UIViewController {
             contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
             contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
-            buttonPanelView.leadingAnchor.constraint(
-                equalTo: contentView.leadingAnchor,
-                constant: Layout.horizontalInset
-            ),
-            buttonPanelView.trailingAnchor.constraint(
-                equalTo: contentView.trailingAnchor,
-                constant: -Layout.horizontalInset
-            ),
-            buttonPanelView.topAnchor.constraint(
+            staffView.topAnchor.constraint(
                 equalTo: contentView.topAnchor,
-                constant: Layout.topInset
-            ),
-            staffControlPanelView.leadingAnchor.constraint(
-                equalTo: contentView.leadingAnchor,
-                constant: Layout.horizontalInset
-            ),
-            staffControlPanelView.trailingAnchor.constraint(
-                equalTo: contentView.trailingAnchor,
-                constant: -Layout.horizontalInset
-            ),
-            staffControlPanelView.topAnchor.constraint(
-                equalTo: buttonPanelView.bottomAnchor,
-                constant: Layout.verticalSpacing
-            ),
-            fretboardControlPanelView.leadingAnchor.constraint(
-                equalTo: contentView.leadingAnchor,
-                constant: Layout.horizontalInset
-            ),
-            fretboardControlPanelView.trailingAnchor.constraint(
-                equalTo: contentView.trailingAnchor,
-                constant: -Layout.horizontalInset
-            ),
-            fretboardControlPanelView.topAnchor.constraint(
-                equalTo: staffControlPanelView.bottomAnchor,
-                constant: Layout.verticalSpacing
+                constant: Layout.contentTopInset
             ),
             staffView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             staffView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -207,11 +173,26 @@ final class iOSViewController: UIViewController {
                 constant: -Layout.bottomInset
             ),
             fretboardView.topAnchor.constraint(equalTo: fretboardHostView.topAnchor),
-            fretboardView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor)
+            fretboardView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor),
+            settingsButton.leadingAnchor.constraint(
+                equalTo: safeArea.leadingAnchor,
+                constant: Layout.horizontalInset
+            ),
+            settingsButton.topAnchor.constraint(
+                equalTo: safeArea.topAnchor,
+                constant: Layout.topInset
+            ),
+            settingsButton.widthAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
+            settingsButton.heightAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
+            settingsContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            settingsContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            settingsContainerView.topAnchor.constraint(equalTo: view.topAnchor),
+            settingsContainerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
-        updateFretboardControlPanelVisibility()
         updateFretboardLayoutModeConstraints()
+        updateSettingsButtonAppearance()
+        settingsContainerView.setPresented(false)
     }
 
     private func updateFretboardLayoutModeConstraints() {
@@ -219,14 +200,6 @@ final class iOSViewController: UIViewController {
         verticalFretboardHostHeightConstraint?.isActive = isVertical
         horizontalFretboardConstraints.forEach { $0.isActive = !isVertical }
         verticalFretboardConstraints.forEach { $0.isActive = isVertical }
-    }
-
-    private func updateFretboardControlPanelVisibility() {
-        let showsFretboardControlPanel = displayState.displayMode == .vertical
-        fretboardControlPanelView.isHidden = !showsFretboardControlPanel
-        collapsedFretboardControlPanelHeightConstraint?.isActive = !showsFretboardControlPanel
-        staffViewTopToStaffControlPanelConstraint?.isActive = !showsFretboardControlPanel
-        staffViewTopToFretboardControlPanelConstraint?.isActive = showsFretboardControlPanel
     }
 
     private func rebuildVerticalFretboardHostHeightConstraint() {
@@ -243,21 +216,26 @@ final class iOSViewController: UIViewController {
     }
 
     private func applyFretboardDisplayState() {
-        buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
-        fretboardControlPanelView.model = FretboardControlPanelSnapshotBuilder.makeModel(from: displayState)
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
         rebuildVerticalFretboardHostHeightConstraint()
-        updateFretboardControlPanelVisibility()
+        applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
         updateLayoutIfNeeded()
     }
 
     private func applyStaffDisplayState() {
-        staffControlPanelView.model = StaffControlPanelSnapshotBuilder.makeModel(from: staffDisplayState)
         staffView.configuration = staffDisplayState.configuration
         staffView.sceneProvider = staffDisplayState.sceneProvider
+        applySettingsPanelState()
         updateLayoutIfNeeded()
+    }
+
+    private func applySettingsPanelState() {
+        settingsContainerView.model = SettingsPanelSnapshotBuilder.makeModel(
+            fretboardDisplayState: displayState,
+            staffDisplayState: staffDisplayState
+        )
     }
 
     private func updateLayoutIfNeeded() {
@@ -265,44 +243,67 @@ final class iOSViewController: UIViewController {
         view.layoutIfNeeded()
     }
 
-    private func handleButtonAction(_ actionID: ButtonPanelActionID) {
-        var nextDisplayState = displayState
-        nextDisplayState.apply(actionID)
-
-        guard nextDisplayState != displayState else {
+    private func setSettingsPresented(_ presented: Bool) {
+        guard isSettingsPresented != presented else {
             return
         }
 
-        displayState = nextDisplayState
+        isSettingsPresented = presented
+        settingsContainerView.setPresented(presented)
+        updateSettingsButtonAppearance()
     }
 
-    private func handleStaffControlEvent(_ event: StaffControlEvent) {
+    private func updateSettingsButtonAppearance() {
+        var configuration = settingsButton.configuration ?? UIButton.Configuration.filled()
+        configuration.image = UIImage(systemName: "gearshape.fill")
+        configuration.baseBackgroundColor = isSettingsPresented
+            ? .systemBlue
+            : .secondarySystemBackground
+        configuration.baseForegroundColor = isSettingsPresented
+            ? .white
+            : .label
+        settingsButton.configuration = configuration
+        settingsButton.accessibilityLabel = isSettingsPresented
+            ? "Hide settings"
+            : "Show settings"
+    }
+
+    @objc
+    private func handleSettingsButtonTap() {
+        setSettingsPresented(!isSettingsPresented)
+    }
+
+    private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
+        var nextDisplayState = displayState
         var nextStaffDisplayState = staffDisplayState
-        nextStaffDisplayState.apply(event)
+        event.apply(
+            to: &nextDisplayState,
+            and: &nextStaffDisplayState
+        )
 
-        guard nextStaffDisplayState != staffDisplayState else {
+        let didChangeFretboard = nextDisplayState != displayState
+        let didChangeStaff = nextStaffDisplayState != staffDisplayState
+
+        guard didChangeFretboard || didChangeStaff else {
             return
         }
 
-        staffDisplayState = nextStaffDisplayState
-    }
-
-    private func handleFretboardControlEvent(_ event: FretboardControlEvent) {
-        var nextDisplayState = displayState
-        nextDisplayState.apply(event)
-
-        guard nextDisplayState != displayState else {
-            return
+        if didChangeFretboard {
+            displayState = nextDisplayState
         }
 
-        displayState = nextDisplayState
+        if didChangeStaff {
+            staffDisplayState = nextStaffDisplayState
+        }
     }
 }
 
 private enum Layout {
     static let horizontalInset: CGFloat = 16
     static let topInset: CGFloat = 16
+    static let contentTopInset: CGFloat = 68
     static let verticalSpacing: CGFloat = 20
     static let bottomInset: CGFloat = 16
+    static let settingsButtonSize: CGFloat = 40
 }
 #endif
