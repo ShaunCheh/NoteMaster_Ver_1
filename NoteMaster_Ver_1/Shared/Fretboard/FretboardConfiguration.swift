@@ -143,11 +143,12 @@ struct FretboardConfiguration: Equatable, Sendable {
         ) -> CGFloat {
             let resolvedDisplayPositionCount = max(displayPositionCount, 1)
             let resolvedStringCount = max(stringCount, 1)
+            // vertical 模式沿用同一套“长:短”比例真相，但长边改为品位方向（y 轴）；
+            // 因此这里需要把 horizontal 的 width/height 比例翻转到 width/height 的倒数。
             return drawingHeightFactor
                 / drawingWidthFactor
                 * CGFloat(resolvedStringCount)
-                * resolvedCellWidthToHeightRatio
-                / CGFloat(resolvedDisplayPositionCount)
+                / (CGFloat(resolvedDisplayPositionCount) * resolvedCellWidthToHeightRatio)
         }
 
         func verticalHeightToWidthMultiplier(

@@ -223,6 +223,11 @@ private extension FretboardValidationRunner {
             fixture: fixture,
             record: record
         )
+        validateCellAspectRatio(
+            scene: scene,
+            fixture: fixture,
+            record: record
+        )
         validateAxisOrientation(
             scene: scene,
             fixture: fixture,
@@ -338,6 +343,40 @@ private extension FretboardValidationRunner {
         }
     }
 
+    static func validateCellAspectRatio(
+        scene: FretboardScene,
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        let ratio = max(
+            fixture.configuration.layoutMetrics.cellWidthToHeightRatio,
+            tolerance
+        )
+        let expectedWidthToHeightRatio: CGFloat
+
+        switch fixture.configuration.displayMode {
+        case .horizontal:
+            expectedWidthToHeightRatio = ratio
+        case .vertical:
+            expectedWidthToHeightRatio = 1 / ratio
+        }
+
+        for cell in scene.cellFrames {
+            guard cell.frame.width > 0, cell.frame.height > 0 else {
+                record("cell(\(cell.stringIndex), \(cell.fret)) 的尺寸非法。")
+                continue
+            }
+
+            let actualWidthToHeightRatio = cell.frame.width / cell.frame.height
+            if !approximatelyEqual(actualWidthToHeightRatio, expectedWidthToHeightRatio) {
+                record(
+                    "cell(\(cell.stringIndex), \(cell.fret)) 的 width/height 比例错误，期望 \(expectedWidthToHeightRatio)，实际 \(actualWidthToHeightRatio)。"
+                )
+                break
+            }
+        }
+    }
+
     static func validateAxisOrientation(
         scene: FretboardScene,
         fixture: FretboardValidationFixture,
@@ -369,6 +408,11 @@ private extension FretboardValidationRunner {
                 record("horizontal 模式下品位没有沿 x 轴递增。")
             }
 
+            if let firstCell = scene.cellFrames.first,
+               !(firstCell.frame.width > firstCell.frame.height + tolerance) {
+                record("horizontal 模式下 cell 长边应沿 x 轴。")
+            }
+
             if !approximatelyEqual(scene.nutRect.midX, scene.openStringRect.maxX) {
                 record("horizontal 模式下 nutRect 没有对齐到空弦区域右侧。")
             }
@@ -395,6 +439,11 @@ private extension FretboardValidationRunner {
 
             if !isStrictlyIncreasing(orderedFrets.map(\.start.y)) {
                 record("vertical 模式下品位没有沿 y 轴递增。")
+            }
+
+            if let firstCell = scene.cellFrames.first,
+               !(firstCell.frame.height > firstCell.frame.width + tolerance) {
+                record("vertical 模式下 cell 长边应沿 y 轴。")
             }
 
             if !approximatelyEqual(scene.nutRect.midY, scene.openStringRect.maxY) {
