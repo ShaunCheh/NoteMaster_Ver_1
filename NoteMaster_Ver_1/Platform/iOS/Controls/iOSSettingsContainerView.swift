@@ -33,9 +33,6 @@ final class iOSSettingsContainerView: UIView {
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let settingsPanelView: iOSSettingsPanelView
-    #if DEBUG
-    private var lastLoggedLayoutSignature: String?
-    #endif
 
     override init(frame: CGRect) {
         model = .empty
@@ -64,16 +61,6 @@ final class iOSSettingsContainerView: UIView {
         alpha = presented ? 1 : 0
         isUserInteractionEnabled = presented
         accessibilityElementsHidden = !presented
-        #if DEBUG
-        logDebugLayout(reason: "setPresented(\(presented))")
-        #endif
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        #if DEBUG
-        logDebugLayout(reason: "layoutSubviews")
-        #endif
     }
 
     private func configureView() {
@@ -117,6 +104,10 @@ final class iOSSettingsContainerView: UIView {
             equalToConstant: Style.preferredCardWidth
         )
         preferredWidthConstraint.priority = .defaultHigh
+        let scrollHeightMatchesContentConstraint = scrollView.heightAnchor.constraint(
+            equalTo: settingsPanelView.heightAnchor
+        )
+        scrollHeightMatchesContentConstraint.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
             backdropView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -160,6 +151,7 @@ final class iOSSettingsContainerView: UIView {
                 equalTo: cardView.bottomAnchor,
                 constant: -Style.cardContentInset
             ),
+            scrollHeightMatchesContentConstraint,
             scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: Style.maximumScrollHeight),
 
             contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
@@ -177,51 +169,9 @@ final class iOSSettingsContainerView: UIView {
 
     @objc
     private func handleBackdropTap() {
-        #if DEBUG
-        print("[SettingsDebug][iOSContainer] reason=backdropTap")
-        #endif
         onDismissRequest?()
     }
 }
-
-#if DEBUG
-private extension iOSSettingsContainerView {
-    func logDebugLayout(reason: String) {
-        let targetWidth = max(
-            1,
-            Style.preferredCardWidth - (Style.cardContentInset * 2)
-        )
-        let fittingSize = settingsPanelView.systemLayoutSizeFitting(
-            CGSize(
-                width: targetWidth,
-                height: UIView.layoutFittingCompressedSize.height
-            ),
-            withHorizontalFittingPriority: .required,
-            verticalFittingPriority: .fittingSizeLevel
-        )
-        let signature = [
-            "reason=\(reason)",
-            "presented=\(!isHidden)",
-            "sections=\(model.sections.count)",
-            "rows=\(model.rows.count)",
-            "self=\(NSCoder.string(for: frame))",
-            "card=\(NSCoder.string(for: cardView.frame))",
-            "scroll=\(NSCoder.string(for: scrollView.frame))",
-            "content=\(NSCoder.string(for: contentView.frame))",
-            "panel=\(NSCoder.string(for: settingsPanelView.frame))",
-            "intrinsic=\(NSCoder.string(for: settingsPanelView.intrinsicContentSize))",
-            "fitting=\(NSCoder.string(for: fittingSize))"
-        ].joined(separator: " ")
-
-        guard signature != lastLoggedLayoutSignature else {
-            return
-        }
-
-        lastLoggedLayoutSignature = signature
-        print("[SettingsDebug][iOSContainer] \(signature)")
-    }
-}
-#endif
 
 private enum Style {
     static let screenInset: CGFloat = 16

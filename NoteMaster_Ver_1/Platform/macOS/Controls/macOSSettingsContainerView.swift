@@ -106,6 +106,10 @@ final class macOSSettingsContainerView: NSView {
             equalToConstant: Style.preferredCardWidth
         )
         preferredWidthConstraint.priority = .defaultHigh
+        let scrollHeightMatchesContentConstraint = scrollView.heightAnchor.constraint(
+            equalTo: settingsPanelView.heightAnchor
+        )
+        scrollHeightMatchesContentConstraint.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
             backdropView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -149,6 +153,7 @@ final class macOSSettingsContainerView: NSView {
                 equalTo: cardView.bottomAnchor,
                 constant: -Style.cardContentInset
             ),
+            scrollHeightMatchesContentConstraint,
             scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: Style.maximumScrollHeight),
 
             contentView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
