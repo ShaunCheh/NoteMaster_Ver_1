@@ -508,7 +508,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .clefAnchorYOffset:
             return "Anchor Y Offset"
         case .verticalHostHeightRatio:
-            return "Height"
+            return "Viewport Height"
         }
     }
 
@@ -521,7 +521,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .clefAnchorYOffset:
             return "Adjust clef anchor vertical offset"
         case .verticalHostHeightRatio:
-            return "Adjust vertical fretboard height"
+            return "Adjust vertical fretboard viewport height. Increasing height may require horizontal scrolling."
         }
     }
 
