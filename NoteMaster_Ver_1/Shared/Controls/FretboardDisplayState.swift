@@ -39,6 +39,11 @@ struct FretboardDisplayState: Equatable, Sendable {
         set { configuration.displayMode = newValue }
     }
 
+    // 模式切换入口收口到共享状态，避免平台层自行解释 horizontal / vertical 业务语义。
+    mutating func setDisplayMode(_ displayMode: FretboardDisplayMode) {
+        self.displayMode = displayMode
+    }
+
     // 控制器只维护共享状态，provider 统一从状态派生。
     var contentProvider: NoteNameContentProvider {
         NoteNameContentProvider(

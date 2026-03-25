@@ -7,6 +7,7 @@
 
 enum ButtonPanelSectionID: CaseIterable, Equatable, Hashable, Sendable {
     case instrument
+    case displayMode
     case labels
     case spelling
     case octave
@@ -15,6 +16,8 @@ enum ButtonPanelSectionID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .instrument:
             return "Instrument"
+        case .displayMode:
+            return "Display"
         case .labels:
             return "Labels"
         case .spelling:
@@ -26,7 +29,7 @@ enum ButtonPanelSectionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var selectionStyle: ButtonPanelSelectionStyle {
         switch self {
-        case .instrument, .labels, .spelling:
+        case .instrument, .displayMode, .labels, .spelling:
             return .singleSelection
         case .octave:
             return .independent
@@ -43,6 +46,8 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setInstrumentGuitar6
     case setInstrumentBass4
     case setInstrumentBass5
+    case setDisplayModeHorizontal
+    case setDisplayModeVertical
     case setVisibilityAll
     case setVisibilityNaturalOnly
     case setVisibilityAccidentalOnly
@@ -57,6 +62,9 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setInstrumentBass4,
              .setInstrumentBass5:
             return .instrument
+        case .setDisplayModeHorizontal,
+             .setDisplayModeVertical:
+            return .displayMode
         case .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityAccidentalOnly,
@@ -78,6 +86,10 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Bass 4"
         case .setInstrumentBass5:
             return "Bass 5"
+        case .setDisplayModeHorizontal:
+            return "Horizontal"
+        case .setDisplayModeVertical:
+            return "Vertical"
         case .setVisibilityAll:
             return "All"
         case .setVisibilityNaturalOnly:
@@ -103,6 +115,10 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Use 4-string bass standard tuning"
         case .setInstrumentBass5:
             return "Use 5-string bass standard tuning"
+        case .setDisplayModeHorizontal:
+            return "Show fretboard in horizontal mode"
+        case .setDisplayModeVertical:
+            return "Show fretboard in vertical mode"
         case .setVisibilityAll:
             return "Show all note labels"
         case .setVisibilityNaturalOnly:
@@ -129,6 +145,10 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
             return displayState.configuration.instrument == .bass4
         case .setInstrumentBass5:
             return displayState.configuration.instrument == .bass5
+        case .setDisplayModeHorizontal:
+            return displayState.displayMode == .horizontal
+        case .setDisplayModeVertical:
+            return displayState.displayMode == .vertical
         case .setVisibilityAll:
             return displayState.visibility == .all
         case .setVisibilityNaturalOnly:
@@ -151,6 +171,8 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
+             .setDisplayModeHorizontal,
+             .setDisplayModeVertical,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityAccidentalOnly,
@@ -171,6 +193,10 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.configuration.tuning = .standard(for: .bass4)
         case .setInstrumentBass5:
             displayState.configuration.tuning = .standard(for: .bass5)
+        case .setDisplayModeHorizontal:
+            displayState.setDisplayMode(.horizontal)
+        case .setDisplayModeVertical:
+            displayState.setDisplayMode(.vertical)
         case .setVisibilityAll:
             displayState.visibility = .all
         case .setVisibilityNaturalOnly:

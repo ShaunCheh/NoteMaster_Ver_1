@@ -6,9 +6,17 @@
 //
 
 enum ButtonPanelSnapshotBuilder {
+    private static let orderedSectionIDs: [ButtonPanelSectionID] = [
+        .instrument,
+        .displayMode,
+        .labels,
+        .spelling,
+        .octave
+    ]
+
     static func makeModel(from displayState: FretboardDisplayState) -> ButtonPanelModel {
         ButtonPanelModel(
-            sections: ButtonPanelSectionID.allCases.map {
+            sections: orderedSectionIDs.map {
                 makeSection(
                     id: $0,
                     displayState: displayState

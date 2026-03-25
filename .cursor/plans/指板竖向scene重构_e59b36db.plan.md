@@ -19,7 +19,7 @@ todos:
     status: pending
   - id: phase6-control-surface
     content: 把 displayMode 接入显示状态与按钮面板切换入口
-    status: pending
+    status: completed
   - id: phase7-validation
     content: 完成无测试 target 前提下的 scene 夹具与双平台手工回归验证
     status: pending
