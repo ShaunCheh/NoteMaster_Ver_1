@@ -8,9 +8,6 @@
 import CoreGraphics
 
 struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
-    private static let minimumLayoutFactor: CGFloat = 0.01
-    private static let minimumAspectRatio: CGFloat = 0.01
-
     func makeScene(
         configuration: FretboardConfiguration,
         bounds: CGRect
@@ -374,9 +371,7 @@ struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
             return .null
         }
 
-        let widthToHeightMultiplier = verticalWidthToHeightMultiplier(
-            configuration: configuration
-        )
+        let widthToHeightMultiplier = configuration.widthToHeightMultiplier
         guard widthToHeightMultiplier > 0 else {
             return .null
         }
@@ -425,30 +420,5 @@ struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
         )
 
         return rect.isNull || rect.isEmpty ? .null : rect
-    }
-
-    private static func verticalWidthToHeightMultiplier(
-        configuration: FretboardConfiguration
-    ) -> CGFloat {
-        let metrics = configuration.layoutMetrics
-        let drawingWidthFactor = max(
-            1 - (metrics.horizontalInsetRatio * 2),
-            minimumLayoutFactor
-        )
-        let drawingHeightFactor = max(
-            1 - (metrics.verticalInsetRatio * 2),
-            minimumLayoutFactor
-        )
-        let resolvedCellWidthToHeightRatio = max(
-            metrics.cellWidthToHeightRatio,
-            minimumAspectRatio
-        )
-        let displayPositionCount = max(configuration.displayPositionCount, 1)
-        let stringCount = max(configuration.stringCount, 1)
-
-        return drawingHeightFactor
-            / drawingWidthFactor
-            * CGFloat(stringCount)
-            / (CGFloat(displayPositionCount) * resolvedCellWidthToHeightRatio)
     }
 }

@@ -9,7 +9,7 @@
 import UIKit
 
 final class iOSFretboardView: UIView {
-    private var lastMeasuredLayoutWidth: CGFloat?
+    private var lastMeasuredPrimaryDimension: CGFloat?
 
     var configuration: FretboardConfiguration {
         didSet {
@@ -35,10 +35,18 @@ final class iOSFretboardView: UIView {
     }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(
-            width: UIView.noIntrinsicMetric,
-            height: resolvedIntrinsicHeight
-        )
+        switch configuration.displayMode {
+        case .horizontal:
+            return CGSize(
+                width: UIView.noIntrinsicMetric,
+                height: resolvedIntrinsicHeight
+            )
+        case .vertical:
+            return CGSize(
+                width: resolvedIntrinsicWidth,
+                height: UIView.noIntrinsicMetric
+            )
+        }
     }
 
     override init(frame: CGRect) {
@@ -71,7 +79,7 @@ final class iOSFretboardView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        invalidateIntrinsicSizeForCurrentWidthIfNeeded()
+        invalidateIntrinsicSizeForCurrentPrimaryDimensionIfNeeded()
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -106,15 +114,15 @@ final class iOSFretboardView: UIView {
         backgroundColor = .clear
         isOpaque = false
         contentMode = .redraw
-        setContentHuggingPriority(.required, for: .vertical)
-        setContentCompressionResistancePriority(.required, for: .vertical)
         applyConfiguration()
     }
 
     private func applyConfiguration() {
+        lastMeasuredPrimaryDimension = nil
         fretboardLayer.configuration = configuration
         fretboardLayer.contentProvider = contentProvider
         updateContentsScale()
+        updateContentPriorities()
         invalidateIntrinsicContentSize()
     }
 
@@ -130,13 +138,43 @@ final class iOSFretboardView: UIView {
         return configuration.resolvedHeight(forAvailableWidth: bounds.width)
     }
 
-    private func invalidateIntrinsicSizeForCurrentWidthIfNeeded() {
-        let currentWidth = bounds.width
-        guard lastMeasuredLayoutWidth != currentWidth else {
+    private var resolvedIntrinsicWidth: CGFloat {
+        guard bounds.height > 0 else {
+            return configuration.resolvedWidth(forAvailableHeight: configuration.preferredHeight)
+        }
+
+        return configuration.resolvedWidth(forAvailableHeight: bounds.height)
+    }
+
+    private func updateContentPriorities() {
+        switch configuration.displayMode {
+        case .horizontal:
+            setContentHuggingPriority(.defaultLow, for: .horizontal)
+            setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            setContentHuggingPriority(.required, for: .vertical)
+            setContentCompressionResistancePriority(.required, for: .vertical)
+        case .vertical:
+            setContentHuggingPriority(.required, for: .horizontal)
+            setContentCompressionResistancePriority(.required, for: .horizontal)
+            setContentHuggingPriority(.defaultLow, for: .vertical)
+            setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        }
+    }
+
+    private func invalidateIntrinsicSizeForCurrentPrimaryDimensionIfNeeded() {
+        let currentPrimaryDimension: CGFloat
+        switch configuration.displayMode {
+        case .horizontal:
+            currentPrimaryDimension = bounds.width
+        case .vertical:
+            currentPrimaryDimension = bounds.height
+        }
+
+        guard lastMeasuredPrimaryDimension != currentPrimaryDimension else {
             return
         }
 
-        lastMeasuredLayoutWidth = currentWidth
+        lastMeasuredPrimaryDimension = currentPrimaryDimension
         invalidateIntrinsicContentSize()
     }
 

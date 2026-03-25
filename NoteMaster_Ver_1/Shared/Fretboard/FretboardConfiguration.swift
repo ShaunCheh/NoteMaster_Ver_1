@@ -93,7 +93,7 @@ struct FretboardConfiguration: Equatable, Sendable {
             ) / drawingHeightFactor
         }
 
-        // 为后续高度驱动宽度的竖向布局提供对称出口；当前先基于同一比例真相反推。
+        // horizontal 模式下基于现有宽度优先链路反推总宽度。
         func totalWidth(
             forAvailableHeight height: CGFloat,
             displayPositionCount: Int,
@@ -135,6 +135,56 @@ struct FretboardConfiguration: Equatable, Sendable {
             }
 
             return 1 / resolvedHeightToWidthMultiplier
+        }
+
+        func verticalWidthToHeightMultiplier(
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            let resolvedDisplayPositionCount = max(displayPositionCount, 1)
+            let resolvedStringCount = max(stringCount, 1)
+            return drawingHeightFactor
+                / drawingWidthFactor
+                * CGFloat(resolvedStringCount)
+                * resolvedCellWidthToHeightRatio
+                / CGFloat(resolvedDisplayPositionCount)
+        }
+
+        func verticalHeightToWidthMultiplier(
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            let resolvedWidthToHeightMultiplier = verticalWidthToHeightMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+            guard resolvedWidthToHeightMultiplier > 0 else {
+                return 0
+            }
+
+            return 1 / resolvedWidthToHeightMultiplier
+        }
+
+        func verticalTotalWidth(
+            forAvailableHeight height: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            max(height, 0) * verticalWidthToHeightMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
+
+        func verticalTotalHeight(
+            forAvailableWidth width: CGFloat,
+            displayPositionCount: Int,
+            stringCount: Int
+        ) -> CGFloat {
+            max(width, 0) * verticalHeightToWidthMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
         }
 
         func legacyPreferredHeight(forStringCount stringCount: Int) -> CGFloat {
@@ -226,36 +276,70 @@ struct FretboardConfiguration: Equatable, Sendable {
     }
 
     func resolvedHeight(forAvailableWidth width: CGFloat) -> CGFloat {
-        layoutMetrics.totalHeight(
-            forAvailableWidth: width,
-            displayPositionCount: displayPositionCount,
-            stringCount: stringCount
-        )
+        switch displayMode {
+        case .horizontal:
+            return layoutMetrics.totalHeight(
+                forAvailableWidth: width,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        case .vertical:
+            return layoutMetrics.verticalTotalHeight(
+                forAvailableWidth: width,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
     }
 
     func resolvedWidth(forAvailableHeight height: CGFloat) -> CGFloat {
-        layoutMetrics.totalWidth(
-            forAvailableHeight: height,
-            displayPositionCount: displayPositionCount,
-            stringCount: stringCount
-        )
+        switch displayMode {
+        case .horizontal:
+            return layoutMetrics.totalWidth(
+                forAvailableHeight: height,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        case .vertical:
+            return layoutMetrics.verticalTotalWidth(
+                forAvailableHeight: height,
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
     }
 
     var heightToWidthMultiplier: CGFloat {
-        layoutMetrics.heightToWidthMultiplier(
-            displayPositionCount: displayPositionCount,
-            stringCount: stringCount
-        )
+        switch displayMode {
+        case .horizontal:
+            return layoutMetrics.heightToWidthMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        case .vertical:
+            return layoutMetrics.verticalHeightToWidthMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
     }
 
     var widthToHeightMultiplier: CGFloat {
-        layoutMetrics.widthToHeightMultiplier(
-            displayPositionCount: displayPositionCount,
-            stringCount: stringCount
-        )
+        switch displayMode {
+        case .horizontal:
+            return layoutMetrics.widthToHeightMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        case .vertical:
+            return layoutMetrics.verticalWidthToHeightMultiplier(
+                displayPositionCount: displayPositionCount,
+                stringCount: stringCount
+            )
+        }
     }
 
-    // 兼容当前平台尺寸出口；后续阶段改为消费宽度优先的 resolvedHeight/heightToWidthMultiplier。
+    // 作为 zero-bounds 回退值保留，避免 Auto Layout 首轮询问 intrinsic 时得到 0。
     var preferredHeight: CGFloat {
         layoutMetrics.legacyPreferredHeight(forStringCount: stringCount)
     }

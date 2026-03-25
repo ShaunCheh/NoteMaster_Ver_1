@@ -61,6 +61,10 @@ final class macOSViewController: NSViewController {
 
     private let scrollView = NSScrollView()
     private let contentView = NSView()
+    private let fretboardHostView = NSView()
+    private var horizontalFretboardConstraints: [NSLayoutConstraint] = []
+    private var verticalFretboardConstraints: [NSLayoutConstraint] = []
+    private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
@@ -95,6 +99,7 @@ final class macOSViewController: NSViewController {
         buttonPanelView.translatesAutoresizingMaskIntoConstraints = false
         staffControlPanelView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
+        fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
@@ -106,9 +111,22 @@ final class macOSViewController: NSViewController {
         contentView.addSubview(buttonPanelView)
         contentView.addSubview(staffControlPanelView)
         contentView.addSubview(staffView)
-        contentView.addSubview(fretboardView)
+        contentView.addSubview(fretboardHostView)
+        fretboardHostView.addSubview(fretboardView)
 
         let safeArea = view.safeAreaLayoutGuide
+        verticalFretboardHostHeightConstraint = fretboardHostView.heightAnchor.constraint(
+            equalTo: safeArea.heightAnchor,
+            multiplier: Layout.verticalFretboardHostHeightRatio
+        )
+        horizontalFretboardConstraints = [
+            fretboardView.leadingAnchor.constraint(equalTo: fretboardHostView.leadingAnchor),
+            fretboardView.trailingAnchor.constraint(equalTo: fretboardHostView.trailingAnchor)
+        ]
+        verticalFretboardConstraints = [
+            fretboardView.centerXAnchor.constraint(equalTo: fretboardHostView.centerXAnchor),
+            fretboardView.widthAnchor.constraint(lessThanOrEqualTo: fretboardHostView.widthAnchor)
+        ]
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
@@ -149,17 +167,28 @@ final class macOSViewController: NSViewController {
                 equalTo: staffControlPanelView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
-            fretboardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            fretboardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            fretboardView.topAnchor.constraint(
+            fretboardHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            fretboardHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            fretboardHostView.topAnchor.constraint(
                 equalTo: staffView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
-            fretboardView.bottomAnchor.constraint(
+            fretboardHostView.bottomAnchor.constraint(
                 equalTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
-            )
+            ),
+            fretboardView.topAnchor.constraint(equalTo: fretboardHostView.topAnchor),
+            fretboardView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor)
         ])
+
+        updateFretboardLayoutModeConstraints()
+    }
+
+    private func updateFretboardLayoutModeConstraints() {
+        let isVertical = displayState.displayMode == .vertical
+        verticalFretboardHostHeightConstraint?.isActive = isVertical
+        horizontalFretboardConstraints.forEach { $0.isActive = !isVertical }
+        verticalFretboardConstraints.forEach { $0.isActive = isVertical }
     }
 
     private func applyDisplayState() {
@@ -171,6 +200,7 @@ final class macOSViewController: NSViewController {
         buttonPanelView.model = ButtonPanelSnapshotBuilder.makeModel(from: displayState)
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
+        updateFretboardLayoutModeConstraints()
         updateLayoutIfNeeded()
     }
 
@@ -214,6 +244,8 @@ private enum Layout {
     static let topInset: CGFloat = 16
     static let verticalSpacing: CGFloat = 20
     static let bottomInset: CGFloat = 16
+    // 调整这个比例即可平衡竖向指板与按钮面板/五线谱的可视占比。
+    static let verticalFretboardHostHeightRatio: CGFloat = 0.72
 }
 
 #endif

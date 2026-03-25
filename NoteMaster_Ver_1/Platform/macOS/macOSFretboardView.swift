@@ -9,6 +9,8 @@
 import AppKit
 
 final class macOSFretboardView: NSView {
+    private var lastMeasuredPrimaryDimension: CGFloat?
+
     var configuration: FretboardConfiguration {
         didSet {
             guard oldValue != configuration else {
@@ -29,10 +31,18 @@ final class macOSFretboardView: NSView {
     var onRawEvent: ((FretboardHitResult) -> Void)?
 
     override var intrinsicContentSize: NSSize {
-        NSSize(
-            width: NSView.noIntrinsicMetric,
-            height: resolvedIntrinsicHeight
-        )
+        switch configuration.displayMode {
+        case .horizontal:
+            return NSSize(
+                width: NSView.noIntrinsicMetric,
+                height: resolvedIntrinsicHeight
+            )
+        case .vertical:
+            return NSSize(
+                width: resolvedIntrinsicWidth,
+                height: NSView.noIntrinsicMetric
+            )
+        }
     }
 
     override init(frame frameRect: NSRect) {
@@ -63,14 +73,8 @@ final class macOSFretboardView: NSView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
-        let previousWidth = frame.size.width
         super.setFrameSize(newSize)
-
-        guard previousWidth != newSize.width else {
-            return
-        }
-
-        invalidateIntrinsicContentSize()
+        invalidateIntrinsicSizeForCurrentPrimaryDimensionIfNeeded()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -96,15 +100,15 @@ final class macOSFretboardView: NSView {
     private func configureView() {
         wantsLayer = true
         layerContentsRedrawPolicy = .onSetNeedsDisplay
-        setContentHuggingPriority(.required, for: .vertical)
-        setContentCompressionResistancePriority(.required, for: .vertical)
         applyConfiguration()
     }
 
     private func applyConfiguration() {
+        lastMeasuredPrimaryDimension = nil
         fretboardLayer.configuration = configuration
         fretboardLayer.contentProvider = contentProvider
         updateContentsScale()
+        updateContentPriorities()
         invalidateIntrinsicContentSize()
     }
 
@@ -118,6 +122,46 @@ final class macOSFretboardView: NSView {
         }
 
         return configuration.resolvedHeight(forAvailableWidth: bounds.width)
+    }
+
+    private var resolvedIntrinsicWidth: CGFloat {
+        guard bounds.height > 0 else {
+            return configuration.resolvedWidth(forAvailableHeight: configuration.preferredHeight)
+        }
+
+        return configuration.resolvedWidth(forAvailableHeight: bounds.height)
+    }
+
+    private func updateContentPriorities() {
+        switch configuration.displayMode {
+        case .horizontal:
+            setContentHuggingPriority(.defaultLow, for: .horizontal)
+            setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            setContentHuggingPriority(.required, for: .vertical)
+            setContentCompressionResistancePriority(.required, for: .vertical)
+        case .vertical:
+            setContentHuggingPriority(.required, for: .horizontal)
+            setContentCompressionResistancePriority(.required, for: .horizontal)
+            setContentHuggingPriority(.defaultLow, for: .vertical)
+            setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        }
+    }
+
+    private func invalidateIntrinsicSizeForCurrentPrimaryDimensionIfNeeded() {
+        let currentPrimaryDimension: CGFloat
+        switch configuration.displayMode {
+        case .horizontal:
+            currentPrimaryDimension = bounds.width
+        case .vertical:
+            currentPrimaryDimension = bounds.height
+        }
+
+        guard lastMeasuredPrimaryDimension != currentPrimaryDimension else {
+            return
+        }
+
+        lastMeasuredPrimaryDimension = currentPrimaryDimension
+        invalidateIntrinsicContentSize()
     }
 
     private func handleRawMouseEvent(
