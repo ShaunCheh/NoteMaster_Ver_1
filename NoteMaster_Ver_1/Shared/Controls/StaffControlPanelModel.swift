@@ -25,31 +25,28 @@ enum StaffControlEvent: Equatable, Sendable {
     case setClefAnchorLogicalDownwardShiftRatio(CGFloat)
 
     // 连续值的约束统一收口在共享层，避免 iOS/macOS 各自重复 clamp。
-    static let clefScaleRange: ClosedRange<CGFloat> = 1.0...5
-    static let clefVerticalTrimRatioRange: ClosedRange<CGFloat> = 0...0.4
-    static let clefAnchorLogicalDownwardShiftRatioRange: ClosedRange<CGFloat> = (-0.25)...0.25
+    static let clefScaleRange = SettingsSliderID.clefScale.range
+    static let clefVerticalTrimRatioRange = SettingsSliderID.clefVerticalTrim.range
+    static let clefAnchorLogicalDownwardShiftRatioRange = SettingsSliderID.clefAnchorYOffset.range
 
     func apply(to displayState: inout StaffDisplayState) {
         switch self {
         case let .setClef(clef):
-            displayState.configuration.clef = clef
+            clef.settingsActionID.apply(to: &displayState)
         case let .setClefScale(value):
-            displayState.configuration.layoutMetrics.clefScale = value.clamped(
-                to: Self.clefScaleRange
+            SettingsSliderID.clefScale.apply(
+                value: value,
+                to: &displayState
             )
         case let .setClefVerticalTrimRatio(value):
-            displayState.configuration.setClefVerticalTrimRatio(
-                value.clamped(
-                    to: Self.clefVerticalTrimRatioRange
-                ),
-                for: displayState.configuration.clef
+            SettingsSliderID.clefVerticalTrim.apply(
+                value: value,
+                to: &displayState
             )
         case let .setClefAnchorLogicalDownwardShiftRatio(value):
-            displayState.configuration.setClefAnchorLogicalDownwardShiftRatio(
-                value.clamped(
-                    to: Self.clefAnchorLogicalDownwardShiftRatioRange
-                ),
-                for: displayState.configuration.clef
+            SettingsSliderID.clefAnchorYOffset.apply(
+                value: value,
+                to: &displayState
             )
         }
     }
@@ -73,17 +70,11 @@ struct StaffOptionControlItem: Equatable, Hashable, Sendable {
         }
 
         var title: String {
-            switch self {
-            case .clef:
-                return "Type"
-            }
+            settingsChoiceRowID.title
         }
 
         var accessibilityLabel: String {
-            switch self {
-            case .clef:
-                return "Select clef"
-            }
+            settingsChoiceRowID.accessibilityLabel
         }
     }
 
@@ -108,36 +99,15 @@ struct StaffSliderControlItem: Equatable, Hashable, Sendable {
         }
 
         var title: String {
-            switch self {
-            case .clefScale:
-                return "Scale"
-            case .clefVerticalTrim:
-                return "Vertical Clip"
-            case .clefAnchorYOffset:
-                return "Anchor Y Offset"
-            }
+            settingsSliderID.title
         }
 
         var accessibilityLabel: String {
-            switch self {
-            case .clefScale:
-                return "Adjust clef scale"
-            case .clefVerticalTrim:
-                return "Adjust clef vertical clip"
-            case .clefAnchorYOffset:
-                return "Adjust clef anchor vertical offset"
-            }
+            settingsSliderID.accessibilityLabel
         }
 
         var range: ClosedRange<CGFloat> {
-            switch self {
-            case .clefScale:
-                return StaffControlEvent.clefScaleRange
-            case .clefVerticalTrim:
-                return StaffControlEvent.clefVerticalTrimRatioRange
-            case .clefAnchorYOffset:
-                return StaffControlEvent.clefAnchorLogicalDownwardShiftRatioRange
-            }
+            settingsSliderID.range
         }
     }
 
@@ -208,5 +178,27 @@ struct StaffControlPanelModel: Equatable, Sendable {
 private extension Comparable {
     func clamped(to range: ClosedRange<Self>) -> Self {
         min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension StaffOptionControlItem.ID {
+    var settingsChoiceRowID: SettingsChoiceRowID {
+        switch self {
+        case .clef:
+            return .clef
+        }
+    }
+}
+
+private extension StaffSliderControlItem.ID {
+    var settingsSliderID: SettingsSliderID {
+        switch self {
+        case .clefScale:
+            return .clefScale
+        case .clefVerticalTrim:
+            return .clefVerticalTrim
+        case .clefAnchorYOffset:
+            return .clefAnchorYOffset
+        }
     }
 }

@@ -79,139 +79,31 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
     }
 
     var title: String {
-        switch self {
-        case .setInstrumentGuitar6:
-            return "Guitar 6"
-        case .setInstrumentBass4:
-            return "Bass 4"
-        case .setInstrumentBass5:
-            return "Bass 5"
-        case .setDisplayModeHorizontal:
-            return "Horizontal"
-        case .setDisplayModeVertical:
-            return "Vertical"
-        case .setVisibilityAll:
-            return "All"
-        case .setVisibilityNaturalOnly:
-            return "Natural"
-        case .setVisibilityAccidentalOnly:
-            return "Accidental"
-        case .setVisibilityNone:
-            return "None"
-        case .setSpellingSharp:
-            return "Sharp"
-        case .setSpellingFlat:
-            return "Flat"
-        case .toggleShowsOctave:
-            return "Octave"
-        }
+        settingsActionID.title
     }
 
     var accessibilityLabel: String {
-        switch self {
-        case .setInstrumentGuitar6:
-            return "Use 6-string guitar standard tuning"
-        case .setInstrumentBass4:
-            return "Use 4-string bass standard tuning"
-        case .setInstrumentBass5:
-            return "Use 5-string bass standard tuning"
-        case .setDisplayModeHorizontal:
-            return "Show fretboard in horizontal mode"
-        case .setDisplayModeVertical:
-            return "Show fretboard in vertical mode"
-        case .setVisibilityAll:
-            return "Show all note labels"
-        case .setVisibilityNaturalOnly:
-            return "Show natural note labels only"
-        case .setVisibilityAccidentalOnly:
-            return "Show accidental note labels only"
-        case .setVisibilityNone:
-            return "Hide all note labels"
-        case .setSpellingSharp:
-            return "Use sharp note spelling"
-        case .setSpellingFlat:
-            return "Use flat note spelling"
-        case .toggleShowsOctave:
-            return "Toggle octave display"
-        }
+        settingsActionID.accessibilityLabel
     }
 
     // 共享层统一定义按钮是否处于选中态，平台层只消费结果。
     func isSelected(in displayState: FretboardDisplayState) -> Bool {
-        switch self {
-        case .setInstrumentGuitar6:
-            return displayState.configuration.instrument == .guitar6
-        case .setInstrumentBass4:
-            return displayState.configuration.instrument == .bass4
-        case .setInstrumentBass5:
-            return displayState.configuration.instrument == .bass5
-        case .setDisplayModeHorizontal:
-            return displayState.displayMode == .horizontal
-        case .setDisplayModeVertical:
-            return displayState.displayMode == .vertical
-        case .setVisibilityAll:
-            return displayState.visibility == .all
-        case .setVisibilityNaturalOnly:
-            return displayState.visibility == .naturalOnly
-        case .setVisibilityAccidentalOnly:
-            return displayState.visibility == .accidentalOnly
-        case .setVisibilityNone:
-            return displayState.visibility == .none
-        case .setSpellingSharp:
-            return displayState.spelling == .sharp
-        case .setSpellingFlat:
-            return displayState.spelling == .flat
-        case .toggleShowsOctave:
-            return displayState.showsOctave
-        }
+        settingsActionID.isSelected(
+            fretboardDisplayState: displayState,
+            staffDisplayState: .default
+        )
     }
 
-    func isEnabled(in _: FretboardDisplayState) -> Bool {
-        switch self {
-        case .setInstrumentGuitar6,
-             .setInstrumentBass4,
-             .setInstrumentBass5,
-             .setDisplayModeHorizontal,
-             .setDisplayModeVertical,
-             .setVisibilityAll,
-             .setVisibilityNaturalOnly,
-             .setVisibilityAccidentalOnly,
-             .setVisibilityNone,
-             .setSpellingSharp,
-             .setSpellingFlat,
-             .toggleShowsOctave:
-            return true
-        }
+    func isEnabled(in displayState: FretboardDisplayState) -> Bool {
+        settingsActionID.isEnabled(
+            fretboardDisplayState: displayState,
+            staffDisplayState: .default
+        )
     }
 
     // 动作到状态迁移也放在共享层，避免后续控制器各自解释 action。
     func apply(to displayState: inout FretboardDisplayState) {
-        switch self {
-        case .setInstrumentGuitar6:
-            displayState.configuration.tuning = .standard(for: .guitar6)
-        case .setInstrumentBass4:
-            displayState.configuration.tuning = .standard(for: .bass4)
-        case .setInstrumentBass5:
-            displayState.configuration.tuning = .standard(for: .bass5)
-        case .setDisplayModeHorizontal:
-            displayState.setDisplayMode(.horizontal)
-        case .setDisplayModeVertical:
-            displayState.setDisplayMode(.vertical)
-        case .setVisibilityAll:
-            displayState.visibility = .all
-        case .setVisibilityNaturalOnly:
-            displayState.visibility = .naturalOnly
-        case .setVisibilityAccidentalOnly:
-            displayState.visibility = .accidentalOnly
-        case .setVisibilityNone:
-            displayState.visibility = .none
-        case .setSpellingSharp:
-            displayState.spelling = .sharp
-        case .setSpellingFlat:
-            displayState.spelling = .flat
-        case .toggleShowsOctave:
-            displayState.showsOctave.toggle()
-        }
+        settingsActionID.apply(to: &displayState)
     }
 }
 
@@ -245,5 +137,36 @@ struct ButtonPanelModel: Equatable, Sendable {
 extension FretboardDisplayState {
     mutating func apply(_ actionID: ButtonPanelActionID) {
         actionID.apply(to: &self)
+    }
+}
+
+private extension ButtonPanelActionID {
+    var settingsActionID: SettingsActionID {
+        switch self {
+        case .setInstrumentGuitar6:
+            return .setInstrumentGuitar6
+        case .setInstrumentBass4:
+            return .setInstrumentBass4
+        case .setInstrumentBass5:
+            return .setInstrumentBass5
+        case .setDisplayModeHorizontal:
+            return .setDisplayModeHorizontal
+        case .setDisplayModeVertical:
+            return .setDisplayModeVertical
+        case .setVisibilityAll:
+            return .setVisibilityAll
+        case .setVisibilityNaturalOnly:
+            return .setVisibilityNaturalOnly
+        case .setVisibilityAccidentalOnly:
+            return .setVisibilityAccidentalOnly
+        case .setVisibilityNone:
+            return .setVisibilityNone
+        case .setSpellingSharp:
+            return .setSpellingSharp
+        case .setSpellingFlat:
+            return .setSpellingFlat
+        case .toggleShowsOctave:
+            return .toggleShowsOctave
+        }
     }
 }

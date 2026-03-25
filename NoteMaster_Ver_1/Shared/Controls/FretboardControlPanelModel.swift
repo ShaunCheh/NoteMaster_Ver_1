@@ -24,7 +24,10 @@ enum FretboardControlEvent: Equatable, Sendable {
     func apply(to displayState: inout FretboardDisplayState) {
         switch self {
         case let .setVerticalHostHeightRatio(value):
-            displayState.setVerticalHostHeightRatio(value)
+            SettingsSliderID.verticalHostHeightRatio.apply(
+                value: value,
+                to: &displayState
+            )
         }
     }
 }
@@ -41,24 +44,15 @@ struct FretboardSliderControlItem: Equatable, Hashable, Sendable {
         }
 
         var title: String {
-            switch self {
-            case .verticalHostHeightRatio:
-                return "Height"
-            }
+            settingsSliderID.title
         }
 
         var accessibilityLabel: String {
-            switch self {
-            case .verticalHostHeightRatio:
-                return "Adjust vertical fretboard height"
-            }
+            settingsSliderID.accessibilityLabel
         }
 
         var range: ClosedRange<CGFloat> {
-            switch self {
-            case .verticalHostHeightRatio:
-                return FretboardDisplayState.verticalHostHeightRatioRange
-            }
+            settingsSliderID.range
         }
     }
 
@@ -115,5 +109,14 @@ struct FretboardControlPanelModel: Equatable, Sendable {
 extension FretboardDisplayState {
     mutating func apply(_ event: FretboardControlEvent) {
         event.apply(to: &self)
+    }
+}
+
+private extension FretboardSliderControlItem.ID {
+    var settingsSliderID: SettingsSliderID {
+        switch self {
+        case .verticalHostHeightRatio:
+            return .verticalHostHeightRatio
+        }
     }
 }
