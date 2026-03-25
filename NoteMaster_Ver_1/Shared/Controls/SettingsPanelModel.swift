@@ -5,6 +5,7 @@
 //  Created by Cursor on 2026/3/25.
 //
 
+import Foundation
 import CoreGraphics
 
 enum SettingsSelectionStyle: Equatable, Sendable {
