@@ -50,6 +50,6 @@ struct FretboardLabelContent: Equatable, Sendable {
 protocol FretboardContentProviding: Sendable {
     func makeLabels(
         configuration: FretboardConfiguration,
-        geometry: FretboardGeometry
+        scene: FretboardScene
     ) -> [FretboardLabelContent]
 }

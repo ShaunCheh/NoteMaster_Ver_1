@@ -41,14 +41,13 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
 
     func makeLabels(
         configuration: FretboardConfiguration,
-        geometry: FretboardGeometry
+        scene: FretboardScene
     ) -> [FretboardLabelContent] {
         var labels: [FretboardLabelContent] = []
 
         for stringIndex in 0..<configuration.stringCount {
             guard
-                let openPitch = configuration.tuning.openStringPitch(for: stringIndex),
-                let stringY = geometry.yPositionForString(stringIndex)
+                let openPitch = configuration.tuning.openStringPitch(for: stringIndex)
             else {
                 continue
             }
@@ -59,8 +58,12 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
                     continue
                 }
 
-                let slotRect = geometry.displaySlotRect(at: fret)
-                guard !slotRect.isNull else {
+                guard
+                    let anchor = scene.labelAnchor(
+                        stringIndex: stringIndex,
+                        fret: fret
+                    )
+                else {
                     continue
                 }
 
@@ -69,9 +72,7 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
                         pitch: pitch,
                         stringIndex: stringIndex,
                         fret: fret,
-                        stringY: stringY,
-                        slotRect: slotRect,
-                        geometry: geometry
+                        anchor: anchor
                     )
                 )
             }
@@ -84,14 +85,9 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
         pitch: NotePitch,
         stringIndex: Int,
         fret: Int,
-        stringY: CGFloat,
-        slotRect: CGRect,
-        geometry: FretboardGeometry
+        anchor: FretboardScene.LabelAnchor
     ) -> FretboardLabelContent {
-        let badgeDiameter = resolvedBadgeDiameter(slotRect: slotRect, geometry: geometry)
-        let minCenterY = slotRect.minY + (badgeDiameter / 2)
-        let maxCenterY = slotRect.maxY - (badgeDiameter / 2)
-        let clampedCenterY = min(max(stringY, minCenterY), maxCenterY)
+        let badgeDiameter = resolvedBadgeDiameter(cellFrame: anchor.cellFrame)
         let textInset = badgeDiameter * layoutMetrics.textInsetRatio
         let maxTextDiameter = max(badgeDiameter - (textInset * 2), 0)
         let fontSize = min(
@@ -103,7 +99,7 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
             stringIndex: stringIndex,
             fret: fret,
             text: pitch.displayText(using: spelling, showsOctave: showsOctave),
-            center: CGPoint(x: slotRect.midX, y: clampedCenterY),
+            center: anchor.center,
             badgeDiameter: badgeDiameter,
             maxSize: CGSize(width: maxTextDiameter, height: maxTextDiameter),
             fontSize: fontSize
@@ -111,14 +107,10 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
     }
 
     private func resolvedBadgeDiameter(
-        slotRect: CGRect,
-        geometry: FretboardGeometry
+        cellFrame: CGRect
     ) -> CGFloat {
-        let referenceHeight = geometry.stringLaneHeight > 0
-            ? geometry.stringLaneHeight
-            : slotRect.height * 0.24
-        let heightDrivenDiameter = referenceHeight * layoutMetrics.badgeDiameterRatio
-        let widthDrivenDiameter = slotRect.width * layoutMetrics.maxBadgeWidthRatio
+        let heightDrivenDiameter = cellFrame.height * layoutMetrics.badgeDiameterRatio
+        let widthDrivenDiameter = cellFrame.width * layoutMetrics.maxBadgeWidthRatio
 
         return max(min(heightDrivenDiameter, widthDrivenDiameter), 0)
     }
