@@ -89,18 +89,41 @@ struct StaffConfiguration: Equatable, Sendable {
             CGFloat(normalizedStaffLineCount - 1) * normalizedStaffSpaceHeight
         }
 
-        // 首版需要给 treble clef 预留超出五线高度的可绘制空间。
-        func minimumDrawingHeight() -> CGFloat {
+        // 当字体资源不可用时，回落到旧的保守高度策略，避免 intrinsic size 失效。
+        private func legacyMinimumDrawingHeight() -> CGFloat {
             let resolvedStaffHeight = staffHeight()
             return max(resolvedStaffHeight, resolvedStaffHeight * max(clefScale, 1))
         }
 
-        func preferredHeight() -> CGFloat {
+        func defaultClefLayoutInsets(for clef: StaffClef) -> StaffClefLayoutInsets? {
+            StaffClefLayoutGuide.defaultLayoutInsets(
+                for: clef,
+                staffHeight: staffHeight(),
+                staffSpaceHeight: normalizedStaffSpaceHeight,
+                clefScale: clefScale
+            )
+        }
+
+        // 默认高度改为基于“默认 clef 裁后可见 extents”反推，而不是把额外空间在五线上下对称摊开。
+        func minimumDrawingHeight(for clef: StaffClef) -> CGFloat {
+            let resolvedStaffHeight = staffHeight()
+
+            guard let layoutInsets = defaultClefLayoutInsets(for: clef) else {
+                return legacyMinimumDrawingHeight()
+            }
+
+            return max(
+                resolvedStaffHeight + layoutInsets.top + layoutInsets.bottom,
+                resolvedStaffHeight
+            )
+        }
+
+        func preferredHeight(for clef: StaffClef) -> CGFloat {
             let drawingFactor = max(
                 1 - (verticalInsetRatio * 2),
                 Self.minimumLayoutFactor
             )
-            return minimumDrawingHeight() / drawingFactor
+            return minimumDrawingHeight(for: clef) / drawingFactor
         }
     }
 
@@ -140,7 +163,7 @@ struct StaffConfiguration: Equatable, Sendable {
     }
 
     var preferredHeight: CGFloat {
-        layoutMetrics.preferredHeight()
+        layoutMetrics.preferredHeight(for: clef)
     }
 
     func clefAnchorLogicalDownwardShiftRatio(for clef: StaffClef) -> CGFloat {

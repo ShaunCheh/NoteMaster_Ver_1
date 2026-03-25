@@ -18,10 +18,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         var clippedBounds: CGRect
     }
 
-    private struct AnchorMetrics {
-        var xRatio: CGFloat
-        var yRatio: CGFloat
-    }
+    private typealias AnchorMetrics = StaffClefAnchorMetrics
 
     private let bundle: Bundle
 
@@ -391,28 +388,12 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         for semantic: ClefAnchor.Semantic,
         geometry: StaffGeometry
     ) -> AnchorMetrics {
-        let downwardShiftRatio = geometry.configuration.clefAnchorLogicalDownwardShiftRatio(
-            for: semantic.clef
+        StaffClefLayoutGuide.anchorMetrics(
+            for: semantic.clef,
+            downwardShiftRatio: geometry.configuration.clefAnchorLogicalDownwardShiftRatio(
+                for: semantic.clef
+            )
         )
-
-        switch semantic {
-        case .trebleGLine:
-            // 基于 Bravura clef glyph 的 CoreText optical bounds 做经验对齐，
-            // 这里额外把 glyph 内部锚点按共享逻辑语义“向下”微调配置值，以新的锚点参与对齐；
-            // 注意：optical bounds 的局部坐标是 y-up，因此逻辑下移要体现在更小的 yRatio 上。
-            // 后续切到 CGPath renderer 时应把这类补偿迁移到新的后端实现中。
-            return AnchorMetrics(
-                xRatio: 0.5,
-                yRatio: 0.56 - downwardShiftRatio
-            )
-        case .bassFLine:
-            // bass clef 的语义锚点对齐到 F line 穿过双点之间的位置，
-            // 因此 xRatio 需要落在 glyph 偏右的双点区域，而不是整个 glyph 的几何中心。
-            return AnchorMetrics(
-                xRatio: 0.74,
-                yRatio: 0.5 - downwardShiftRatio
-            )
-        }
     }
 
     private func verticalTrimRatio(
@@ -434,20 +415,10 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         from bounds: CGRect,
         verticalTrimRatio: CGFloat
     ) -> CGRect {
-        guard !bounds.isNull, !bounds.isEmpty else {
-            return .null
-        }
-
-        let clampedTrimRatio = min(max(verticalTrimRatio, 0), 0.45)
-        guard clampedTrimRatio > 0 else {
-            return bounds
-        }
-
-        let maximumInset = max((bounds.height - 1) / 2, 0)
-        let inset = min(bounds.height * clampedTrimRatio, maximumInset)
-        let trimmedBounds = bounds.insetBy(dx: 0, dy: inset)
-
-        return trimmedBounds.isNull || trimmedBounds.isEmpty ? .null : trimmedBounds
+        StaffClefLayoutGuide.trimmedBounds(
+            from: bounds,
+            verticalTrimRatio: verticalTrimRatio
+        )
     }
 }
 

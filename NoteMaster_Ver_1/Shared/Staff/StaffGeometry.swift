@@ -110,26 +110,14 @@ struct StaffGeometry: Equatable, Sendable {
     }
 
     func clefAnchor(for clef: StaffClef) -> ClefAnchor {
-        switch clef {
-        case .treble:
-            return ClefAnchor(
-                point: CGPoint(
-                    x: clefAreaRect.midX,
-                    y: lineY(at: 3) ?? staffRect.midY
-                ),
-                semantic: .trebleGLine,
-                targetHeight: max(staffRect.height * configuration.layoutMetrics.clefScale, 1)
-            )
-        case .bass:
-            return ClefAnchor(
-                point: CGPoint(
-                    x: clefAreaRect.midX,
-                    y: lineY(at: 1) ?? staffRect.midY
-                ),
-                semantic: .bassFLine,
-                targetHeight: max(staffRect.height * configuration.layoutMetrics.clefScale, 1)
-            )
-        }
+        ClefAnchor(
+            point: CGPoint(
+                x: clefAreaRect.midX,
+                y: lineY(at: clef.anchorLineIndex) ?? staffRect.midY
+            ),
+            semantic: clef.anchorSemantic,
+            targetHeight: max(staffRect.height * configuration.layoutMetrics.clefScale, 1)
+        )
     }
 
     private var resolvedStaffLineCount: Int {
@@ -141,7 +129,20 @@ struct StaffGeometry: Equatable, Sendable {
     }
 
     private var staffTopY: CGFloat {
-        drawingRect.midY - (staffHeight / 2)
+        guard !drawingRect.isNull else {
+            return 0
+        }
+
+        let availableTopPadding = max(drawingRect.height - staffHeight, 0)
+        let resolvedTopPadding = configuration.layoutMetrics.defaultClefLayoutInsets(
+            for: configuration.clef
+        )?.top
+        let fallbackCenteredPadding = availableTopPadding / 2
+
+        return drawingRect.minY + min(
+            max(resolvedTopPadding ?? fallbackCenteredPadding, 0),
+            availableTopPadding
+        )
     }
 
     private var resolvedClefAreaWidth: CGFloat {
