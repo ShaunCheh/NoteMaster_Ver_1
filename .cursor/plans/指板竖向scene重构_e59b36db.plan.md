@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: phase7-validation
     content: 完成无测试 target 前提下的 scene 夹具与双平台手工回归验证
-    status: pending
+    status: completed
 isProject: false
 ---
 
