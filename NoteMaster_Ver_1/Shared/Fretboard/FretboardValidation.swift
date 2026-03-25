@@ -547,7 +547,8 @@ private extension FretboardValidationRunner {
         var checklist = [
             "切换 Guitar 6 / Bass 4 / Bass 5，并在 Horizontal / Vertical 之间切换；确认 horizontal 视觉回归不变，vertical 为“左低右高、上空弦下高品、文字正立”。",
             "点击空弦区与普通品位区，确认控制台输出的 string / fret 与可见格子一致。",
-            "在 vertical 模式下改变窗口或设备高度，确认指板宽度会自适应变化并保持水平居中。"
+            "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
+            "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。"
         ]
 
         switch platform {
