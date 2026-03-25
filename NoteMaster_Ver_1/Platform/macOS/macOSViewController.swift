@@ -83,8 +83,13 @@ final class macOSViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let contentView = NSView()
     private let fretboardHostView = NSView()
-    private var horizontalFretboardConstraints: [NSLayoutConstraint] = []
-    private var verticalFretboardConstraints: [NSLayoutConstraint] = []
+    private let fretboardViewportScrollView = NSScrollView()
+    private let fretboardScrollContentView = NSView()
+    private var horizontalFretboardDocumentWidthConstraint: NSLayoutConstraint?
+    private var horizontalFretboardContentWidthConstraint: NSLayoutConstraint?
+    private var verticalFretboardDocumentWidthConstraint: NSLayoutConstraint?
+    private var verticalFretboardContentWidthConstraint: NSLayoutConstraint?
+    private var fretboardContentCenterXConstraint: NSLayoutConstraint?
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: macOSFretboardView = {
@@ -114,6 +119,12 @@ final class macOSViewController: NSViewController {
         applyDisplayState()
     }
 
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        syncVerticalFretboardContentSizeConstraints()
+        updateFretboardViewportPresentation()
+    }
+
     private func configureLayout() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
@@ -121,6 +132,8 @@ final class macOSViewController: NSViewController {
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
+        fretboardViewportScrollView.translatesAutoresizingMaskIntoConstraints = false
+        fretboardScrollContentView.translatesAutoresizingMaskIntoConstraints = false
         fretboardView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
@@ -128,23 +141,43 @@ final class macOSViewController: NSViewController {
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.documentView = contentView
+        fretboardViewportScrollView.drawsBackground = false
+        fretboardViewportScrollView.borderType = .noBorder
+        fretboardViewportScrollView.hasVerticalScroller = false
+        fretboardViewportScrollView.hasHorizontalScroller = false
+        fretboardViewportScrollView.autohidesScrollers = true
+        fretboardViewportScrollView.documentView = fretboardScrollContentView
         view.addSubview(scrollView)
         contentView.addSubview(staffView)
         contentView.addSubview(fretboardHostView)
-        fretboardHostView.addSubview(fretboardView)
+        fretboardHostView.addSubview(fretboardViewportScrollView)
+        fretboardScrollContentView.addSubview(fretboardView)
         view.addSubview(settingsButton)
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
         rebuildVerticalFretboardHostHeightConstraint()
-        horizontalFretboardConstraints = [
-            fretboardView.leadingAnchor.constraint(equalTo: fretboardHostView.leadingAnchor),
-            fretboardView.trailingAnchor.constraint(equalTo: fretboardHostView.trailingAnchor)
-        ]
-        verticalFretboardConstraints = [
-            fretboardView.centerXAnchor.constraint(equalTo: fretboardHostView.centerXAnchor),
-            fretboardView.widthAnchor.constraint(lessThanOrEqualTo: fretboardHostView.widthAnchor)
-        ]
+        horizontalFretboardDocumentWidthConstraint = fretboardScrollContentView.widthAnchor.constraint(
+            equalTo: fretboardViewportScrollView.contentView.widthAnchor
+        )
+        horizontalFretboardContentWidthConstraint = fretboardView.widthAnchor.constraint(
+            equalTo: fretboardScrollContentView.widthAnchor
+        )
+        verticalFretboardDocumentWidthConstraint = fretboardScrollContentView.widthAnchor.constraint(
+            equalToConstant: displayState.configuration.verticalContentWidth(
+                forViewportHeight: displayState.configuration.preferredHeight
+            )
+        )
+        verticalFretboardDocumentWidthConstraint?.priority = .required
+        verticalFretboardContentWidthConstraint = fretboardView.widthAnchor.constraint(
+            equalToConstant: displayState.configuration.verticalContentWidth(
+                forViewportHeight: displayState.configuration.preferredHeight
+            )
+        )
+        verticalFretboardContentWidthConstraint?.priority = .required
+        fretboardContentCenterXConstraint = fretboardView.centerXAnchor.constraint(
+            equalTo: fretboardScrollContentView.centerXAnchor
+        )
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
@@ -171,8 +204,22 @@ final class macOSViewController: NSViewController {
                 equalTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
             ),
-            fretboardView.topAnchor.constraint(equalTo: fretboardHostView.topAnchor),
-            fretboardView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor),
+            fretboardViewportScrollView.leadingAnchor.constraint(equalTo: fretboardHostView.leadingAnchor),
+            fretboardViewportScrollView.trailingAnchor.constraint(equalTo: fretboardHostView.trailingAnchor),
+            fretboardViewportScrollView.topAnchor.constraint(equalTo: fretboardHostView.topAnchor),
+            fretboardViewportScrollView.bottomAnchor.constraint(equalTo: fretboardHostView.bottomAnchor),
+            fretboardScrollContentView.leadingAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentView.leadingAnchor
+            ),
+            fretboardScrollContentView.topAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentView.topAnchor
+            ),
+            fretboardScrollContentView.heightAnchor.constraint(
+                equalTo: fretboardViewportScrollView.contentView.heightAnchor
+            ),
+            fretboardView.topAnchor.constraint(equalTo: fretboardScrollContentView.topAnchor),
+            fretboardView.bottomAnchor.constraint(equalTo: fretboardScrollContentView.bottomAnchor),
+            fretboardContentCenterXConstraint!,
             settingsButton.leadingAnchor.constraint(
                 equalTo: safeArea.leadingAnchor,
                 constant: Layout.horizontalInset
@@ -197,8 +244,15 @@ final class macOSViewController: NSViewController {
     private func updateFretboardLayoutModeConstraints() {
         let isVertical = displayState.displayMode == .vertical
         verticalFretboardHostHeightConstraint?.isActive = isVertical
-        horizontalFretboardConstraints.forEach { $0.isActive = !isVertical }
-        verticalFretboardConstraints.forEach { $0.isActive = isVertical }
+        horizontalFretboardDocumentWidthConstraint?.isActive = !isVertical
+        horizontalFretboardContentWidthConstraint?.isActive = !isVertical
+        verticalFretboardDocumentWidthConstraint?.isActive = isVertical
+        verticalFretboardContentWidthConstraint?.isActive = isVertical
+
+        if !isVertical {
+            fretboardViewportScrollView.hasHorizontalScroller = false
+            scrollFretboardViewport(toX: 0)
+        }
     }
 
     private func rebuildVerticalFretboardHostHeightConstraint() {
@@ -222,6 +276,9 @@ final class macOSViewController: NSViewController {
         applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
         updateLayoutIfNeeded()
+        syncVerticalFretboardContentSizeConstraints()
+        updateLayoutIfNeeded()
+        updateFretboardViewportPresentation()
     }
 
     private func applyStaffDisplayState() {
@@ -242,6 +299,65 @@ final class macOSViewController: NSViewController {
     private func updateLayoutIfNeeded() {
         view.needsLayout = true
         view.layoutSubtreeIfNeeded()
+    }
+
+    private func syncVerticalFretboardContentSizeConstraints() {
+        guard
+            displayState.displayMode == .vertical,
+            let verticalFretboardDocumentWidthConstraint,
+            let verticalFretboardContentWidthConstraint
+        else {
+            return
+        }
+
+        let contentWidth = fretboardView.verticalContentSize.width
+        let viewportWidth = fretboardViewportScrollView.contentView.bounds.width
+        guard contentWidth > 0 else {
+            return
+        }
+
+        let documentWidth = max(viewportWidth, contentWidth)
+        if abs(verticalFretboardDocumentWidthConstraint.constant - documentWidth) > Layout.contentSizeTolerance {
+            verticalFretboardDocumentWidthConstraint.constant = documentWidth
+        }
+
+        if abs(verticalFretboardContentWidthConstraint.constant - contentWidth) > Layout.contentSizeTolerance {
+            verticalFretboardContentWidthConstraint.constant = contentWidth
+        }
+    }
+
+    private func updateFretboardViewportPresentation() {
+        let isVertical = displayState.displayMode == .vertical
+        guard isVertical else {
+            fretboardViewportScrollView.hasHorizontalScroller = false
+            return
+        }
+
+        let viewportWidth = fretboardViewportScrollView.contentView.bounds.width
+        let contentWidth = verticalFretboardContentWidthConstraint?.constant ?? fretboardView.verticalContentSize.width
+        guard viewportWidth > 0, contentWidth > 0 else {
+            return
+        }
+
+        let needsHorizontalScroll = contentWidth > viewportWidth + Layout.contentSizeTolerance
+        fretboardViewportScrollView.hasHorizontalScroller = needsHorizontalScroll
+
+        let maxOffsetX = max(contentWidth - viewportWidth, 0)
+        let currentOffsetX = fretboardViewportScrollView.contentView.bounds.origin.x
+        let clampedOffsetX = needsHorizontalScroll
+            ? min(max(currentOffsetX, 0), maxOffsetX)
+            : 0
+
+        if abs(currentOffsetX - clampedOffsetX) > Layout.contentSizeTolerance {
+            scrollFretboardViewport(toX: clampedOffsetX)
+        }
+    }
+
+    private func scrollFretboardViewport(toX x: CGFloat) {
+        fretboardViewportScrollView.contentView.scroll(to: CGPoint(x: x, y: 0))
+        fretboardViewportScrollView.reflectScrolledClipView(
+            fretboardViewportScrollView.contentView
+        )
     }
 
     private func setSettingsPresented(_ presented: Bool) {
@@ -301,6 +417,7 @@ private enum Layout {
     static let verticalSpacing: CGFloat = 20
     static let bottomInset: CGFloat = 16
     static let settingsButtonSize: CGFloat = 40
+    static let contentSizeTolerance: CGFloat = 0.5
 }
 
 #endif
