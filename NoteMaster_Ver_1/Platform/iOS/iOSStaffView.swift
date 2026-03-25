@@ -29,6 +29,16 @@ final class iOSStaffView: UIView {
         }
     }
 
+    var showsComponentBoundsOverlay = false {
+        didSet {
+            guard oldValue != showsComponentBoundsOverlay else {
+                return
+            }
+
+            updateComponentBoundsOverlay()
+        }
+    }
+
     override class var layerClass: AnyClass {
         StaffRootLayer.self
     }
@@ -105,6 +115,18 @@ final class iOSStaffView: UIView {
 
     private func updateContentsScale() {
         staffRootLayer.contentsScale = window?.screen.scale ?? UIScreen.main.scale
+        updateComponentBoundsOverlay()
+    }
+
+    private func updateComponentBoundsOverlay() {
+        staffRootLayer.borderColor = UIColor.systemGreen.cgColor
+        staffRootLayer.borderWidth = showsComponentBoundsOverlay
+            ? resolvedComponentBoundsOverlayLineWidth
+            : 0
+    }
+
+    private var resolvedComponentBoundsOverlayLineWidth: CGFloat {
+        max(1 / max(staffRootLayer.contentsScale, 1), 0.5)
     }
 }
 #endif

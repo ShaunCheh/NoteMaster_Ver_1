@@ -173,6 +173,22 @@ final class macOSSettingsPanelView: NSView {
             rowView.apply(item: item)
             controlViewsByID[rowID] = rowView
             return rowView
+        case let .toggle(item):
+            let rowID = row.id
+            if let existingRow = controlViewsByID[rowID] as? ToggleRowView {
+                existingRow.apply(item: item)
+                return existingRow
+            }
+
+            detachControlViewIfNeeded(for: rowID)
+
+            let rowView = ToggleRowView(frame: .zero)
+            rowView.onEvent = { [weak self] event in
+                self?.onEvent?(event)
+            }
+            rowView.apply(item: item)
+            controlViewsByID[rowID] = rowView
+            return rowView
         }
     }
 
@@ -639,6 +655,90 @@ private final class SliderRowView: NSView {
     }
 }
 
+private final class ToggleRowView: NSView {
+    var onEvent: ((SettingsPanelEvent) -> Void)?
+
+    private var toggleID: SettingsToggleID?
+    private var isApplyingItem = false
+
+    private let contentStackView = NSStackView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let spacerView = NSView()
+    private let toggleSwitch = NSSwitch()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        configureView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureView()
+    }
+
+    func apply(item: SettingsToggleRow) {
+        toggleID = item.id
+        identifier = NSUserInterfaceItemIdentifier(
+            "settings-panel-toggle-row-\(String(describing: item.id))"
+        )
+        titleLabel.stringValue = item.title
+        toggleSwitch.toolTip = item.accessibilityLabel
+        toggleSwitch.identifier = NSUserInterfaceItemIdentifier(
+            "settings-panel-toggle-\(String(describing: item.id))"
+        )
+        toggleSwitch.isEnabled = item.isEnabled
+
+        isApplyingItem = true
+        toggleSwitch.state = item.isOn ? .on : .off
+        isApplyingItem = false
+    }
+
+    private func configureView() {
+        contentStackView.orientation = .horizontal
+        contentStackView.alignment = .centerY
+        contentStackView.distribution = .fill
+        contentStackView.spacing = Style.toggleSpacing
+        contentStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        titleLabel.font = .systemFont(ofSize: Style.bodyFontSize, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.lineBreakMode = .byWordWrapping
+        titleLabel.maximumNumberOfLines = 0
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        spacerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        toggleSwitch.target = self
+        toggleSwitch.action = #selector(handleToggleValueChanged(_:))
+        toggleSwitch.controlSize = .regular
+
+        addSubview(contentStackView)
+        contentStackView.addArrangedSubview(titleLabel)
+        contentStackView.addArrangedSubview(spacerView)
+        contentStackView.addArrangedSubview(toggleSwitch)
+
+        NSLayoutConstraint.activate([
+            contentStackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentStackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            contentStackView.topAnchor.constraint(equalTo: topAnchor),
+            contentStackView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
+    @objc
+    private func handleToggleValueChanged(_ sender: NSSwitch) {
+        guard
+            !isApplyingItem,
+            let toggleID
+        else {
+            return
+        }
+
+        onEvent?(.setToggleValue(toggleID, sender.state == .on))
+    }
+}
+
 private final class SectionView: NSView {
     var titleText: String = "" {
         didSet {
@@ -734,6 +834,7 @@ private enum Style {
     static let choiceContentSpacing: CGFloat = 8
     static let sliderContentSpacing: CGFloat = 8
     static let headerSpacing: CGFloat = 8
+    static let toggleSpacing: CGFloat = 12
     static let chipSpacing: CGFloat = 8
     static let minimumSliderWidth: CGFloat = 220
     static let captionFontSize: CGFloat = 12

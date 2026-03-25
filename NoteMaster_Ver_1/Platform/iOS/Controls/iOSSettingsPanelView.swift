@@ -161,6 +161,22 @@ final class iOSSettingsPanelView: UIView {
             rowView.apply(item: item)
             controlViewsByID[rowID] = rowView
             return rowView
+        case let .toggle(item):
+            let rowID = row.id
+            if let existingRow = controlViewsByID[rowID] as? ToggleRowView {
+                existingRow.apply(item: item)
+                return existingRow
+            }
+
+            detachControlViewIfNeeded(for: rowID)
+
+            let rowView = ToggleRowView()
+            rowView.onEvent = { [weak self] event in
+                self?.onEvent?(event)
+            }
+            rowView.apply(item: item)
+            controlViewsByID[rowID] = rowView
+            return rowView
         }
     }
 
@@ -599,6 +615,90 @@ private final class SliderRowView: UIView {
     }
 }
 
+private final class ToggleRowView: UIView {
+    var onEvent: ((SettingsPanelEvent) -> Void)?
+
+    private var toggleID: SettingsToggleID?
+    private var isApplyingItem = false
+
+    private let contentStackView = UIStackView()
+    private let titleLabel = UILabel()
+    private let spacerView = UIView()
+    private let toggleSwitch = UISwitch()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        configureView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureView()
+    }
+
+    func apply(item: SettingsToggleRow) {
+        toggleID = item.id
+        accessibilityIdentifier = "settings-panel-toggle-row-\(String(describing: item.id))"
+        titleLabel.text = item.title
+        toggleSwitch.accessibilityLabel = item.accessibilityLabel
+        toggleSwitch.accessibilityIdentifier = "settings-panel-toggle-\(String(describing: item.id))"
+        toggleSwitch.isEnabled = item.isEnabled
+        isUserInteractionEnabled = item.isEnabled
+
+        isApplyingItem = true
+        toggleSwitch.setOn(item.isOn, animated: false)
+        isApplyingItem = false
+    }
+
+    private func configureView() {
+        contentStackView.axis = .horizontal
+        contentStackView.alignment = .center
+        contentStackView.distribution = .fill
+        contentStackView.spacing = Style.toggleSpacing
+        contentStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        titleLabel.font = .preferredFont(forTextStyle: .subheadline)
+        titleLabel.textColor = .label
+        titleLabel.adjustsFontForContentSizeCategory = true
+        titleLabel.numberOfLines = 0
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        spacerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        toggleSwitch.onTintColor = .systemGreen
+        toggleSwitch.addTarget(
+            self,
+            action: #selector(handleToggleValueChanged(_:)),
+            for: .valueChanged
+        )
+
+        addSubview(contentStackView)
+        contentStackView.addArrangedSubview(titleLabel)
+        contentStackView.addArrangedSubview(spacerView)
+        contentStackView.addArrangedSubview(toggleSwitch)
+
+        NSLayoutConstraint.activate([
+            contentStackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentStackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            contentStackView.topAnchor.constraint(equalTo: topAnchor),
+            contentStackView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
+    @objc
+    private func handleToggleValueChanged(_ sender: UISwitch) {
+        guard
+            !isApplyingItem,
+            let toggleID
+        else {
+            return
+        }
+
+        onEvent?(.setToggleValue(toggleID, sender.isOn))
+    }
+}
+
 private final class SectionView: UIView {
     var titleText: String = "" {
         didSet {
@@ -692,6 +792,7 @@ private enum Style {
     static let choiceContentSpacing: CGFloat = 8
     static let sliderContentSpacing: CGFloat = 8
     static let headerSpacing: CGFloat = 8
+    static let toggleSpacing: CGFloat = 12
     static let chipSpacing: CGFloat = 8
     static let buttonContentInsets = NSDirectionalEdgeInsets(
         top: 8,

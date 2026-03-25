@@ -15,6 +15,8 @@ struct FretboardDisplayState: Equatable, Sendable {
     var visibility: NoteLabelVisibility
     var spelling: PitchSpelling
     var showsOctave: Bool
+    // 组件边界描线属于页面级展示状态，不进入指板几何配置本身。
+    var showsComponentBoundsOverlay: Bool
     private(set) var verticalHostHeightRatio: CGFloat
 
     static let `default` = FretboardDisplayState(
@@ -31,12 +33,14 @@ struct FretboardDisplayState: Equatable, Sendable {
         visibility: NoteLabelVisibility = .all,
         spelling: PitchSpelling = .sharp,
         showsOctave: Bool = true,
+        showsComponentBoundsOverlay: Bool = false,
         verticalHostHeightRatio: CGFloat = defaultVerticalHostHeightRatio
     ) {
         self.configuration = configuration
         self.visibility = visibility
         self.spelling = spelling
         self.showsOctave = showsOctave
+        self.showsComponentBoundsOverlay = showsComponentBoundsOverlay
         self.verticalHostHeightRatio = Self.clampedVerticalHostHeightRatio(
             verticalHostHeightRatio
         )

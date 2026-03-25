@@ -21,12 +21,14 @@ enum SettingsPresentationStyle: Equatable, Sendable {
 enum SettingsRowID: Equatable, Hashable, Sendable {
     case choice(SettingsChoiceRowID)
     case slider(SettingsSliderID)
+    case toggle(SettingsToggleID)
 }
 
 enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     case fretboard
     case staff
     case layout
+    case debug
 
     var title: String {
         switch self {
@@ -36,6 +38,8 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Staff"
         case .layout:
             return "Layout"
+        case .debug:
+            return "Debug"
         }
     }
 
@@ -59,6 +63,10 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         case .layout:
             return [
                 .slider(.verticalHostHeightRatio)
+            ]
+        case .debug:
+            return [
+                .toggle(.showsComponentBounds)
             ]
         }
     }
@@ -408,6 +416,74 @@ struct SettingsChoiceRow: Equatable, Sendable {
     var choices: [SettingsChoiceItem]
 }
 
+enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
+    case showsComponentBounds
+
+    var sectionID: SettingsSectionID {
+        switch self {
+        case .showsComponentBounds:
+            return .debug
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .showsComponentBounds:
+            return "Component Bounds"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .showsComponentBounds:
+            return "Toggle green bounds overlay for fretboard and staff"
+        }
+    }
+
+    func resolvedValue(
+        fretboardDisplayState: FretboardDisplayState,
+        staffDisplayState: StaffDisplayState
+    ) -> Bool {
+        switch self {
+        case .showsComponentBounds:
+            return fretboardDisplayState.showsComponentBoundsOverlay
+                || staffDisplayState.showsComponentBoundsOverlay
+        }
+    }
+
+    func isEnabled(
+        fretboardDisplayState _: FretboardDisplayState,
+        staffDisplayState _: StaffDisplayState
+    ) -> Bool {
+        switch self {
+        case .showsComponentBounds:
+            return true
+        }
+    }
+
+    func apply(value: Bool, to displayState: inout FretboardDisplayState) {
+        switch self {
+        case .showsComponentBounds:
+            displayState.showsComponentBoundsOverlay = value
+        }
+    }
+
+    func apply(value: Bool, to displayState: inout StaffDisplayState) {
+        switch self {
+        case .showsComponentBounds:
+            displayState.showsComponentBoundsOverlay = value
+        }
+    }
+}
+
+struct SettingsToggleRow: Equatable, Sendable {
+    var id: SettingsToggleID
+    var title: String
+    var accessibilityLabel: String
+    var isOn: Bool
+    var isEnabled: Bool
+}
+
 enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
     case clefScale
     case clefVerticalTrim
@@ -558,6 +634,7 @@ struct SettingsSliderRow: Equatable, Sendable {
 enum SettingsRow: Equatable, Sendable {
     case choice(SettingsChoiceRow)
     case slider(SettingsSliderRow)
+    case toggle(SettingsToggleRow)
 
     var id: SettingsRowID {
         switch self {
@@ -565,6 +642,8 @@ enum SettingsRow: Equatable, Sendable {
             return .choice(row.id)
         case let .slider(row):
             return .slider(row.id)
+        case let .toggle(row):
+            return .toggle(row.id)
         }
     }
 }
@@ -603,11 +682,22 @@ struct SettingsPanelModel: Equatable, Sendable {
             return sliderRow
         }.first { $0.id == id }
     }
+
+    func toggleRow(for id: SettingsToggleID) -> SettingsToggleRow? {
+        rows.compactMap { row in
+            guard case let .toggle(toggleRow) = row else {
+                return nil
+            }
+
+            return toggleRow
+        }.first { $0.id == id }
+    }
 }
 
 enum SettingsPanelEvent: Equatable, Sendable {
     case triggerAction(SettingsActionID)
     case setSliderValue(SettingsSliderID, CGFloat)
+    case setToggleValue(SettingsToggleID, Bool)
 
     func apply(
         to fretboardDisplayState: inout FretboardDisplayState,
@@ -620,6 +710,9 @@ enum SettingsPanelEvent: Equatable, Sendable {
         case let .setSliderValue(sliderID, value):
             sliderID.apply(value: value, to: &fretboardDisplayState)
             sliderID.apply(value: value, to: &staffDisplayState)
+        case let .setToggleValue(toggleID, value):
+            toggleID.apply(value: value, to: &fretboardDisplayState)
+            toggleID.apply(value: value, to: &staffDisplayState)
         }
     }
 }

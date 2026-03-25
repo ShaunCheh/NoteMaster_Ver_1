@@ -29,6 +29,16 @@ final class macOSStaffView: NSView {
         }
     }
 
+    var showsComponentBoundsOverlay = false {
+        didSet {
+            guard oldValue != showsComponentBoundsOverlay else {
+                return
+            }
+
+            updateComponentBoundsOverlay()
+        }
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(
             width: NSView.noIntrinsicMetric,
@@ -116,6 +126,7 @@ final class macOSStaffView: NSView {
 
     private func updateContentsScale() {
         staffRootLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        updateComponentBoundsOverlay()
     }
 
     private func refreshPresentationForResize(displayImmediately: Bool) {
@@ -124,6 +135,17 @@ final class macOSStaffView: NSView {
         }
 
         staffRootLayer.refreshForCurrentBounds(displayImmediately: displayImmediately)
+    }
+
+    private func updateComponentBoundsOverlay() {
+        staffRootLayer.borderColor = NSColor.systemGreen.cgColor
+        staffRootLayer.borderWidth = showsComponentBoundsOverlay
+            ? resolvedComponentBoundsOverlayLineWidth
+            : 0
+    }
+
+    private var resolvedComponentBoundsOverlayLineWidth: CGFloat {
+        max(1 / max(staffRootLayer.contentsScale, 1), 0.5)
     }
 }
 #endif

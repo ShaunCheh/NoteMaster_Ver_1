@@ -27,6 +27,16 @@ final class macOSFretboardView: NSView {
         }
     }
 
+    var showsComponentBoundsOverlay = false {
+        didSet {
+            guard oldValue != showsComponentBoundsOverlay else {
+                return
+            }
+
+            updateComponentBoundsOverlay()
+        }
+    }
+
     // 阶段 4 只负责把 raw mouse 事件转换成共享命中结果并向外抛出。
     var onRawEvent: ((FretboardHitResult) -> Void)?
 
@@ -114,6 +124,7 @@ final class macOSFretboardView: NSView {
 
     private func updateContentsScale() {
         fretboardLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        updateComponentBoundsOverlay()
     }
 
     private var resolvedIntrinsicHeight: CGFloat {
@@ -162,6 +173,17 @@ final class macOSFretboardView: NSView {
 
         lastMeasuredPrimaryDimension = currentPrimaryDimension
         invalidateIntrinsicContentSize()
+    }
+
+    private func updateComponentBoundsOverlay() {
+        fretboardLayer.borderColor = NSColor.systemGreen.cgColor
+        fretboardLayer.borderWidth = showsComponentBoundsOverlay
+            ? resolvedComponentBoundsOverlayLineWidth
+            : 0
+    }
+
+    private var resolvedComponentBoundsOverlayLineWidth: CGFloat {
+        max(1 / max(fretboardLayer.contentsScale, 1), 0.5)
     }
 
     private func handleRawMouseEvent(

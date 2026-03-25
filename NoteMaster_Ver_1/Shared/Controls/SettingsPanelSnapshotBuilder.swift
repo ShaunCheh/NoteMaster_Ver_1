@@ -78,6 +78,14 @@ enum SettingsPanelSnapshotBuilder {
                     staffDisplayState: staffDisplayState
                 )
             )
+        case let .toggle(toggleID):
+            return .toggle(
+                makeToggleRow(
+                    id: toggleID,
+                    fretboardDisplayState: fretboardDisplayState,
+                    staffDisplayState: staffDisplayState
+                )
+            )
         }
     }
 
@@ -141,6 +149,26 @@ enum SettingsPanelSnapshotBuilder {
             value: clampedValue,
             range: range,
             displayValue: id.displayValue(for: clampedValue),
+            isEnabled: id.isEnabled(
+                fretboardDisplayState: fretboardDisplayState,
+                staffDisplayState: staffDisplayState
+            )
+        )
+    }
+
+    private static func makeToggleRow(
+        id: SettingsToggleID,
+        fretboardDisplayState: FretboardDisplayState,
+        staffDisplayState: StaffDisplayState
+    ) -> SettingsToggleRow {
+        SettingsToggleRow(
+            id: id,
+            title: id.title,
+            accessibilityLabel: id.accessibilityLabel,
+            isOn: id.resolvedValue(
+                fretboardDisplayState: fretboardDisplayState,
+                staffDisplayState: staffDisplayState
+            ),
             isEnabled: id.isEnabled(
                 fretboardDisplayState: fretboardDisplayState,
                 staffDisplayState: staffDisplayState

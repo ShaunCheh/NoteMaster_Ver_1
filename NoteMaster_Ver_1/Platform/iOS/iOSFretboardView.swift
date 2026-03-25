@@ -27,6 +27,16 @@ final class iOSFretboardView: UIView {
         }
     }
 
+    var showsComponentBoundsOverlay = false {
+        didSet {
+            guard oldValue != showsComponentBoundsOverlay else {
+                return
+            }
+
+            updateComponentBoundsOverlay()
+        }
+    }
+
     // 阶段 3 只负责把 raw touch 事件转换成共享命中结果并向外抛出。
     var onRawEvent: ((FretboardHitResult) -> Void)?
 
@@ -128,6 +138,7 @@ final class iOSFretboardView: UIView {
 
     private func updateContentsScale() {
         fretboardLayer.contentsScale = window?.screen.scale ?? UIScreen.main.scale
+        updateComponentBoundsOverlay()
     }
 
     private var resolvedIntrinsicHeight: CGFloat {
@@ -176,6 +187,17 @@ final class iOSFretboardView: UIView {
 
         lastMeasuredPrimaryDimension = currentPrimaryDimension
         invalidateIntrinsicContentSize()
+    }
+
+    private func updateComponentBoundsOverlay() {
+        fretboardLayer.borderColor = UIColor.systemGreen.cgColor
+        fretboardLayer.borderWidth = showsComponentBoundsOverlay
+            ? resolvedComponentBoundsOverlayLineWidth
+            : 0
+    }
+
+    private var resolvedComponentBoundsOverlayLineWidth: CGFloat {
+        max(1 / max(fretboardLayer.contentsScale, 1), 0.5)
     }
 
     private func handleRawTouchEvent(

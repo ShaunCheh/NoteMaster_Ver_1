@@ -218,6 +218,7 @@ final class iOSViewController: UIViewController {
     private func applyFretboardDisplayState() {
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
+        fretboardView.showsComponentBoundsOverlay = displayState.showsComponentBoundsOverlay
         rebuildVerticalFretboardHostHeightConstraint()
         applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
@@ -227,6 +228,7 @@ final class iOSViewController: UIViewController {
     private func applyStaffDisplayState() {
         staffView.configuration = staffDisplayState.configuration
         staffView.sceneProvider = staffDisplayState.sceneProvider
+        staffView.showsComponentBoundsOverlay = staffDisplayState.showsComponentBoundsOverlay
         applySettingsPanelState()
         updateLayoutIfNeeded()
     }
