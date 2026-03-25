@@ -232,10 +232,14 @@ final class iOSViewController: UIViewController {
     }
 
     private func applySettingsPanelState() {
-        settingsContainerView.model = SettingsPanelSnapshotBuilder.makeModel(
+        let model = SettingsPanelSnapshotBuilder.makeModel(
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState
         )
+        settingsContainerView.model = model
+        #if DEBUG
+        logSettingsDebugState(reason: "applySettingsPanelState", model: model)
+        #endif
     }
 
     private func updateLayoutIfNeeded() {
@@ -251,6 +255,12 @@ final class iOSViewController: UIViewController {
         isSettingsPresented = presented
         settingsContainerView.setPresented(presented)
         updateSettingsButtonAppearance()
+        #if DEBUG
+        logSettingsDebugState(
+            reason: "setSettingsPresented(\(presented))",
+            model: settingsContainerView.model
+        )
+        #endif
     }
 
     private func updateSettingsButtonAppearance() {
@@ -270,10 +280,19 @@ final class iOSViewController: UIViewController {
 
     @objc
     private func handleSettingsButtonTap() {
+        #if DEBUG
+        logSettingsDebugState(
+            reason: "handleSettingsButtonTap-beforeToggle",
+            model: settingsContainerView.model
+        )
+        #endif
         setSettingsPresented(!isSettingsPresented)
     }
 
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
+        #if DEBUG
+        print("[SettingsDebug][iOSVC] reason=handleSettingsPanelEvent event=\(String(describing: event))")
+        #endif
         var nextDisplayState = displayState
         var nextStaffDisplayState = staffDisplayState
         event.apply(
@@ -297,6 +316,24 @@ final class iOSViewController: UIViewController {
         }
     }
 }
+
+#if DEBUG
+private extension iOSViewController {
+    func logSettingsDebugState(
+        reason: String,
+        model: SettingsPanelModel
+    ) {
+        let sectionSummary = model.sections.map {
+            "\($0.id):\($0.rows.count)"
+        }.joined(separator: ", ")
+        print(
+            """
+            [SettingsDebug][iOSVC] reason=\(reason) presented=\(isSettingsPresented) sections=\(model.sections.count) rows=\(model.rows.count) sectionSummary=[\(sectionSummary)] displayMode=\(String(describing: displayState.displayMode)) verticalHostHeightRatio=\(displayState.verticalHostHeightRatio)
+            """
+        )
+    }
+}
+#endif
 
 private enum Layout {
     static let horizontalInset: CGFloat = 16
