@@ -13,7 +13,7 @@ todos:
     status: pending
   - id: phase4-vertical-strategy
     content: 实现 vertical 几何、命中、marker 与正立文字锚点
-    status: pending
+    status: completed
   - id: phase5-platform-sizing
     content: 改造 iOS/macOS 为 host 高度驱动、指板宽度自适应且居中
     status: pending

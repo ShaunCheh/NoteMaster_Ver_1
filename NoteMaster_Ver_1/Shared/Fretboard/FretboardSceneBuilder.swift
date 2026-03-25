@@ -20,8 +20,7 @@ struct FretboardSceneBuilder: Equatable, Sendable {
                 bounds: normalizedBounds
             )
         case .vertical:
-            // 阶段 2 先完成横向 scene 真相迁移；竖向 strategy 在后续阶段单独落地。
-            return HorizontalFretboardGeometryStrategy().makeScene(
+            return VerticalFretboardGeometryStrategy().makeScene(
                 configuration: configuration,
                 bounds: normalizedBounds
             )
@@ -42,8 +41,7 @@ struct FretboardSceneBuilder: Equatable, Sendable {
                 scene: scene
             )
         case .vertical:
-            // 阶段 2 先完成横向 scene 真相迁移；竖向 strategy 在后续阶段单独落地。
-            return HorizontalFretboardGeometryStrategy().hitTest(
+            return VerticalFretboardGeometryStrategy().hitTest(
                 point,
                 phase: phase,
                 configuration: configuration,
