@@ -8,6 +8,8 @@
 import CoreGraphics
 
 struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
+    private static let contentFitTolerance: CGFloat = 0.5
+
     func makeScene(
         configuration: FretboardConfiguration,
         bounds: CGRect
@@ -371,20 +373,23 @@ struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
             return .null
         }
 
-        let widthToHeightMultiplier = configuration.widthToHeightMultiplier
-        guard widthToHeightMultiplier > 0 else {
+        let fullHeightContentWidth = configuration.verticalContentWidth(
+            forViewportHeight: bounds.height
+        )
+        guard fullHeightContentWidth > 0 else {
             return .null
         }
 
         let totalWidth: CGFloat
         let totalHeight: CGFloat
-        let widthUsingFullHeight = bounds.height * widthToHeightMultiplier
-        if widthUsingFullHeight <= bounds.width {
-            totalWidth = widthUsingFullHeight
+        if bounds.width + contentFitTolerance >= fullHeightContentWidth {
+            totalWidth = min(fullHeightContentWidth, bounds.width)
             totalHeight = bounds.height
         } else {
             totalWidth = bounds.width
-            totalHeight = bounds.width / widthToHeightMultiplier
+            totalHeight = configuration.verticalContentHeight(
+                forContentWidth: bounds.width
+            )
         }
 
         guard totalWidth > 0, totalHeight > 0 else {
@@ -396,13 +401,8 @@ struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
             max(totalWidth * metrics.horizontalInsetRatio, 0),
             totalWidth / 2
         )
-        let verticalInset = min(
-            max(totalHeight * metrics.verticalInsetRatio, 0),
-            totalHeight / 2
-        )
         let drawingWidth = totalWidth - (horizontalInset * 2)
-        let drawingHeight = totalHeight - (verticalInset * 2)
-        guard drawingWidth > 0, drawingHeight > 0 else {
+        guard drawingWidth > 0 else {
             return .null
         }
 
@@ -414,9 +414,9 @@ struct VerticalFretboardGeometryStrategy: FretboardGeometryStrategy {
         )
         let rect = CGRect(
             x: totalRect.minX + horizontalInset,
-            y: totalRect.minY + verticalInset,
+            y: totalRect.minY,
             width: drawingWidth,
-            height: drawingHeight
+            height: totalRect.height
         )
 
         return rect.isNull || rect.isEmpty ? .null : rect

@@ -143,12 +143,13 @@ struct FretboardConfiguration: Equatable, Sendable {
         ) -> CGFloat {
             let resolvedDisplayPositionCount = max(displayPositionCount, 1)
             let resolvedStringCount = max(stringCount, 1)
-            // vertical 模式沿用同一套“长:短”比例真相，但长边改为品位方向（y 轴）；
-            // 因此这里需要把 horizontal 的 width/height 比例翻转到 width/height 的倒数。
-            return drawingHeightFactor
-                / drawingWidthFactor
-                * CGFloat(resolvedStringCount)
-                / (CGFloat(resolvedDisplayPositionCount) * resolvedCellWidthToHeightRatio)
+            // 竖向局部横滚语义下，绿色边界代表真实内容矩形：
+            // 指板内容应优先吃满整个可见高度，因此这里只保留左右 inset，
+            // 不再把上下 inset 也折进 width/height 倍率，否则内容宽度充足时仍会保留上下 letterbox。
+            return CGFloat(resolvedStringCount)
+                / (drawingWidthFactor
+                    * CGFloat(resolvedDisplayPositionCount)
+                    * resolvedCellWidthToHeightRatio)
         }
 
         func verticalHeightToWidthMultiplier(

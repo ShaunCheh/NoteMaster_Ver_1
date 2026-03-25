@@ -134,7 +134,7 @@ private extension FretboardValidationRunner {
             verticalFixture(
                 name: "vertical-guitar6-width-constrained",
                 instrument: .guitar6,
-                widthOverride: 220
+                widthOverride: 120
             )
         ]
     }
@@ -215,6 +215,11 @@ private extension FretboardValidationRunner {
             fixture: fixture,
             record: record
         )
+        validateVerticalHeightConsumption(
+            scene: scene,
+            fixture: fixture,
+            record: record
+        )
         validateSceneCounts(
             scene: scene,
             fixture: fixture,
@@ -278,6 +283,28 @@ private extension FretboardValidationRunner {
         if let fretZeroRect = scene.fretSpanRect(at: 0),
            !approximatelyEqual(rect: fretZeroRect, other: scene.openStringRect) {
             record("openStringRect 与 fret 0 的 span rect 不一致。")
+        }
+    }
+
+    static func validateVerticalHeightConsumption(
+        scene: FretboardScene,
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard fixture.configuration.displayMode == .vertical else {
+            return
+        }
+
+        let fullHeightContentWidth = fixture.configuration.verticalContentWidth(
+            forViewportHeight: fixture.bounds.height
+        )
+        guard fixture.bounds.width + tolerance >= fullHeightContentWidth else {
+            return
+        }
+
+        if !approximatelyEqual(scene.drawingRect.minY, fixture.bounds.minY)
+            || !approximatelyEqual(scene.drawingRect.maxY, fixture.bounds.maxY) {
+            record("vertical 高度驱动场景下 drawingRect 未优先吃满 bounds.height。")
         }
     }
 
