@@ -69,6 +69,26 @@ struct StaffGeometry: Equatable, Sendable {
         return configuration.layoutMetrics.staffHeight()
     }
 
+    var staffLineCount: Int {
+        resolvedStaffLineCount
+    }
+
+    var staffSpaceHeight: CGFloat {
+        resolvedStaffSpaceHeight
+    }
+
+    var staffStepHeight: CGFloat {
+        resolvedStaffSpaceHeight / 2
+    }
+
+    var topLineY: CGFloat? {
+        lineY(at: 0)
+    }
+
+    var bottomLineY: CGFloat? {
+        lineY(at: resolvedStaffLineCount - 1)
+    }
+
     var staffLineSegments: [StaffLineSegment] {
         (0..<resolvedStaffLineCount).compactMap { lineIndex in
             guard let y = lineY(at: lineIndex) else {
