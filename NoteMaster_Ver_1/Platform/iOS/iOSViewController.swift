@@ -380,6 +380,7 @@ final class iOSViewController: UIViewController {
     // 后续阶段只需要扩展这里，就能统一同步页面入口按钮与 container 壳层。
     private func applySettingsPresentationState() {
         settingsContainerView.setPresented(isSettingsPresented)
+        settingsButton.isHidden = isSettingsPresented
         updateSettingsButtonAppearance()
     }
 

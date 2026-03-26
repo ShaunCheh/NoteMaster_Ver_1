@@ -372,6 +372,7 @@ final class macOSViewController: NSViewController {
     // 后续阶段把页面入口按钮隐藏/恢复接到这里即可，不必分散到多个调用点。
     private func applySettingsPresentationState() {
         settingsContainerView.setPresented(isSettingsPresented)
+        settingsButton.isHidden = isSettingsPresented
         updateSettingsButtonAppearance()
     }
 
