@@ -39,9 +39,17 @@ final class macOSViewController: NSViewController {
             applyStaffDisplayState()
         }
     }
-    // 顶部内容模式独立于 staff / fretboard display state；
-    // 当前阶段先完成顶部 host 重构，后续再把切换应用入口统一收口。
-    private var topContentDisplayState = TopContentDisplayState.default
+    // 顶部内容模式独立于 staff / fretboard display state，
+    // 并通过统一的 applyTopContentDisplayState() 串到页面布局层。
+    private var topContentDisplayState = TopContentDisplayState.default {
+        didSet {
+            guard isViewLoaded else {
+                return
+            }
+
+            applyTopContentDisplayState()
+        }
+    }
 
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
@@ -102,6 +110,8 @@ final class macOSViewController: NSViewController {
     private var verticalFretboardContentWidthConstraint: NSLayoutConstraint?
     private var fretboardContentCenterXConstraint: NSLayoutConstraint?
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
+    private var topContentStaffConstraints: [NSLayoutConstraint] = []
+    private var topContentTargetPromptConstraints: [NSLayoutConstraint] = []
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
@@ -181,6 +191,18 @@ final class macOSViewController: NSViewController {
 
         let safeArea = view.safeAreaLayoutGuide
         rebuildVerticalFretboardHostHeightConstraint()
+        topContentStaffConstraints = [
+            staffView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
+            staffView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
+            staffView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
+            staffView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor)
+        ]
+        topContentTargetPromptConstraints = [
+            targetNotePromptView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
+            targetNotePromptView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
+            targetNotePromptView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
+            targetNotePromptView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor)
+        ]
         horizontalFretboardDocumentWidthConstraint = fretboardScrollContentView.widthAnchor.constraint(
             equalTo: fretboardViewportScrollView.contentView.widthAnchor
         )
@@ -218,14 +240,6 @@ final class macOSViewController: NSViewController {
             ),
             topContentHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             topContentHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            staffView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
-            staffView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
-            staffView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
-            staffView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor),
-            targetNotePromptView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
-            targetNotePromptView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
-            targetNotePromptView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
-            targetNotePromptView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor),
             fretboardHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             fretboardHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             fretboardHostView.topAnchor.constraint(
@@ -297,6 +311,7 @@ final class macOSViewController: NSViewController {
     private func applyDisplayState() {
         applyFretboardDisplayState()
         applyStaffDisplayState()
+        applyTopContentDisplayState()
     }
 
     private func applyFretboardDisplayState() {
@@ -316,6 +331,26 @@ final class macOSViewController: NSViewController {
         staffView.configuration = staffDisplayState.configuration
         staffView.sceneProvider = staffDisplayState.sceneProvider
         staffView.showsComponentBoundsOverlay = staffDisplayState.showsComponentBoundsOverlay
+        applySettingsPanelState()
+        updateLayoutIfNeeded()
+    }
+
+    // 页面级顶部内容模式只在控制器组装层生效；
+    // shared mode 决定显示哪个子视图，具体视图内容仍分别由 staff / trainer prompt 驱动。
+    private func applyTopContentDisplayState() {
+        let showsStaff = topContentDisplayState.mode == .staff
+        let activeConstraints = showsStaff
+            ? topContentStaffConstraints
+            : topContentTargetPromptConstraints
+        let inactiveConstraints = showsStaff
+            ? topContentTargetPromptConstraints
+            : topContentStaffConstraints
+
+        targetNotePromptView.apply(prompt: currentFretboardTrainerPrompt)
+        staffView.isHidden = !showsStaff
+        targetNotePromptView.isHidden = showsStaff
+        NSLayoutConstraint.deactivate(inactiveConstraints)
+        NSLayoutConstraint.activate(activeConstraints)
         applySettingsPanelState()
         updateLayoutIfNeeded()
     }
@@ -415,9 +450,11 @@ final class macOSViewController: NSViewController {
         }
     }
 
-    // 当前阶段只输出控制台；后续如果要显示目标音 UI，只需在这里同步 overlay。
+    // trainer prompt 的平台组装入口仍然收口在控制器：
+    // 这里同时同步控制台日志与目标音组件显示内容。
     private func applyFretboardTrainerPrompt(reason: String) {
         let prompt = currentFretboardTrainerPrompt
+        targetNotePromptView.apply(prompt: prompt)
         print(
             "[FretboardTrainer][macOS] target=\(prompt.displayText) state=\(reason)"
         )
@@ -483,10 +520,6 @@ final class macOSViewController: NSViewController {
 
         if didChangeStaff {
             staffDisplayState = nextStaffDisplayState
-        }
-
-        if didChangeTopContent, !didChangeFretboard, !didChangeStaff {
-            applySettingsPanelState()
         }
     }
 }
