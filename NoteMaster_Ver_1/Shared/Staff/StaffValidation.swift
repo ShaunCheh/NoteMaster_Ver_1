@@ -59,9 +59,19 @@ struct StaffValidationReport {
 
 enum StaffValidationRunner {
     static func run(platform: StaffValidationPlatform) -> StaffValidationReport {
+        let decodeCases = makeDecodeCases()
         let fixtures = makeFixtures()
         var passedFixtureNames: [String] = []
         var issues: [StaffValidationIssue] = []
+
+        for decodeCase in decodeCases {
+            let decodeCaseIssues = validate(decodeCase)
+            if decodeCaseIssues.isEmpty {
+                passedFixtureNames.append(decodeCase.name)
+            } else {
+                issues.append(contentsOf: decodeCaseIssues)
+            }
+        }
 
         for fixture in fixtures {
             let fixtureIssues = validate(fixture)
@@ -74,7 +84,7 @@ enum StaffValidationRunner {
 
         return StaffValidationReport(
             platform: platform,
-            fixtureCount: fixtures.count,
+            fixtureCount: decodeCases.count + fixtures.count,
             passedFixtureNames: passedFixtureNames,
             issues: issues,
             manualChecklist: manualChecklist(for: platform)
@@ -109,9 +119,106 @@ private struct StaffValidationExpectedNoteAccidental: Equatable {
     var symbolID: StaffGlyphSymbolID
 }
 
+private struct StaffValidationDecodeCase {
+    var name: String
+    var json: String
+    var expectedClef: StaffClef
+    var expectedKeySignatureFifths: Int
+    var expectedMeasureCount: Int
+    var expectedNoteCount: Int
+}
+
 private extension StaffValidationRunner {
     static let tolerance: CGFloat = 0.001
     static let fixtureWidth: CGFloat = 860
+
+    static func makeDecodeCases() -> [StaffValidationDecodeCase] {
+        [
+            decodeCase(
+                name: "decode-key-d-major-zh-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "D大调""#
+                ),
+                expectedKeySignatureFifths: 2
+            ),
+            decodeCase(
+                name: "decode-key-a-major-zh-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "A大调""#
+                ),
+                expectedKeySignatureFifths: 3
+            ),
+            decodeCase(
+                name: "decode-key-d-major-en-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "D major""#
+                ),
+                expectedKeySignatureFifths: 2
+            ),
+            decodeCase(
+                name: "decode-key-a-major-en-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "A major""#
+                ),
+                expectedKeySignatureFifths: 3
+            ),
+            decodeCase(
+                name: "decode-key-bb-major-en-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "Bb major""#
+                ),
+                expectedKeySignatureFifths: -2
+            ),
+            decodeCase(
+                name: "decode-key-bb-major-zh-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "降B大调""#
+                ),
+                expectedKeySignatureFifths: -2
+            ),
+            decodeCase(
+                name: "decode-key-fsharp-major-en-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "F# major""#
+                ),
+                expectedKeySignatureFifths: 6
+            ),
+            decodeCase(
+                name: "decode-key-fsharp-major-zh-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "升F大调""#
+                ),
+                expectedKeySignatureFifths: 6
+            ),
+            decodeCase(
+                name: "decode-key-a-bare-tonic-inline",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "a""#
+                ),
+                expectedKeySignatureFifths: 3
+            ),
+            decodeCase(
+                name: "decode-key-d-major-english-keyed-fifths",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": { "fifths": "D大调" }"#
+                ),
+                expectedKeySignatureFifths: 2
+            ),
+            decodeCase(
+                name: "decode-key-a-major-chinese-keyed-fifths",
+                json: decodeScoreJSON(
+                    clefField: #""谱号": "高音""#,
+                    keySignatureField: #""调号": { "升降号个数": "A major" }"#,
+                    notesField: """
+                    "音符": [
+                      { "音高": "c4", "时值": "quarter" }
+                    ]
+                    """
+                ),
+                expectedKeySignatureFifths: 3
+            )
+        ]
+    }
 
     static func makeFixtures() -> [StaffValidationFixture] {
         let trebleConfiguration = StaffConfiguration(
@@ -127,8 +234,18 @@ private extension StaffValidationRunner {
             ("c", .natural),
             ("g", StaffKeySignature(fifths: 1)),
             ("d", StaffKeySignature(fifths: 2)),
+            ("a", StaffKeySignature(fifths: 3)),
+            ("e", StaffKeySignature(fifths: 4)),
+            ("b", StaffKeySignature(fifths: 5)),
+            ("fsharp", StaffKeySignature(fifths: 6)),
+            ("csharp", StaffKeySignature(fifths: 7)),
             ("f", StaffKeySignature(fifths: -1)),
-            ("bb", StaffKeySignature(fifths: -2))
+            ("bb", StaffKeySignature(fifths: -2)),
+            ("eb", StaffKeySignature(fifths: -3)),
+            ("ab", StaffKeySignature(fifths: -4)),
+            ("db", StaffKeySignature(fifths: -5)),
+            ("gb", StaffKeySignature(fifths: -6)),
+            ("cb", StaffKeySignature(fifths: -7))
         ]
 
         var fixtures = [
@@ -208,6 +325,21 @@ private extension StaffValidationRunner {
                     noteAccidental(noteIndex: 2, accidental: .natural),
                     noteAccidental(noteIndex: 4, accidental: .sharp),
                     noteAccidental(noteIndex: 6, accidental: .natural)
+                ]
+            ),
+            fixture(
+                name: "treble-a-major-context-reset",
+                configuration: trebleConfiguration,
+                score: StaffScoreFixtures.aMajorAccidentalContextReference(),
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 3, accidental: .natural),
+                    noteAccidental(noteIndex: 4, accidental: .sharp),
+                    noteAccidental(noteIndex: 5, accidental: .natural),
+                    noteAccidental(noteIndex: 7, accidental: .natural),
+                    noteAccidental(noteIndex: 9, accidental: .natural),
+                    noteAccidental(noteIndex: 10, accidental: .natural),
+                    noteAccidental(noteIndex: 11, accidental: .natural)
                 ]
             ),
             fixture(
@@ -330,6 +462,81 @@ private extension StaffValidationRunner {
                 measures: []
             )
         }
+    }
+
+    static func decodeCase(
+        name: String,
+        json: String,
+        expectedKeySignatureFifths: Int,
+        expectedClef: StaffClef = .treble,
+        expectedMeasureCount: Int = 1,
+        expectedNoteCount: Int = 1
+    ) -> StaffValidationDecodeCase {
+        StaffValidationDecodeCase(
+            name: name,
+            json: json,
+            expectedClef: expectedClef,
+            expectedKeySignatureFifths: expectedKeySignatureFifths,
+            expectedMeasureCount: expectedMeasureCount,
+            expectedNoteCount: expectedNoteCount
+        )
+    }
+
+    static func decodeScoreJSON(
+        clefField: String = #""clef": "treble""#,
+        keySignatureField: String,
+        notesField: String = """
+        "notes": [
+          { "pitch": "c4", "duration": "quarter" }
+        ]
+        """
+    ) -> String {
+        """
+        {
+          \(clefField),
+          \(keySignatureField),
+          \(notesField)
+        }
+        """
+    }
+
+    static func validate(_ decodeCase: StaffValidationDecodeCase) -> [StaffValidationIssue] {
+        var issues: [StaffValidationIssue] = []
+
+        func record(_ message: String) {
+            issues.append(
+                StaffValidationIssue(
+                    fixtureName: decodeCase.name,
+                    message: message
+                )
+            )
+        }
+
+        let score: StaffScore
+        do {
+            score = try StaffScore.decode(from: decodeCase.json)
+        } catch {
+            record("命名调号解码失败：\(error)。")
+            return issues
+        }
+
+        if score.clef != decodeCase.expectedClef {
+            record("clef 解码错误，期望 \(decodeCase.expectedClef)，实际 \(score.clef)。")
+        }
+
+        if score.keySignature.fifths != decodeCase.expectedKeySignatureFifths {
+            record("key signature fifths 解码错误，期望 \(decodeCase.expectedKeySignatureFifths)，实际 \(score.keySignature.fifths)。")
+        }
+
+        if score.measures.count != decodeCase.expectedMeasureCount {
+            record("measure 数量错误，期望 \(decodeCase.expectedMeasureCount)，实际 \(score.measures.count)。")
+        }
+
+        if score.notes.count != decodeCase.expectedNoteCount {
+            record("note 数量错误，期望 \(decodeCase.expectedNoteCount)，实际 \(score.notes.count)。")
+        }
+
+        return issues
     }
 
     static func validate(_ fixture: StaffValidationFixture) -> [StaffValidationIssue] {
@@ -656,8 +863,10 @@ private extension StaffValidationRunner {
     static func manualChecklist(for platform: StaffValidationPlatform) -> [String] {
         var checklist = [
             "启动 App，确认默认五线谱已恢复完整记谱显示：除 clef 与 notehead 外，还能看到 stem，以及需要时的 accidental / ledger line，且没有回退成 clef-only 场景。",
-            "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 `C / G / D / F / Bb` 参考谱例，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确。",
+            "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 major circle-of-fifths 参考谱例：`C / G / D / A / E / B / F# / C# / F / Bb / Eb / Ab / Db / Gb / Cb`，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确。",
+            "把调号输入临时切成命名形式，例如 `D大调`、`A大调`、`D major`、`A major`，以及 keyed 对象形式 `{ \"fifths\": \"D大调\" }`；确认 scene 结果与直接传 `fifths` 等价。",
             "将共享 score 切到 `StaffScoreFixtures.gMajorAccidentalContextReference()`，确认同小节里 `f#` 会被调号抑制、写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp，跨小节后恢复调号默认规则。",
+            "将共享 score 切到 `StaffScoreFixtures.aMajorAccidentalContextReference()`，确认 A major 下 `F# / C# / G#` 默认会被调号抑制；写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp；同小节写出的 `c natural / g natural` 到下一小节会再次显示 natural，证明 measure reset 生效。",
             "将共享 score 切到 `StaffScoreFixtures.bbMajorBassAccidentalContextReference()`，确认 Bass + Bb major 下 `bb3` 默认不显示 accidental，`b3` 显示 natural，跨小节后再次按调号默认值重置。",
             "显式把 `staffDisplayState.notationDisplayOptions` 切到 `.noteheadsOnly` 再切回 `.fullNotation`，确认 notehead 可见性稳定，且 accidental / stem / ledger line 能正确隐藏与恢复。",
             "调整窗口大小或设备方向，确认 key signature 区与 note 区不会重叠，note spacing 与 glyph 位置稳定更新。"
@@ -669,7 +878,7 @@ private extension StaffValidationRunner {
         case .macOS:
             checklist.append("在 macOS 上执行 live resize，确认调号区和音符区在 resize 过程中保持稳定，不出现 accidental 抖动或重叠。")
         case .commandLine:
-            checklist.append("命令行只覆盖共享层 scene fixture，不覆盖 iOS/macOS 运行时渲染、字体注册与交互。")
+            checklist.append("命令行已覆盖命名调号 decode 回归与共享层 scene fixture，不覆盖 iOS/macOS 运行时渲染、字体注册与交互。")
         }
 
         return checklist

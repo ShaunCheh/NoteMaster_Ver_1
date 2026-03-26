@@ -36,7 +36,7 @@ enum StaffScoreFixtures {
             named: "key-signature-reference-\(clef.token)-\(keySignature.fifths)",
             clef: clef,
             keySignature: keySignature,
-            measures: [referenceMeasure(for: clef)]
+            measures: [referenceMeasure(for: clef, keySignature: keySignature)]
         )
     }
 
@@ -56,6 +56,32 @@ enum StaffScoreFixtures {
                 [
                     ("f#4", .quarter),
                     ("f4", .half)
+                ]
+            ]
+        )
+    }
+
+    static func aMajorAccidentalContextReference() -> StaffScore {
+        resolveScore(
+            named: "a-major-accidental-context",
+            clef: .treble,
+            keySignature: StaffKeySignature(fifths: 3),
+            measures: [
+                [
+                    ("f#4", .quarter),
+                    ("c#5", .quarter),
+                    ("g#4", .quarter),
+                    ("f4", .quarter),
+                    ("f#4", .quarter),
+                    ("c5", .quarter),
+                    ("c5", .quarter),
+                    ("g4", .quarter),
+                    ("g4", .quarter)
+                ],
+                [
+                    ("f4", .quarter),
+                    ("c5", .quarter),
+                    ("g4", .half)
                 ]
             ]
         )
@@ -110,26 +136,63 @@ enum StaffScoreFixtures {
             )
             return StaffScore(
                 clef: clef,
-                notes: []
+                keySignature: keySignature,
+                measures: []
             )
         }
     }
 
     private static func referenceMeasure(
-        for clef: StaffClef
+        for clef: StaffClef,
+        keySignature: StaffKeySignature
     ) -> MeasureDefinition {
-        switch clef {
-        case .treble:
-            return [
-                ("g4", .quarter),
-                ("a4", .half)
-            ]
-        case .bass:
-            return [
-                ("g2", .quarter),
-                ("a2", .half)
-            ]
+        guard
+            let signatureAccidental = keySignature.signatureAccidental,
+            !keySignature.alteredLetters.isEmpty
+        else {
+            switch clef {
+            case .treble:
+                return [
+                    ("g4", .quarter),
+                    ("a4", .half)
+                ]
+            case .bass:
+                return [
+                    ("g2", .quarter),
+                    ("a2", .half)
+                ]
+            }
         }
+
+        let alteredLetters = keySignature.alteredLetters
+        let primaryPitch = referencePitchToken(
+            letter: alteredLetters[0],
+            accidental: signatureAccidental,
+            clef: clef
+        )
+        let secondaryPitch: String
+        if alteredLetters.count > 1 {
+            secondaryPitch = referencePitchToken(
+                letter: alteredLetters[1],
+                accidental: signatureAccidental,
+                clef: clef
+            )
+        } else if let naturalLetter = referenceNaturalLetter(
+            excluding: alteredLetters
+        ) {
+            secondaryPitch = referencePitchToken(
+                letter: naturalLetter,
+                accidental: .natural,
+                clef: clef
+            )
+        } else {
+            secondaryPitch = primaryPitch
+        }
+
+        return [
+            (primaryPitch, .quarter),
+            (secondaryPitch, .half)
+        ]
     }
 
     private static func measureJSON(
@@ -154,6 +217,42 @@ enum StaffScoreFixtures {
         """
                 { "pitch": "\(pitch)", "duration": "\(duration.rawValue)" }
         """
+    }
+
+    private static func referenceNaturalLetter(
+        excluding alteredLetters: [StaffPitchLetter]
+    ) -> StaffPitchLetter? {
+        let alteredLetterSet = Set(alteredLetters)
+        let candidateLetters: [StaffPitchLetter] = [.g, .a, .d, .e, .c, .f, .b]
+        return candidateLetters.first { !alteredLetterSet.contains($0) }
+    }
+
+    private static func referencePitchToken(
+        letter: StaffPitchLetter,
+        accidental: StaffAccidental,
+        clef: StaffClef
+    ) -> String {
+        let octave = referenceOctave(
+            for: letter,
+            clef: clef
+        )
+        return "\(letter.scientificToken.lowercased())\(accidental.scientificToken)\(octave)"
+    }
+
+    private static func referenceOctave(
+        for letter: StaffPitchLetter,
+        clef: StaffClef
+    ) -> Int {
+        switch (clef, letter) {
+        case (.treble, .c), (.treble, .d), (.treble, .e), (.treble, .f):
+            return 5
+        case (.treble, .g), (.treble, .a), (.treble, .b):
+            return 4
+        case (.bass, .c), (.bass, .d), (.bass, .e), (.bass, .f):
+            return 3
+        case (.bass, .g), (.bass, .a), (.bass, .b):
+            return 2
+        }
     }
 }
 
