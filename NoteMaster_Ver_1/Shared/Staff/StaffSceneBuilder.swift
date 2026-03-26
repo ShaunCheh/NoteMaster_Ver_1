@@ -89,69 +89,90 @@ struct StaffSceneBuilder: Equatable, Sendable {
             noteCount: score.notes.count,
             geometry: geometry
         )
+        var noteFrameIndex = 0
+        var accidentalContext = StaffAccidentalContext(
+            keySignature: score.keySignature
+        )
 
-        for (note, noteheadFrame) in zip(score.notes, noteFrames) {
-            guard
-                let positionedPitch = pitchLayout.positionedPitch(
-                    note.pitch,
-                    in: geometry
+        for measure in score.measures {
+            accidentalContext.resetForMeasure()
+
+            for note in measure.notes {
+                guard noteFrameIndex < noteFrames.count else {
+                    break
+                }
+
+                let noteheadFrame = noteFrames[noteFrameIndex]
+                noteFrameIndex += 1
+
+                guard
+                    let positionedPitch = pitchLayout.positionedPitch(
+                        note.pitch,
+                        in: geometry
+                    )
+                else {
+                    continue
+                }
+
+                let accidentalDecision = accidentalContext.resolveDisplayDecision(
+                    for: note.pitch
                 )
-            else {
-                continue
-            }
+                if notationDisplayOptions.showsAccidentals,
+                   let displayedAccidental = accidentalDecision.displayedAccidental,
+                   let accidentalSymbolID = accidentalSymbolID(
+                    for: displayedAccidental
+                   ) {
+                    glyphs.append(
+                        StaffGlyphItem(
+                            symbolID: accidentalSymbolID,
+                            placement: .frame(
+                                accidentalFrame(
+                                    for: noteheadFrame,
+                                    centerY: positionedPitch.centerY
+                                )
+                            ),
+                            tintColor: glyphTintColor,
+                            renderHint: .accidental()
+                        )
+                    )
+                }
 
-            if notationDisplayOptions.showsAccidentals,
-               let accidentalSymbolID = positionedPitch.accidentalSymbolID {
                 glyphs.append(
                     StaffGlyphItem(
-                        symbolID: accidentalSymbolID,
+                        symbolID: noteheadSymbolID(for: note.duration),
                         placement: .frame(
-                            accidentalFrame(
-                                for: noteheadFrame,
-                                centerY: positionedPitch.centerY
+                            centeredFrame(
+                                center: CGPoint(
+                                    x: noteheadFrame.midX,
+                                    y: positionedPitch.centerY
+                                ),
+                                size: noteheadFrame.size
                             )
                         ),
                         tintColor: glyphTintColor,
-                        renderHint: .accidental()
+                        renderHint: .notehead()
                     )
                 )
-            }
 
-            glyphs.append(
-                StaffGlyphItem(
-                    symbolID: noteheadSymbolID(for: note.duration),
-                    placement: .frame(
-                        centeredFrame(
-                            center: CGPoint(
-                                x: noteheadFrame.midX,
-                                y: positionedPitch.centerY
-                            ),
-                            size: noteheadFrame.size
+                if notationDisplayOptions.showsStems,
+                   note.duration.showsStem {
+                    strokeItems.append(
+                        stemStroke(
+                            for: noteheadFrame,
+                            positionedPitch: positionedPitch,
+                            geometry: geometry
                         )
-                    ),
-                    tintColor: glyphTintColor,
-                    renderHint: .notehead()
-                )
-            )
-
-            if notationDisplayOptions.showsStems,
-               note.duration.showsStem {
-                strokeItems.append(
-                    stemStroke(
-                        for: noteheadFrame,
-                        positionedPitch: positionedPitch,
-                        geometry: geometry
                     )
-                )
-            }
+                }
 
-            if notationDisplayOptions.showsLedgerLines {
-                strokeItems.append(
-                    contentsOf: ledgerLineStrokes(
-                        for: noteheadFrame,
-                        ledgerLineYs: positionedPitch.ledgerLineYs
+                if notationDisplayOptions.showsLedgerLines {
+                    strokeItems.append(
+                        contentsOf: ledgerLineStrokes(
+                            for: noteheadFrame,
+                            ledgerLineYs: positionedPitch.ledgerLineYs
+                        )
                     )
-                )
+                }
             }
         }
 
@@ -181,6 +202,19 @@ struct StaffSceneBuilder: Equatable, Sendable {
             return .noteheadHalf
         case .quarter:
             return .noteheadBlack
+        }
+    }
+
+    private func accidentalSymbolID(
+        for accidental: StaffAccidental
+    ) -> StaffGlyphSymbolID? {
+        switch accidental {
+        case .flat:
+            return .accidentalFlat
+        case .natural:
+            return .accidentalNatural
+        case .sharp:
+            return .accidentalSharp
         }
     }
 

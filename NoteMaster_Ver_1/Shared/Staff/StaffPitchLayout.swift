@@ -18,7 +18,6 @@ struct StaffPitchLayout: Equatable, Sendable {
         var centerY: CGFloat
         var stemDirection: StemDirection
         var ledgerLineYs: [CGFloat]
-        var accidentalSymbolID: StaffGlyphSymbolID?
     }
 
     var clef: StaffClef
@@ -51,8 +50,7 @@ struct StaffPitchLayout: Equatable, Sendable {
             ledgerLineYs: ledgerLineYs(
                 for: staffPosition,
                 geometry: geometry
-            ),
-            accidentalSymbolID: accidentalSymbolID(for: pitch.accidental)
+            )
         )
     }
 
@@ -62,20 +60,6 @@ struct StaffPitchLayout: Equatable, Sendable {
             return StaffPitch(letter: .e, octave: 4)
         case .bass:
             return StaffPitch(letter: .g, octave: 2)
-        }
-    }
-
-    private func accidentalSymbolID(
-        for accidental: StaffAccidental
-    ) -> StaffGlyphSymbolID? {
-        // 当前模型里的 natural 只表示“无升降记号偏移”，还不区分“显式还原号”。
-        switch accidental {
-        case .flat:
-            return .accidentalFlat
-        case .natural:
-            return nil
-        case .sharp:
-            return .accidentalSharp
         }
     }
 
