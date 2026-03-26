@@ -34,7 +34,7 @@ struct StaffSceneProvider: Equatable, Sendable {
             return .empty
         }
 
-        if let score, !score.isEmpty {
+        if let score {
             #if DEBUG
             if score.clef != clef {
                 assertionFailure(

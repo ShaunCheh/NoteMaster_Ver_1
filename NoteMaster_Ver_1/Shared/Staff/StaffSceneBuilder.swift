@@ -10,6 +10,8 @@ import CoreGraphics
 struct StaffSceneBuilder: Equatable, Sendable {
     struct LayoutMetrics: Equatable, Sendable {
         var clefToNoteGapInSpaces: CGFloat
+        var keySignatureToNoteGapInSpaces: CGFloat
+        var keySignatureAccidentalSpacingToAccidentalWidth: CGFloat
         var noteheadHeightToSpaceRatio: CGFloat
         var noteheadWidthToHeightRatio: CGFloat
         var noteLeadingInsetInNoteheadWidths: CGFloat
@@ -24,6 +26,8 @@ struct StaffSceneBuilder: Equatable, Sendable {
 
         static let `default` = LayoutMetrics(
             clefToNoteGapInSpaces: 1.3,
+            keySignatureToNoteGapInSpaces: 1.15,
+            keySignatureAccidentalSpacingToAccidentalWidth: 0.24,
             noteheadHeightToSpaceRatio: 1.1,
             noteheadWidthToHeightRatio: 1.45,
             noteLeadingInsetInNoteheadWidths: 2.4,
@@ -36,6 +40,24 @@ struct StaffSceneBuilder: Equatable, Sendable {
             stemVerticalInsetToNoteheadHeight: 0.08,
             ledgerLineWidthToNoteheadWidth: 1.5
         )
+    }
+
+    struct KeySignatureGlyphLayout: Equatable, Sendable {
+        var symbolID: StaffGlyphSymbolID
+        var frame: CGRect
+    }
+
+    struct NoteSemanticLayout: Equatable, Sendable {
+        var note: StaffScoreNote
+        var positionedPitch: StaffPitchLayout.PositionedPitch
+        var displayedAccidental: StaffAccidental?
+    }
+
+    struct PositionedNoteLayout: Equatable, Sendable {
+        var note: StaffScoreNote
+        var positionedPitch: StaffPitchLayout.PositionedPitch
+        var displayedAccidental: StaffAccidental?
+        var noteheadFrame: CGRect
     }
 
     var clef: StaffClef
@@ -66,6 +88,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
             return .empty
         }
 
+        let noteheadSize = resolvedNoteheadSize(geometry: geometry)
         var glyphs: [StaffGlyphItem] = [
             StaffGlyphItem(
                 symbolID: clefSymbolID,
@@ -76,103 +99,79 @@ struct StaffSceneBuilder: Equatable, Sendable {
         ]
         var strokeItems: [StaffStrokeItem] = []
 
-        guard !score.notes.isEmpty else {
-            return StaffScene(
-                lineSegments: geometry.staffLineSegments,
-                strokeItems: strokeItems,
-                glyphs: glyphs
-            )
-        }
-
-        let pitchLayout = StaffPitchLayout(clef: clef)
-        let noteFrames = makeNoteheadFrames(
-            noteCount: score.notes.count,
-            geometry: geometry
+        let keySignatureGlyphLayouts = resolvedKeySignatureGlyphLayouts(
+            geometry: geometry,
+            noteheadSize: noteheadSize
         )
-        var noteFrameIndex = 0
-        var accidentalContext = StaffAccidentalContext(
-            keySignature: score.keySignature
-        )
-
-        for measure in score.measures {
-            accidentalContext.resetForMeasure()
-
-            for note in measure.notes {
-                guard noteFrameIndex < noteFrames.count else {
-                    break
-                }
-
-                let noteheadFrame = noteFrames[noteFrameIndex]
-                noteFrameIndex += 1
-
-                guard
-                    let positionedPitch = pitchLayout.positionedPitch(
-                        note.pitch,
-                        in: geometry
-                    )
-                else {
-                    continue
-                }
-
-                let accidentalDecision = accidentalContext.resolveDisplayDecision(
-                    for: note.pitch
+        glyphs.append(
+            contentsOf: keySignatureGlyphLayouts.map {
+                StaffGlyphItem(
+                    symbolID: $0.symbolID,
+                    placement: .frame($0.frame),
+                    tintColor: glyphTintColor,
+                    renderHint: .accidental()
                 )
-                if notationDisplayOptions.showsAccidentals,
-                   let displayedAccidental = accidentalDecision.displayedAccidental,
-                   let accidentalSymbolID = accidentalSymbolID(
-                    for: displayedAccidental
-                   ) {
-                    glyphs.append(
-                        StaffGlyphItem(
-                            symbolID: accidentalSymbolID,
-                            placement: .frame(
-                                accidentalFrame(
-                                    for: noteheadFrame,
-                                    centerY: positionedPitch.centerY
-                                )
-                            ),
-                            tintColor: glyphTintColor,
-                            renderHint: .accidental()
-                        )
-                    )
-                }
+            }
+        )
 
+        let noteSemanticLayouts = resolvedNoteSemanticLayouts(geometry: geometry)
+        let noteLayouts = resolvedNoteLayouts(
+            noteSemanticLayouts: noteSemanticLayouts,
+            geometry: geometry,
+            noteheadSize: noteheadSize,
+            keySignatureClusterWidth: resolvedKeySignatureClusterWidth(
+                from: keySignatureGlyphLayouts
+            )
+        )
+
+        for noteLayout in noteLayouts {
+            if notationDisplayOptions.showsAccidentals,
+               let displayedAccidental = noteLayout.displayedAccidental,
+               let accidentalSymbolID = accidentalSymbolID(
+                for: displayedAccidental
+               ) {
                 glyphs.append(
                     StaffGlyphItem(
-                        symbolID: noteheadSymbolID(for: note.duration),
+                        symbolID: accidentalSymbolID,
                         placement: .frame(
-                            centeredFrame(
-                                center: CGPoint(
-                                    x: noteheadFrame.midX,
-                                    y: positionedPitch.centerY
-                                ),
-                                size: noteheadFrame.size
+                            accidentalFrame(
+                                for: noteLayout.noteheadFrame,
+                                centerY: noteLayout.positionedPitch.centerY
                             )
                         ),
                         tintColor: glyphTintColor,
-                        renderHint: .notehead()
+                        renderHint: .accidental()
                     )
                 )
+            }
 
-                if notationDisplayOptions.showsStems,
-                   note.duration.showsStem {
-                    strokeItems.append(
-                        stemStroke(
-                            for: noteheadFrame,
-                            positionedPitch: positionedPitch,
-                            geometry: geometry
-                        )
-                    )
-                }
+            glyphs.append(
+                StaffGlyphItem(
+                    symbolID: noteheadSymbolID(for: noteLayout.note.duration),
+                    placement: .frame(noteLayout.noteheadFrame),
+                    tintColor: glyphTintColor,
+                    renderHint: .notehead()
+                )
+            )
 
-                if notationDisplayOptions.showsLedgerLines {
-                    strokeItems.append(
-                        contentsOf: ledgerLineStrokes(
-                            for: noteheadFrame,
-                            ledgerLineYs: positionedPitch.ledgerLineYs
-                        )
+            if notationDisplayOptions.showsStems,
+               noteLayout.note.duration.showsStem {
+                strokeItems.append(
+                    stemStroke(
+                        for: noteLayout.noteheadFrame,
+                        positionedPitch: noteLayout.positionedPitch,
+                        geometry: geometry
                     )
-                }
+                )
+            }
+
+            if notationDisplayOptions.showsLedgerLines {
+                strokeItems.append(
+                    contentsOf: ledgerLineStrokes(
+                        for: noteLayout.noteheadFrame,
+                        ledgerLineYs: noteLayout.positionedPitch.ledgerLineYs
+                    )
+                )
             }
         }
 
@@ -218,60 +217,155 @@ struct StaffSceneBuilder: Equatable, Sendable {
         }
     }
 
-    private func makeNoteheadFrames(
-        noteCount: Int,
-        geometry: StaffGeometry
-    ) -> [CGRect] {
+    private func resolvedKeySignatureGlyphLayouts(
+        geometry: StaffGeometry,
+        noteheadSize: CGSize
+    ) -> [KeySignatureGlyphLayout] {
+        guard notationDisplayOptions.showsAccidentals else {
+            return []
+        }
+
+        let keySignatureAccidentals = StaffKeySignatureLayout(clef: clef)
+            .positionedAccidentals(
+                for: score.keySignature,
+                in: geometry
+            )
+        guard !keySignatureAccidentals.isEmpty else {
+            return []
+        }
+
+        let accidentalSize = resolvedAccidentalSize(noteheadSize: noteheadSize)
+        let startX = resolvedContentStartX(geometry: geometry)
+        let spacing = accidentalSize.width
+            * layoutMetrics.keySignatureAccidentalSpacingToAccidentalWidth
+
+        return keySignatureAccidentals.enumerated().map { index, accidental in
+            let centerX = startX
+                + (accidentalSize.width / 2)
+                + (CGFloat(index) * (accidentalSize.width + spacing))
+            return KeySignatureGlyphLayout(
+                symbolID: accidental.symbolID,
+                frame: centeredFrame(
+                    center: CGPoint(x: centerX, y: accidental.centerY),
+                    size: accidentalSize
+                )
+            )
+        }
+    }
+
+    private func resolvedKeySignatureClusterWidth(
+        from keySignatureGlyphLayouts: [KeySignatureGlyphLayout]
+    ) -> CGFloat {
         guard
-            noteCount > 0,
+            let firstFrame = keySignatureGlyphLayouts.first?.frame,
+            let lastFrame = keySignatureGlyphLayouts.last?.frame
+        else {
+            return 0
+        }
+
+        return max(lastFrame.maxX - firstFrame.minX, 0)
+    }
+
+    private func resolvedNoteSemanticLayouts(
+        geometry: StaffGeometry
+    ) -> [NoteSemanticLayout] {
+        let pitchLayout = StaffPitchLayout(clef: clef)
+        var accidentalContext = StaffAccidentalContext(
+            keySignature: score.keySignature
+        )
+        var noteLayouts: [NoteSemanticLayout] = []
+
+        for measure in score.measures {
+            accidentalContext.resetForMeasure()
+
+            for note in measure.notes {
+                guard
+                    let positionedPitch = pitchLayout.positionedPitch(
+                        note.pitch,
+                        in: geometry
+                    )
+                else {
+                    continue
+                }
+
+                let accidentalDecision = accidentalContext.resolveDisplayDecision(
+                    for: note.pitch
+                )
+                noteLayouts.append(
+                    NoteSemanticLayout(
+                        note: note,
+                        positionedPitch: positionedPitch,
+                        displayedAccidental: accidentalDecision.displayedAccidental
+                    )
+                )
+            }
+        }
+
+        return noteLayouts
+    }
+
+    private func resolvedNoteLayouts(
+        noteSemanticLayouts: [NoteSemanticLayout],
+        geometry: StaffGeometry,
+        noteheadSize: CGSize,
+        keySignatureClusterWidth: CGFloat
+    ) -> [PositionedNoteLayout] {
+        guard
+            !noteSemanticLayouts.isEmpty,
             !geometry.drawingRect.isNull,
             geometry.staffSpaceHeight > 0
         else {
             return []
         }
 
-        let noteheadSize = resolvedNoteheadSize(geometry: geometry)
-        let noteAreaRect = resolvedNoteAreaRect(geometry: geometry)
+        let noteAreaRect = resolvedNoteAreaRect(
+            geometry: geometry,
+            keySignatureClusterWidth: keySignatureClusterWidth
+        )
         guard !noteAreaRect.isNull, !noteAreaRect.isEmpty else {
             return []
         }
 
-        let accidentalWidth = noteheadSize.width * layoutMetrics.accidentalWidthToNoteheadWidth
-        let accidentalGap = noteheadSize.width * layoutMetrics.accidentalGapToNoteheadWidth
-        let minimumLeadingInset = noteheadSize.width * layoutMetrics.noteLeadingInsetInNoteheadWidths
-        let leftInset = notationDisplayOptions.showsAccidentals
-            ? max(
-                minimumLeadingInset,
-                accidentalWidth + accidentalGap + (noteheadSize.width / 2)
-            )
-            : minimumLeadingInset
-        let rightInset = noteheadSize.width * layoutMetrics.noteTrailingInsetInNoteheadWidths
-
         let centerXs = resolvedNoteCenterXs(
-            noteCount: noteCount,
             noteAreaRect: noteAreaRect,
             noteheadWidth: noteheadSize.width,
-            leftInset: leftInset,
-            rightInset: rightInset
+            leadingAccessoryWidths: noteSemanticLayouts.map {
+                resolvedLeadingAccessoryWidth(
+                    displayedAccidental: $0.displayedAccidental,
+                    noteheadSize: noteheadSize
+                )
+            }
         )
 
-        return centerXs.map {
-            centeredFrame(
-                center: CGPoint(
-                    x: $0,
-                    y: geometry.staffRect.midY
-                ),
-                size: noteheadSize
+        return zip(noteSemanticLayouts, centerXs).map { noteLayout, centerX in
+            PositionedNoteLayout(
+                note: noteLayout.note,
+                positionedPitch: noteLayout.positionedPitch,
+                displayedAccidental: noteLayout.displayedAccidental,
+                noteheadFrame: centeredFrame(
+                    center: CGPoint(
+                        x: centerX,
+                        y: noteLayout.positionedPitch.centerY
+                    ),
+                    size: noteheadSize
+                )
             )
         }
     }
 
     private func resolvedNoteAreaRect(
-        geometry: StaffGeometry
+        geometry: StaffGeometry,
+        keySignatureClusterWidth: CGFloat
     ) -> CGRect {
+        let contentStartX = resolvedContentStartX(geometry: geometry)
         let minX = min(
-            geometry.clefAreaRect.maxX
-                + (geometry.staffSpaceHeight * layoutMetrics.clefToNoteGapInSpaces),
+            contentStartX
+                + keySignatureClusterWidth
+                + (
+                    keySignatureClusterWidth > 0
+                    ? geometry.staffSpaceHeight * layoutMetrics.keySignatureToNoteGapInSpaces
+                    : 0
+                ),
             geometry.drawingRect.maxX
         )
 
@@ -283,42 +377,58 @@ struct StaffSceneBuilder: Equatable, Sendable {
         )
     }
 
+    private func resolvedContentStartX(
+        geometry: StaffGeometry
+    ) -> CGFloat {
+        min(
+            geometry.clefAreaRect.maxX
+                + (geometry.staffSpaceHeight * layoutMetrics.clefToNoteGapInSpaces),
+            geometry.drawingRect.maxX
+        )
+    }
+
     private func resolvedNoteCenterXs(
-        noteCount: Int,
         noteAreaRect: CGRect,
         noteheadWidth: CGFloat,
-        leftInset: CGFloat,
-        rightInset: CGFloat
+        leadingAccessoryWidths: [CGFloat]
     ) -> [CGFloat] {
+        let noteCount = leadingAccessoryWidths.count
         guard noteCount > 0 else {
             return []
         }
 
-        let minimumCenterX = min(
-            max(noteAreaRect.minX + leftInset, noteAreaRect.minX + (noteheadWidth / 2)),
-            noteAreaRect.maxX
-        )
-        let maximumCenterX = max(
-            min(noteAreaRect.maxX - rightInset, noteAreaRect.maxX - (noteheadWidth / 2)),
-            minimumCenterX
-        )
+        let clusterWidths = leadingAccessoryWidths.map { $0 + noteheadWidth }
+        let totalClusterWidth = clusterWidths.reduce(0, +)
+        let remainingWidth = max(noteAreaRect.width - totalClusterWidth, 0)
 
-        if noteCount == 1 {
-            return [(minimumCenterX + maximumCenterX) / 2]
+        if noteCount == 1,
+           let leadingAccessoryWidth = leadingAccessoryWidths.first {
+            let clusterMinX = noteAreaRect.minX + (remainingWidth / 2)
+            return [clusterMinX + leadingAccessoryWidth + (noteheadWidth / 2)]
         }
 
-        let usableWidth = maximumCenterX - minimumCenterX
-        guard usableWidth > 0.5 else {
-            return (0..<noteCount).map { index in
-                let fraction = (CGFloat(index) + 0.5) / CGFloat(noteCount)
-                return noteAreaRect.minX + (noteAreaRect.width * fraction)
-            }
+        let targetLeadingInset = noteheadWidth * layoutMetrics.noteLeadingInsetInNoteheadWidths
+        let targetTrailingInset = noteheadWidth * layoutMetrics.noteTrailingInsetInNoteheadWidths
+        let appliedLeadingInset = min(targetLeadingInset, remainingWidth / 2)
+        let widthAfterLeadingInset = max(remainingWidth - appliedLeadingInset, 0)
+        let appliedTrailingInset = min(targetTrailingInset, widthAfterLeadingInset)
+        let interClusterGap = max(
+            remainingWidth - appliedLeadingInset - appliedTrailingInset,
+            0
+        ) / CGFloat(noteCount - 1)
+
+        var currentX = noteAreaRect.minX + appliedLeadingInset
+        var centerXs: [CGFloat] = []
+        centerXs.reserveCapacity(noteCount)
+
+        for index in leadingAccessoryWidths.indices {
+            centerXs.append(
+                currentX + leadingAccessoryWidths[index] + (noteheadWidth / 2)
+            )
+            currentX += clusterWidths[index] + interClusterGap
         }
 
-        let step = usableWidth / CGFloat(noteCount - 1)
-        return (0..<noteCount).map { index in
-            minimumCenterX + (CGFloat(index) * step)
-        }
+        return centerXs
     }
 
     private func resolvedNoteheadSize(
@@ -334,24 +444,48 @@ struct StaffSceneBuilder: Equatable, Sendable {
         )
     }
 
+    private func resolvedAccidentalSize(
+        noteheadSize: CGSize
+    ) -> CGSize {
+        CGSize(
+            width: max(
+                noteheadSize.width * layoutMetrics.accidentalWidthToNoteheadWidth,
+                1
+            ),
+            height: max(
+                noteheadSize.height * layoutMetrics.accidentalHeightToNoteheadHeight,
+                1
+            )
+        )
+    }
+
+    private func resolvedLeadingAccessoryWidth(
+        displayedAccidental: StaffAccidental?,
+        noteheadSize: CGSize
+    ) -> CGFloat {
+        guard
+            notationDisplayOptions.showsAccidentals,
+            displayedAccidental != nil
+        else {
+            return 0
+        }
+
+        let accidentalSize = resolvedAccidentalSize(noteheadSize: noteheadSize)
+        return accidentalSize.width
+            + (noteheadSize.width * layoutMetrics.accidentalGapToNoteheadWidth)
+    }
+
     private func accidentalFrame(
         for noteheadFrame: CGRect,
         centerY: CGFloat
     ) -> CGRect {
-        let width = max(
-            noteheadFrame.width * layoutMetrics.accidentalWidthToNoteheadWidth,
-            1
-        )
-        let height = max(
-            noteheadFrame.height * layoutMetrics.accidentalHeightToNoteheadHeight,
-            1
-        )
+        let accidentalSize = resolvedAccidentalSize(noteheadSize: noteheadFrame.size)
         let gap = noteheadFrame.width * layoutMetrics.accidentalGapToNoteheadWidth
-        let centerX = noteheadFrame.minX - gap - (width / 2)
+        let centerX = noteheadFrame.minX - gap - (accidentalSize.width / 2)
 
         return centeredFrame(
             center: CGPoint(x: centerX, y: centerY),
-            size: CGSize(width: width, height: height)
+            size: accidentalSize
         )
     }
 
