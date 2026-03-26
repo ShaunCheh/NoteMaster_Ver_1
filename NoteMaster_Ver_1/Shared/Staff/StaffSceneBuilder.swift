@@ -70,7 +70,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
     init(
         clef: StaffClef,
         score: StaffScore,
-        notationDisplayOptions: StaffNotationDisplayOptions = .noteheadsOnly,
+        notationDisplayOptions: StaffNotationDisplayOptions = .fullNotation,
         glyphTintColor: StaffSceneColor = .primaryInk,
         clefRenderHint: StaffGlyphRenderHint = .staffClef(),
         layoutMetrics: LayoutMetrics = .default
@@ -125,7 +125,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
         )
 
         for noteLayout in noteLayouts {
-            if notationDisplayOptions.showsAccidentals,
+            if notationDisplayOptions.showsNoteAccidentals,
                let displayedAccidental = noteLayout.displayedAccidental,
                let accidentalSymbolID = accidentalSymbolID(
                 for: displayedAccidental
@@ -221,7 +221,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
         geometry: StaffGeometry,
         noteheadSize: CGSize
     ) -> [KeySignatureGlyphLayout] {
-        guard notationDisplayOptions.showsAccidentals else {
+        guard notationDisplayOptions.showsKeySignatureAccidentals else {
             return []
         }
 
@@ -464,7 +464,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
         noteheadSize: CGSize
     ) -> CGFloat {
         guard
-            notationDisplayOptions.showsAccidentals,
+            notationDisplayOptions.showsNoteAccidentals,
             displayedAccidental != nil
         else {
             return 0

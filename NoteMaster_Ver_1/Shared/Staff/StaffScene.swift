@@ -24,8 +24,18 @@ struct StaffNotationDisplayOptions: Equatable, Sendable {
         showsLedgerLines: true
     )
 
+    // 调号 accidental 与 note accidental 在阶段 4 继续共用同一套显示策略；
+    // 这里拆成语义化访问点，避免调用方继续直接猜“showsAccidentals”具体覆盖哪些区域。
+    var showsKeySignatureAccidentals: Bool {
+        showsAccidentals
+    }
+
+    var showsNoteAccidentals: Bool {
+        showsAccidentals
+    }
+
     var debugSummary: String {
-        "accidentals=\(showsAccidentals) stems=\(showsStems) ledgerLines=\(showsLedgerLines)"
+        "keySignatureAccidentals=\(showsKeySignatureAccidentals) noteAccidentals=\(showsNoteAccidentals) stems=\(showsStems) ledgerLines=\(showsLedgerLines)"
     }
 }
 

@@ -18,7 +18,7 @@ struct StaffSceneProvider: Equatable, Sendable {
     init(
         clef: StaffClef = .treble,
         score: StaffScore? = nil,
-        notationDisplayOptions: StaffNotationDisplayOptions = .noteheadsOnly,
+        notationDisplayOptions: StaffNotationDisplayOptions = .fullNotation,
         glyphTintColor: StaffSceneColor = .primaryInk,
         renderHint: StaffGlyphRenderHint = .staffClef()
     ) {
