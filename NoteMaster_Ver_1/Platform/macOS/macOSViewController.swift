@@ -237,8 +237,7 @@ final class macOSViewController: NSViewController {
         ])
 
         updateFretboardLayoutModeConstraints()
-        updateSettingsButtonAppearance()
-        settingsContainerView.setPresented(false)
+        applySettingsPresentationState()
     }
 
     private func updateFretboardLayoutModeConstraints() {
@@ -366,7 +365,13 @@ final class macOSViewController: NSViewController {
         }
 
         isSettingsPresented = presented
-        settingsContainerView.setPresented(presented)
+        applySettingsPresentationState()
+    }
+
+    // 控制器仍然持有 settings 展示状态真相；
+    // 后续阶段把页面入口按钮隐藏/恢复接到这里即可，不必分散到多个调用点。
+    private func applySettingsPresentationState() {
+        settingsContainerView.setPresented(isSettingsPresented)
         updateSettingsButtonAppearance()
     }
 

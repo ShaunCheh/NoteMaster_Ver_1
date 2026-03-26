@@ -63,6 +63,12 @@ final class iOSSettingsContainerView: UIView {
         accessibilityElementsHidden = !presented
     }
 
+    // container 统一负责“请求关闭 settings 壳层”；
+    // 后续右上角 close button 直接复用这条链路，不必再新开一套 dismiss 逻辑。
+    private func requestDismiss() {
+        onDismissRequest?()
+    }
+
     private func configureView() {
         accessibilityIdentifier = "settings-container"
         translatesAutoresizingMaskIntoConstraints = false
@@ -169,7 +175,7 @@ final class iOSSettingsContainerView: UIView {
 
     @objc
     private func handleBackdropTap() {
-        onDismissRequest?()
+        requestDismiss()
     }
 }
 

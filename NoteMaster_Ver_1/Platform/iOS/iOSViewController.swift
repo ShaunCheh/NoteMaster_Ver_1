@@ -234,8 +234,7 @@ final class iOSViewController: UIViewController {
         ])
 
         updateFretboardLayoutModeConstraints()
-        updateSettingsButtonAppearance()
-        settingsContainerView.setPresented(false)
+        applySettingsPresentationState()
     }
 
     private func updateFretboardLayoutModeConstraints() {
@@ -374,7 +373,13 @@ final class iOSViewController: UIViewController {
         }
 
         isSettingsPresented = presented
-        settingsContainerView.setPresented(presented)
+        applySettingsPresentationState()
+    }
+
+    // 控制器仍然是 settings 展示状态的唯一真相来源；
+    // 后续阶段只需要扩展这里，就能统一同步页面入口按钮与 container 壳层。
+    private func applySettingsPresentationState() {
+        settingsContainerView.setPresented(isSettingsPresented)
         updateSettingsButtonAppearance()
     }
 

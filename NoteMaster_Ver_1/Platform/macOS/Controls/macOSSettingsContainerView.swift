@@ -61,6 +61,12 @@ final class macOSSettingsContainerView: NSView {
         alphaValue = presented ? 1 : 0
     }
 
+    // container 统一收口 settings 壳层的 dismiss 请求；
+    // 下一阶段无论是 header close button 还是背景点击，都走同一条回调链。
+    private func requestDismiss() {
+        onDismissRequest?()
+    }
+
     private func configureView() {
         identifier = NSUserInterfaceItemIdentifier("settings-container")
         translatesAutoresizingMaskIntoConstraints = false
@@ -72,7 +78,7 @@ final class macOSSettingsContainerView: NSView {
         ).cgColor
         backdropView.identifier = NSUserInterfaceItemIdentifier("settings-container-backdrop")
         backdropView.onClick = { [weak self] in
-            self?.onDismissRequest?()
+            self?.requestDismiss()
         }
 
         cardView.translatesAutoresizingMaskIntoConstraints = false
