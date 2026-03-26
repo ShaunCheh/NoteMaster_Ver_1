@@ -101,6 +101,12 @@ private struct StaffValidationFixture {
     var notationDisplayOptions: StaffNotationDisplayOptions
     var bounds: CGRect
     var expectedLedgerLineCount: Int
+    var expectedDisplayedNoteAccidentals: [StaffValidationExpectedNoteAccidental]
+}
+
+private struct StaffValidationExpectedNoteAccidental: Equatable {
+    var noteIndex: Int
+    var symbolID: StaffGlyphSymbolID
 }
 
 private extension StaffValidationRunner {
@@ -117,21 +123,37 @@ private extension StaffValidationRunner {
             renderMode: .coreText
         )
 
-        return [
-            StaffValidationFixture(
-                name: "treble-default-demo",
+        let keySignatureFixtures: [(String, StaffKeySignature)] = [
+            ("c", .natural),
+            ("g", StaffKeySignature(fifths: 1)),
+            ("d", StaffKeySignature(fifths: 2)),
+            ("f", StaffKeySignature(fifths: -1)),
+            ("bb", StaffKeySignature(fifths: -2))
+        ]
+
+        var fixtures = [
+            fixture(
+                name: "treble-default-demo-full-notation",
                 configuration: trebleConfiguration,
                 score: StaffScoreFixtures.defaultDemo(clef: .treble),
-                notationDisplayOptions: .noteheadsOnly,
-                bounds: fixtureBounds(configuration: trebleConfiguration),
-                expectedLedgerLineCount: 0
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 1, accidental: .sharp),
+                    noteAccidental(noteIndex: 3, accidental: .flat)
+                ]
             ),
-            StaffValidationFixture(
-                name: "bass-ascending-reference",
+            fixture(
+                name: "treble-default-demo-noteheads-only",
+                configuration: trebleConfiguration,
+                score: StaffScoreFixtures.defaultDemo(clef: .treble),
+                notationDisplayOptions: .noteheadsOnly
+            ),
+            fixture(
+                name: "bass-ascending-reference-full-notation",
                 configuration: bassConfiguration,
                 score: score(
                     clef: .bass,
-                    notes: [
+                    measures: [[
                         ("g2", .quarter),
                         ("a2", .quarter),
                         ("bb2", .quarter),
@@ -140,49 +162,94 @@ private extension StaffValidationRunner {
                         ("e3", .quarter),
                         ("f3", .half),
                         ("a3", .whole)
-                    ]
+                    ]]
                 ),
-                notationDisplayOptions: .noteheadsOnly,
-                bounds: fixtureBounds(configuration: bassConfiguration),
-                expectedLedgerLineCount: 0
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 2, accidental: .flat)
+                ]
             ),
-            StaffValidationFixture(
-                name: "treble-ledger-both-sides",
+            fixture(
+                name: "treble-ledger-both-sides-full-notation",
                 configuration: trebleConfiguration,
                 score: score(
                     clef: .treble,
-                    notes: [
+                    measures: [[
                         ("c4", .quarter),
                         ("a5", .quarter),
                         ("c6", .half)
-                    ]
+                    ]]
                 ),
-                notationDisplayOptions: .noteheadsOnly,
-                bounds: fixtureBounds(
-                    configuration: trebleConfiguration,
-                    extraVerticalSpaces: 8
-                ),
-                expectedLedgerLineCount: 0
+                notationDisplayOptions: .fullNotation,
+                extraVerticalSpaces: 8,
+                expectedLedgerLineCount: 4
             ),
-            StaffValidationFixture(
-                name: "bass-ledger-both-sides",
+            fixture(
+                name: "bass-ledger-both-sides-full-notation",
                 configuration: bassConfiguration,
                 score: score(
                     clef: .bass,
-                    notes: [
+                    measures: [[
                         ("e2", .quarter),
                         ("c4", .quarter),
                         ("e4", .half)
-                    ]
+                    ]]
                 ),
-                notationDisplayOptions: .noteheadsOnly,
-                bounds: fixtureBounds(
-                    configuration: bassConfiguration,
-                    extraVerticalSpaces: 8
-                ),
-                expectedLedgerLineCount: 0
+                notationDisplayOptions: .fullNotation,
+                extraVerticalSpaces: 8,
+                expectedLedgerLineCount: 4
+            ),
+            fixture(
+                name: "treble-g-major-context-reset",
+                configuration: trebleConfiguration,
+                score: StaffScoreFixtures.gMajorAccidentalContextReference(),
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 2, accidental: .natural),
+                    noteAccidental(noteIndex: 4, accidental: .sharp),
+                    noteAccidental(noteIndex: 6, accidental: .natural)
+                ]
+            ),
+            fixture(
+                name: "bass-bb-major-context-reset",
+                configuration: bassConfiguration,
+                score: StaffScoreFixtures.bbMajorBassAccidentalContextReference(),
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 2, accidental: .natural),
+                    noteAccidental(noteIndex: 5, accidental: .natural)
+                ]
             )
         ]
+
+        fixtures.append(
+            contentsOf: keySignatureFixtures.map {
+                fixture(
+                    name: "treble-key-\($0.0)-reference",
+                    configuration: trebleConfiguration,
+                    score: StaffScoreFixtures.keySignatureReference(
+                        clef: .treble,
+                        keySignature: $0.1
+                    ),
+                    notationDisplayOptions: .fullNotation
+                )
+            }
+        )
+        fixtures.append(
+            contentsOf: keySignatureFixtures.map {
+                fixture(
+                    name: "bass-key-\($0.0)-reference",
+                    configuration: bassConfiguration,
+                    score: StaffScoreFixtures.keySignatureReference(
+                        clef: .bass,
+                        keySignature: $0.1
+                    ),
+                    notationDisplayOptions: .fullNotation
+                )
+            }
+        )
+
+        return fixtures
     }
 
     static func fixtureBounds(
@@ -199,23 +266,69 @@ private extension StaffValidationRunner {
         )
     }
 
+    static func fixture(
+        name: String,
+        configuration: StaffConfiguration,
+        score: StaffScore,
+        notationDisplayOptions: StaffNotationDisplayOptions,
+        extraVerticalSpaces: CGFloat = 0,
+        expectedLedgerLineCount: Int = 0,
+        expectedDisplayedNoteAccidentals: [StaffValidationExpectedNoteAccidental] = []
+    ) -> StaffValidationFixture {
+        StaffValidationFixture(
+            name: name,
+            configuration: configuration,
+            score: score,
+            notationDisplayOptions: notationDisplayOptions,
+            bounds: fixtureBounds(
+                configuration: configuration,
+                extraVerticalSpaces: extraVerticalSpaces
+            ),
+            expectedLedgerLineCount: expectedLedgerLineCount,
+            expectedDisplayedNoteAccidentals: expectedDisplayedNoteAccidentals
+        )
+    }
+
     static func score(
         clef: StaffClef,
-        notes: [(String, StaffNoteDuration)]
+        keySignature: StaffKeySignature = .natural,
+        measures: [[(String, StaffNoteDuration)]]
     ) -> StaffScore {
+        let measuresJSON = measures.map { measure in
+            let notesJSON = measure.map {
+                """
+                { "pitch": "\($0.0)", "duration": "\($0.1.rawValue)" }
+                """
+            }.joined(separator: ",\n")
+            return """
+            {
+              "notes": [
+            \(notesJSON)
+              ]
+            }
+            """
+        }.joined(separator: ",\n")
+        let json = """
+        {
+          "clef": "\(clefToken(clef))",
+          "keySignature": {
+            "fifths": \(keySignature.fifths)
+          },
+          "measures": [
+        \(measuresJSON)
+          ]
+        }
+        """
+
         do {
-            return try StaffScoreDTO(
-                clef: clefToken(clef),
-                notes: notes.map {
-                    StaffScoreNoteDTO(
-                        pitch: $0.0,
-                        duration: $0.1.rawValue
-                    )
-                }
-            ).resolve()
+            return try StaffScore.decode(from: json)
         } catch {
             assertionFailure("Failed to build staff validation score: \(error)")
-            return StaffScore(clef: clef, notes: [])
+            return StaffScore(
+                clef: clef,
+                keySignature: keySignature,
+                measures: []
+            )
         }
     }
 
@@ -257,9 +370,11 @@ private extension StaffValidationRunner {
             fixture: fixture,
             record: record
         )
-        if fixture.notationDisplayOptions.showsAccidentals {
+        if fixture.notationDisplayOptions.showsKeySignatureAccidentals
+            || fixture.notationDisplayOptions.showsNoteAccidentals {
             validateAccidentals(
                 scene: scene,
+                geometry: geometry,
                 fixture: fixture,
                 record: record
             )
@@ -300,11 +415,11 @@ private extension StaffValidationRunner {
             record("notehead glyph 数量错误，期望 \(fixture.score.notes.count)，实际 \(noteheadGlyphs.count)。")
         }
 
-        let expectedAccidentalCount = fixture.notationDisplayOptions.showsAccidentals
-            ? fixture.score.notes.filter {
-                $0.pitch.accidental != .natural
-            }.count
-            : 0
+        let expectedAccidentalCount = expectedKeySignatureAccidentalSymbols(
+            for: fixture
+        ).count + expectedDisplayedNoteAccidentals(
+            for: fixture
+        ).count
         let actualAccidentalCount = scene.glyphs.filter(\.symbolID.isAccidental).count
         if actualAccidentalCount != expectedAccidentalCount {
             record("accidental glyph 数量错误，期望 \(expectedAccidentalCount)，实际 \(actualAccidentalCount)。")
@@ -378,6 +493,7 @@ private extension StaffValidationRunner {
 
     static func validateAccidentals(
         scene: StaffScene,
+        geometry: StaffGeometry,
         fixture: StaffValidationFixture,
         record: (String) -> Void
     ) {
@@ -388,32 +504,98 @@ private extension StaffValidationRunner {
             return
         }
 
-        let expectedAccidentalSymbols = fixture.score.notes.compactMap {
-            accidentalSymbolID(for: $0.pitch.accidental)
+        let expectedKeySignatureSymbols = expectedKeySignatureAccidentalSymbols(
+            for: fixture
+        )
+        let expectedNoteAccidentals = expectedDisplayedNoteAccidentals(
+            for: fixture
+        )
+        let actualKeySignatureGlyphs = Array(
+            accidentalGlyphs.prefix(expectedKeySignatureSymbols.count)
+        )
+        let actualKeySignatureFrames = Array(
+            accidentalFrames.prefix(expectedKeySignatureSymbols.count)
+        )
+        let actualNoteAccidentalGlyphs = Array(
+            accidentalGlyphs.dropFirst(expectedKeySignatureSymbols.count)
+        )
+        let actualNoteAccidentalFrames = Array(
+            accidentalFrames.dropFirst(expectedKeySignatureSymbols.count)
+        )
+
+        let actualKeySignatureSymbols = actualKeySignatureGlyphs.map(\.symbolID)
+        if actualKeySignatureSymbols != expectedKeySignatureSymbols {
+            record("key signature accidental 序列错误，期望 \(expectedKeySignatureSymbols)，实际 \(actualKeySignatureSymbols)。")
         }
-        let actualAccidentalSymbols = accidentalGlyphs.map(\.symbolID)
-        if actualAccidentalSymbols != expectedAccidentalSymbols {
-            record("accidental glyph 类型序列错误，期望 \(expectedAccidentalSymbols)，实际 \(actualAccidentalSymbols)。")
+
+        let expectedKeySignatureStaffPositions = expectedKeySignatureStaffPositions(
+            clef: fixture.configuration.clef,
+            keySignature: fixture.score.keySignature,
+            notationDisplayOptions: fixture.notationDisplayOptions
+        )
+        if expectedKeySignatureStaffPositions.count != actualKeySignatureFrames.count {
+            record("key signature accidental 数量与位置期望不一致，期望 \(expectedKeySignatureStaffPositions.count)，实际 \(actualKeySignatureFrames.count)。")
+        }
+
+        if !isStrictlyIncreasing(actualKeySignatureFrames.map(\.midX)) {
+            record("key signature accidental 的 x 位置没有严格递增。")
+        }
+
+        if let bottomLineY = geometry.bottomLineY {
+            for (index, frame) in actualKeySignatureFrames.enumerated() {
+                guard index < expectedKeySignatureStaffPositions.count else {
+                    break
+                }
+
+                let rawStep = (bottomLineY - frame.midY) / geometry.staffStepHeight
+                if !approximatelyEqual(rawStep, CGFloat(expectedKeySignatureStaffPositions[index])) {
+                    record("key signature accidental[\(index)] 的 staffPosition 错误，期望 \(expectedKeySignatureStaffPositions[index])，实际 \(rawStep)。")
+                }
+            }
+        }
+
+        let actualNoteAccidentalSymbols = actualNoteAccidentalGlyphs.map(\.symbolID)
+        let expectedNoteAccidentalSymbols = expectedNoteAccidentals.map(\.symbolID)
+        if actualNoteAccidentalSymbols != expectedNoteAccidentalSymbols {
+            record("note accidental 序列错误，期望 \(expectedNoteAccidentalSymbols)，实际 \(actualNoteAccidentalSymbols)。")
         }
 
         let noteheadFrames = scene.glyphs.filter(\.symbolID.isNotehead).compactMap { frame(of: $0) }
-        var accidentalIndex = 0
-        for (noteIndex, note) in fixture.score.notes.enumerated() where note.pitch.accidental != .natural {
+        for (accidentalIndex, expectedAccidental) in expectedNoteAccidentals.enumerated() {
             guard
-                accidentalIndex < accidentalFrames.count,
-                noteIndex < noteheadFrames.count
+                accidentalIndex < actualNoteAccidentalFrames.count,
+                expectedAccidental.noteIndex < noteheadFrames.count
             else {
-                record("accidental 与 notehead 的映射数量不一致。")
+                record("note accidental 与 notehead 的映射数量不一致。")
                 break
             }
 
-            let accidentalFrame = accidentalFrames[accidentalIndex]
-            let noteheadFrame = noteheadFrames[noteIndex]
+            let accidentalFrame = actualNoteAccidentalFrames[accidentalIndex]
+            let noteheadFrame = noteheadFrames[expectedAccidental.noteIndex]
             if accidentalFrame.maxX >= noteheadFrame.minX {
-                record("accidental[\(accidentalIndex)] 没有落在 notehead[\(noteIndex)] 左侧。")
+                record("note accidental[\(accidentalIndex)] 没有落在 notehead[\(expectedAccidental.noteIndex)] 左侧。")
             }
 
-            accidentalIndex += 1
+            if !approximatelyEqual(accidentalFrame.midY, noteheadFrame.midY) {
+                record("note accidental[\(accidentalIndex)] 与 notehead[\(expectedAccidental.noteIndex)] 的中心 Y 不一致。")
+            }
+        }
+
+        if let lastKeySignatureFrame = actualKeySignatureFrames.last,
+           let firstNoteheadFrame = noteheadFrames.first {
+            var firstNoteClusterMinX = firstNoteheadFrame.minX
+            if let firstExpectedNoteAccidental = expectedNoteAccidentals.first,
+               firstExpectedNoteAccidental.noteIndex == 0,
+               let firstNoteAccidentalFrame = actualNoteAccidentalFrames.first {
+                firstNoteClusterMinX = min(
+                    firstNoteClusterMinX,
+                    firstNoteAccidentalFrame.minX
+                )
+            }
+
+            if firstNoteClusterMinX <= lastKeySignatureFrame.maxX + tolerance {
+                record("首个 note cluster 侵入 key signature 区域。")
+            }
         }
     }
 
@@ -473,19 +655,21 @@ private extension StaffValidationRunner {
 
     static func manualChecklist(for platform: StaffValidationPlatform) -> [String] {
         var checklist = [
-            "启动 App，确认五线谱除 clef 外已经能看到 demo notehead，且没有回退成 clef-only 场景。",
-            "当前阶段故意不绘制 accidental / stem / ledger line；确认界面上只看到 clef、staff line 与 notehead。",
-            "在 settings 中切换 Treble / Bass，确认同一组 demo notes 会按新 clef 重新布局，notehead 的上下行关系正确。",
-            "调整窗口大小或设备方向，确认 note spacing 与 glyph 位置稳定更新，不出现 clefArea 与 noteArea 重叠。"
+            "启动 App，确认默认五线谱已恢复完整记谱显示：除 clef 与 notehead 外，还能看到 stem，以及需要时的 accidental / ledger line，且没有回退成 clef-only 场景。",
+            "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 `C / G / D / F / Bb` 参考谱例，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确。",
+            "将共享 score 切到 `StaffScoreFixtures.gMajorAccidentalContextReference()`，确认同小节里 `f#` 会被调号抑制、写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp，跨小节后恢复调号默认规则。",
+            "将共享 score 切到 `StaffScoreFixtures.bbMajorBassAccidentalContextReference()`，确认 Bass + Bb major 下 `bb3` 默认不显示 accidental，`b3` 显示 natural，跨小节后再次按调号默认值重置。",
+            "显式把 `staffDisplayState.notationDisplayOptions` 切到 `.noteheadsOnly` 再切回 `.fullNotation`，确认 notehead 可见性稳定，且 accidental / stem / ledger line 能正确隐藏与恢复。",
+            "调整窗口大小或设备方向，确认 key signature 区与 note 区不会重叠，note spacing 与 glyph 位置稳定更新。"
         ]
 
         switch platform {
         case .iOS:
-            checklist.append("在 iOS 上验证 settings 打开/关闭与滚动共存时，五线谱内容不会闪烁或错位。")
+            checklist.append("在 iOS 上验证 settings 打开/关闭与滚动共存时，完整记谱场景不会闪烁、错位或因为调号变宽而破坏滚动体验。")
         case .macOS:
-            checklist.append("在 macOS 上执行 live resize，确认五线谱中的 notehead 在 resize 过程中保持稳定。")
+            checklist.append("在 macOS 上执行 live resize，确认调号区和音符区在 resize 过程中保持稳定，不出现 accidental 抖动或重叠。")
         case .commandLine:
-            checklist.append("命令行只覆盖共享层 scene fixture，不覆盖 iOS/macOS 运行时渲染与交互。")
+            checklist.append("命令行只覆盖共享层 scene fixture，不覆盖 iOS/macOS 运行时渲染、字体注册与交互。")
         }
 
         return checklist
@@ -512,14 +696,97 @@ private extension StaffValidationRunner {
         }
     }
 
-    static func accidentalSymbolID(
-        for accidental: StaffAccidental
+    static func noteAccidental(
+        noteIndex: Int,
+        accidental: StaffAccidental
+    ) -> StaffValidationExpectedNoteAccidental {
+        StaffValidationExpectedNoteAccidental(
+            noteIndex: noteIndex,
+            symbolID: noteAccidentalSymbolID(for: accidental)
+        )
+    }
+
+    static func expectedDisplayedNoteAccidentals(
+        for fixture: StaffValidationFixture
+    ) -> [StaffValidationExpectedNoteAccidental] {
+        guard fixture.notationDisplayOptions.showsNoteAccidentals else {
+            return []
+        }
+
+        return fixture.expectedDisplayedNoteAccidentals
+    }
+
+    static func expectedKeySignatureAccidentalSymbols(
+        for fixture: StaffValidationFixture
+    ) -> [StaffGlyphSymbolID] {
+        guard
+            fixture.notationDisplayOptions.showsKeySignatureAccidentals,
+            let symbolID = keySignatureAccidentalSymbolID(
+                for: fixture.score.keySignature
+            )
+        else {
+            return []
+        }
+
+        return Array(
+            repeating: symbolID,
+            count: abs(fixture.score.keySignature.fifths)
+        )
+    }
+
+    static func expectedKeySignatureStaffPositions(
+        clef: StaffClef,
+        keySignature: StaffKeySignature,
+        notationDisplayOptions: StaffNotationDisplayOptions
+    ) -> [Int] {
+        guard notationDisplayOptions.showsKeySignatureAccidentals else {
+            return []
+        }
+
+        if keySignature.fifths > 0 {
+            let order: [Int] = switch clef {
+            case .treble:
+                [8, 5, 9, 6, 3, 7, 4]
+            case .bass:
+                [6, 3, 7, 4, 1, 5, 2]
+            }
+            return Array(order.prefix(keySignature.fifths))
+        }
+
+        if keySignature.fifths < 0 {
+            let order: [Int] = switch clef {
+            case .treble:
+                [4, 7, 3, 6, 2, 5, 1]
+            case .bass:
+                [2, 5, 1, 4, 0, 3, -1]
+            }
+            return Array(order.prefix(abs(keySignature.fifths)))
+        }
+
+        return []
+    }
+
+    static func keySignatureAccidentalSymbolID(
+        for keySignature: StaffKeySignature
     ) -> StaffGlyphSymbolID? {
+        switch keySignature.signatureAccidental {
+        case .flat:
+            return .accidentalFlat
+        case .sharp:
+            return .accidentalSharp
+        case .natural, nil:
+            return nil
+        }
+    }
+
+    static func noteAccidentalSymbolID(
+        for accidental: StaffAccidental
+    ) -> StaffGlyphSymbolID {
         switch accidental {
         case .flat:
             return .accidentalFlat
         case .natural:
-            return nil
+            return .accidentalNatural
         case .sharp:
             return .accidentalSharp
         }
