@@ -41,6 +41,7 @@ final class iOSViewController: UIViewController {
     }
 
     private var isSettingsPresented = false
+    private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
 
     private lazy var settingsButton: UIButton = {
         let button = UIButton(type: .system)
@@ -95,8 +96,8 @@ final class iOSViewController: UIViewController {
 
     private lazy var fretboardView: iOSFretboardView = {
         let fretboardView = iOSFretboardView(configuration: displayState.configuration)
-        fretboardView.onRawEvent = { hitResult in
-            print(hitResult.debugSummary(platform: "iOS"))
+        fretboardView.onRawEvent = { [weak self] hitResult in
+            self?.handleFretboardTrainerHitResult(hitResult)
         }
         return fretboardView
     }()
@@ -113,6 +114,7 @@ final class iOSViewController: UIViewController {
         view.backgroundColor = .systemBackground
         configureLayout()
         applyDisplayState()
+        printCurrentTrainerTarget(reason: "initial")
     }
 
     override func viewDidLayoutSubviews() {
@@ -366,6 +368,35 @@ final class iOSViewController: UIViewController {
                 animated: false
             )
         }
+    }
+
+    private func handleFretboardTrainerHitResult(_ hitResult: FretboardHitResult) {
+        switch fretboardTrainerState.handle(
+            hitResult: hitResult,
+            configuration: displayState.configuration
+        ) {
+        case .ignored(.nonEndedPhase):
+            return
+        case .ignored(.missingHitCell):
+            print(
+                "[FretboardTrainer][iOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=missingHitCell"
+            )
+        case let .ignored(.unresolvedHitPitch(cell)):
+            print(
+                "[FretboardTrainer][iOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
+            )
+        case let .evaluated(evaluation):
+            print("[iOS] \(evaluation.debugSummary())")
+            if evaluation.didAdvanceTarget {
+                printCurrentTrainerTarget(reason: "advanced")
+            }
+        }
+    }
+
+    private func printCurrentTrainerTarget(reason: String) {
+        print(
+            "[FretboardTrainer][iOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) state=\(reason)"
+        )
     }
 
     private func setSettingsPresented(_ presented: Bool) {

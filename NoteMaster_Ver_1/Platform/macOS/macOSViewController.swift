@@ -41,6 +41,7 @@ final class macOSViewController: NSViewController {
     }
 
     private var isSettingsPresented = false
+    private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
 
     private lazy var settingsButton: NSButton = {
         let button = NSButton()
@@ -95,8 +96,8 @@ final class macOSViewController: NSViewController {
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
-        fretboardView.onRawEvent = { hitResult in
-            print(hitResult.debugSummary(platform: "macOS"))
+        fretboardView.onRawEvent = { [weak self] hitResult in
+            self?.handleFretboardTrainerHitResult(hitResult)
         }
         return fretboardView
     }()
@@ -118,6 +119,7 @@ final class macOSViewController: NSViewController {
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         configureLayout()
         applyDisplayState()
+        printCurrentTrainerTarget(reason: "initial")
     }
 
     override func viewDidLayout() {
@@ -357,6 +359,35 @@ final class macOSViewController: NSViewController {
         fretboardViewportScrollView.contentView.scroll(to: CGPoint(x: x, y: 0))
         fretboardViewportScrollView.reflectScrolledClipView(
             fretboardViewportScrollView.contentView
+        )
+    }
+
+    private func handleFretboardTrainerHitResult(_ hitResult: FretboardHitResult) {
+        switch fretboardTrainerState.handle(
+            hitResult: hitResult,
+            configuration: displayState.configuration
+        ) {
+        case .ignored(.nonEndedPhase):
+            return
+        case .ignored(.missingHitCell):
+            print(
+                "[FretboardTrainer][macOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=missingHitCell"
+            )
+        case let .ignored(.unresolvedHitPitch(cell)):
+            print(
+                "[FretboardTrainer][macOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
+            )
+        case let .evaluated(evaluation):
+            print("[macOS] \(evaluation.debugSummary())")
+            if evaluation.didAdvanceTarget {
+                printCurrentTrainerTarget(reason: "advanced")
+            }
+        }
+    }
+
+    private func printCurrentTrainerTarget(reason: String) {
+        print(
+            "[FretboardTrainer][macOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) state=\(reason)"
         )
     }
 
