@@ -57,7 +57,7 @@ isProject: false
 
 ## 风险与回归点
 
-- `NSScrollView` 的 `documentView` 约束改动可能影响初次展示时的 content size 计算，需要重点观察打开设置弹层的首帧布局。
+- `NSScrollView` 的 `documentView` 约束改动可能影响初次展示时的 content size 计算，需高度要重点观察打开设置弹层的首帧布局。
 - 如果只做 `ChoiceRowView` 标题加固而不修容器，问题会在更多 row 或更小窗口上继续出现，因此必须以容器重构为主、标题加固为辅。
 - 由于 [NoteMaster_Ver_1/Platform/macOS/Controls/macOSSettingsContainerView.swift](NoteMaster_Ver_1/Platform/macOS/Controls/macOSSettingsContainerView.swift) 是设置壳层唯一入口，这次改动应局限在设置浮层，不会波及主页面滚动区。
 

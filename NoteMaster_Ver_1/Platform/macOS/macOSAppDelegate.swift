@@ -34,7 +34,7 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.contentMinSize = NSSize(width: 640, height: 420)
+        window.contentMinSize = NSSize(width: 340, height: 420)
         window.title = "NoteMaster_Ver_1"
         window.center()
         window.contentViewController = viewController

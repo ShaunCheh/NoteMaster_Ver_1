@@ -293,12 +293,15 @@ private final class ChoiceRowView: NSView {
         contentStackView.orientation = .vertical
         contentStackView.alignment = .leading
         contentStackView.distribution = .fill
+        contentStackView.detachesHiddenViews = true
         contentStackView.spacing = Style.choiceContentSpacing
         contentStackView.translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel.font = .systemFont(ofSize: Style.bodyFontSize, weight: .medium)
         titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.setContentHuggingPriority(.required, for: .vertical)
+        titleLabel.setContentCompressionResistancePriority(.required, for: .vertical)
 
         chipsStackView.orientation = .horizontal
         chipsStackView.alignment = .centerY

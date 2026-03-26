@@ -128,6 +128,8 @@ final class macOSSettingsContainerView: NSView {
         scrollView.documentView = contentView
 
         contentView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.setContentHuggingPriority(.required, for: .vertical)
+        contentView.setContentCompressionResistancePriority(.required, for: .vertical)
         settingsPanelView.translatesAutoresizingMaskIntoConstraints = false
         closeButton.translatesAutoresizingMaskIntoConstraints = false
 
@@ -215,7 +217,6 @@ final class macOSSettingsContainerView: NSView {
             contentView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
             contentView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
             contentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
-            contentView.bottomAnchor.constraint(equalTo: scrollView.contentView.bottomAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
             settingsPanelView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
