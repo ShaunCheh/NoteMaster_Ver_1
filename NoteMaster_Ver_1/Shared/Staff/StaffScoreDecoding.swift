@@ -11,6 +11,7 @@ enum StaffScoreDecodingError: Error, Equatable, Sendable, CustomStringConvertibl
     case missingField(String)
     case invalidClef(String)
     case invalidKeySignature(String)
+    case unsupportedKeySignatureMode(String)
     case invalidPitch(String)
     case invalidDuration(String)
 
@@ -22,6 +23,8 @@ enum StaffScoreDecodingError: Error, Equatable, Sendable, CustomStringConvertibl
             return "Invalid staff clef token: \(value)"
         case let .invalidKeySignature(value):
             return "Invalid staff key signature token: \(value)"
+        case let .unsupportedKeySignatureMode(value):
+            return "Unsupported staff key signature mode token: \(value)"
         case let .invalidPitch(value):
             return "Invalid staff pitch token: \(value)"
         case let .invalidDuration(value):
@@ -157,7 +160,7 @@ extension StaffKeySignatureDTO: Codable {
         let englishContainer = try decoder.container(keyedBy: EnglishCodingKeys.self)
         let chineseContainer = try decoder.container(keyedBy: ChineseCodingKeys.self)
 
-        if let fifths = Self.decodeFifthsValue(
+        if let fifths = try Self.decodeFifthsValue(
             from: englishContainer,
             key: .fifths
         ) {
@@ -165,7 +168,7 @@ extension StaffKeySignatureDTO: Codable {
             return
         }
 
-        if let fifths = Self.decodeFifthsValue(
+        if let fifths = try Self.decodeFifthsValue(
             from: chineseContainer,
             key: .fifths
         ) {
@@ -182,17 +185,22 @@ extension StaffKeySignatureDTO: Codable {
     }
 
     // keyed 容器里的 fifths 可能是 Int，也可能是命名调号字符串；
-    // 这里显式按两种类型依次尝试，避免 decodeIfPresent(Int.self, ...) 在字符串场景下提前抛 typeMismatch。
+    // 这里显式按两种类型依次尝试，避免 decodeIfPresent(Int.self, ...) 在字符串场景下提前抛 typeMismatch；
+    // 如果 key 已存在且字符串 token 解析失败，需要把原始调号错误保留下来，而不是吞掉后退化成 missingField。
     private static func decodeFifthsValue<Keys: CodingKey>(
         from container: KeyedDecodingContainer<Keys>,
         key: Keys
-    ) -> Int? {
+    ) throws -> Int? {
+        guard container.contains(key) else {
+            return nil
+        }
+
         if let fifths = try? container.decode(Int.self, forKey: key) {
             return fifths
         }
 
         if let token = try? container.decode(String.self, forKey: key) {
-            return try? StaffKeySignature.parse(token: token).fifths
+            return try StaffKeySignature.parse(token: token).fifths
         }
 
         return nil
@@ -435,7 +443,7 @@ private extension StaffClef {
 }
 
 private enum StaffKeySignatureTokenParser {
-    private enum TonalityMode: Sendable {
+    private enum TonalityMode: String, Sendable {
         case major
         case minor
     }
@@ -504,22 +512,30 @@ private enum StaffKeySignatureTokenParser {
         "7flats": -7
     ]
 
-    private static let majorFifthsByCanonicalTonic: [String: Int] = [
-        "c": 0,
-        "g": 1,
-        "d": 2,
-        "a": 3,
-        "e": 4,
-        "b": 5,
-        "f#": 6,
-        "c#": 7,
-        "f": -1,
-        "bb": -2,
-        "eb": -3,
-        "ab": -4,
-        "db": -5,
-        "gb": -6,
-        "cb": -7
+    // bare tonic 当前继续兼容为大调；
+    // 未来若补小调支持，去歧义策略只需要收敛在 DTO 边界，不会扩散到领域层。
+    private static let bareTokenCompatibilityMode: TonalityMode = .major
+
+    // 目前只有 major 真正落地到 fifths，minor 仅保留 mode 扩展口；
+    // 后续支持小调时，只需要补齐 .minor 对应映射，而不必改动领域模型。
+    private static let supportedFifthsByMode: [TonalityMode: [String: Int]] = [
+        .major: [
+            "c": 0,
+            "g": 1,
+            "d": 2,
+            "a": 3,
+            "e": 4,
+            "b": 5,
+            "f#": 6,
+            "c#": 7,
+            "f": -1,
+            "bb": -2,
+            "eb": -3,
+            "ab": -4,
+            "db": -5,
+            "gb": -6,
+            "cb": -7
+        ]
     ]
 
     private static let namedTonalitySuffixes: [(suffix: String, mode: TonalityMode)] = [
@@ -545,30 +561,35 @@ private enum StaffKeySignatureTokenParser {
         }
 
         // 继续兼容 bare tonic（如 "d" / "a"）；
-        // 显式 major/minor 名称则走下方的 tonality 解析分支，避免把 mode 语义揉进模糊字符串裁剪。
-        if let canonicalTonic = canonicalMajorTonicToken(from: compactToken),
-           let fifths = majorFifthsByCanonicalTonic[canonicalTonic] {
-            return try StaffKeySignature.parse(fifths: fifths)
+        // 当前明确固定按大调解释，后续若引入小调，再只在这里处理去歧义策略。
+        if let bareTonality = parseBareCompatibleTonality(from: compactToken) {
+            return try resolveNamedTonality(
+                bareTonality,
+                originalToken: token
+            )
         }
 
         if let namedTonality = parseNamedTonality(from: compactToken) {
-            switch namedTonality.mode {
-            case .major:
-                guard
-                    let canonicalTonic = canonicalMajorTonicToken(
-                        from: namedTonality.tonicToken
-                    ),
-                    let fifths = majorFifthsByCanonicalTonic[canonicalTonic]
-                else {
-                    break
-                }
-                return try StaffKeySignature.parse(fifths: fifths)
-            case .minor:
-                break
-            }
+            return try resolveNamedTonality(
+                namedTonality,
+                originalToken: token
+            )
         }
 
         throw StaffScoreDecodingError.invalidKeySignature(token)
+    }
+
+    private static func parseBareCompatibleTonality(
+        from compactToken: String
+    ) -> NamedTonality? {
+        guard canonicalTonicToken(from: compactToken) != nil else {
+            return nil
+        }
+
+        return NamedTonality(
+            tonicToken: compactToken,
+            mode: bareTokenCompatibilityMode
+        )
     }
 
     private static func parseNamedTonality(
@@ -589,7 +610,28 @@ private enum StaffKeySignatureTokenParser {
         return nil
     }
 
-    private static func canonicalMajorTonicToken(
+    private static func resolveNamedTonality(
+        _ namedTonality: NamedTonality,
+        originalToken: String
+    ) throws -> StaffKeySignature {
+        guard let canonicalTonic = canonicalTonicToken(
+            from: namedTonality.tonicToken
+        ) else {
+            throw StaffScoreDecodingError.invalidKeySignature(originalToken)
+        }
+
+        guard let fifthsByCanonicalTonic = supportedFifthsByMode[namedTonality.mode] else {
+            throw StaffScoreDecodingError.unsupportedKeySignatureMode(originalToken)
+        }
+
+        guard let fifths = fifthsByCanonicalTonic[canonicalTonic] else {
+            throw StaffScoreDecodingError.invalidKeySignature(originalToken)
+        }
+
+        return try StaffKeySignature.parse(fifths: fifths)
+    }
+
+    private static func canonicalTonicToken(
         from token: String
     ) -> String? {
         switch token {

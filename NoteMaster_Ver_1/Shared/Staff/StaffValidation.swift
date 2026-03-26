@@ -122,10 +122,17 @@ private struct StaffValidationExpectedNoteAccidental: Equatable {
 private struct StaffValidationDecodeCase {
     var name: String
     var json: String
-    var expectedClef: StaffClef
-    var expectedKeySignatureFifths: Int
-    var expectedMeasureCount: Int
-    var expectedNoteCount: Int
+    var expectation: StaffValidationDecodeExpectation
+}
+
+private enum StaffValidationDecodeExpectation {
+    case success(
+        clef: StaffClef,
+        keySignatureFifths: Int,
+        measureCount: Int,
+        noteCount: Int
+    )
+    case failure(StaffScoreDecodingError)
 }
 
 private extension StaffValidationRunner {
@@ -196,6 +203,27 @@ private extension StaffValidationRunner {
                     keySignatureField: #""keySignature": "a""#
                 ),
                 expectedKeySignatureFifths: 3
+            ),
+            decodeFailureCase(
+                name: "decode-key-a-minor-en-unsupported",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "A minor""#
+                ),
+                expectedError: .unsupportedKeySignatureMode("A minor")
+            ),
+            decodeFailureCase(
+                name: "decode-key-a-minor-zh-unsupported",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": "A小调""#
+                ),
+                expectedError: .unsupportedKeySignatureMode("A小调")
+            ),
+            decodeFailureCase(
+                name: "decode-key-fsharp-minor-keyed-fifths-unsupported",
+                json: decodeScoreJSON(
+                    keySignatureField: #""keySignature": { "fifths": "F# minor" }"#
+                ),
+                expectedError: .unsupportedKeySignatureMode("F# minor")
             ),
             decodeCase(
                 name: "decode-key-d-major-english-keyed-fifths",
@@ -486,10 +514,24 @@ private extension StaffValidationRunner {
         StaffValidationDecodeCase(
             name: name,
             json: json,
-            expectedClef: expectedClef,
-            expectedKeySignatureFifths: expectedKeySignatureFifths,
-            expectedMeasureCount: expectedMeasureCount,
-            expectedNoteCount: expectedNoteCount
+            expectation: .success(
+                clef: expectedClef,
+                keySignatureFifths: expectedKeySignatureFifths,
+                measureCount: expectedMeasureCount,
+                noteCount: expectedNoteCount
+            )
+        )
+    }
+
+    static func decodeFailureCase(
+        name: String,
+        json: String,
+        expectedError: StaffScoreDecodingError
+    ) -> StaffValidationDecodeCase {
+        StaffValidationDecodeCase(
+            name: name,
+            json: json,
+            expectation: .failure(expectedError)
         )
     }
 
@@ -523,28 +565,47 @@ private extension StaffValidationRunner {
             )
         }
 
-        let score: StaffScore
-        do {
-            score = try StaffScore.decode(from: decodeCase.json)
-        } catch {
-            record("命名调号解码失败：\(error)。")
-            return issues
-        }
+        switch decodeCase.expectation {
+        case let .success(
+            expectedClef,
+            expectedKeySignatureFifths,
+            expectedMeasureCount,
+            expectedNoteCount
+        ):
+            let score: StaffScore
+            do {
+                score = try StaffScore.decode(from: decodeCase.json)
+            } catch {
+                record("命名调号解码失败：\(error)。")
+                return issues
+            }
 
-        if score.clef != decodeCase.expectedClef {
-            record("clef 解码错误，期望 \(decodeCase.expectedClef)，实际 \(score.clef)。")
-        }
+            if score.clef != expectedClef {
+                record("clef 解码错误，期望 \(expectedClef)，实际 \(score.clef)。")
+            }
 
-        if score.keySignature.fifths != decodeCase.expectedKeySignatureFifths {
-            record("key signature fifths 解码错误，期望 \(decodeCase.expectedKeySignatureFifths)，实际 \(score.keySignature.fifths)。")
-        }
+            if score.keySignature.fifths != expectedKeySignatureFifths {
+                record("key signature fifths 解码错误，期望 \(expectedKeySignatureFifths)，实际 \(score.keySignature.fifths)。")
+            }
 
-        if score.measures.count != decodeCase.expectedMeasureCount {
-            record("measure 数量错误，期望 \(decodeCase.expectedMeasureCount)，实际 \(score.measures.count)。")
-        }
+            if score.measures.count != expectedMeasureCount {
+                record("measure 数量错误，期望 \(expectedMeasureCount)，实际 \(score.measures.count)。")
+            }
 
-        if score.notes.count != decodeCase.expectedNoteCount {
-            record("note 数量错误，期望 \(decodeCase.expectedNoteCount)，实际 \(score.notes.count)。")
+            if score.notes.count != expectedNoteCount {
+                record("note 数量错误，期望 \(expectedNoteCount)，实际 \(score.notes.count)。")
+            }
+        case let .failure(expectedError):
+            do {
+                _ = try StaffScore.decode(from: decodeCase.json)
+                record("命名调号解码本应失败，但实际成功。")
+            } catch let actualError as StaffScoreDecodingError {
+                if actualError != expectedError {
+                    record("命名调号解码错误不匹配，期望 \(expectedError)，实际 \(actualError)。")
+                }
+            } catch {
+                record("命名调号解码错误类型不匹配，期望 \(expectedError)，实际 \(error)。")
+            }
         }
 
         return issues
@@ -875,7 +936,7 @@ private extension StaffValidationRunner {
         var checklist = [
             "启动 App，确认默认五线谱已恢复完整记谱显示，且默认 demo 已切到命名调号输入示例：当前应能看到 `D大调` 对应的 key signature，同时保留 stem，以及需要时的 accidental / ledger line。",
             "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 major circle-of-fifths 参考谱例：`C / G / D / A / E / B / F# / C# / F / Bb / Eb / Ab / Db / Gb / Cb`，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确。",
-            "把调号输入临时切成命名形式，例如 `D大调`、`A大调`、`D major`、`A major`，以及 keyed 对象形式 `{ \"fifths\": \"D大调\" }`；确认 scene 结果与直接传 `fifths` 等价。",
+            "把调号输入临时切成命名形式，例如 `D大调`、`A大调`、`D major`、`A major`，以及 keyed 对象形式 `{ \"fifths\": \"D大调\" }`；确认 scene 结果与直接传 `fifths` 等价。同时确认 bare token `a` 仍按 `A大调` 兼容，而 `A minor / A小调` 当前会在 decode 边界明确拒绝。",
             "将共享 score 切到 `StaffScoreFixtures.gMajorAccidentalContextReference()`，确认同小节里 `f#` 会被调号抑制、写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp，跨小节后恢复调号默认规则。",
             "将共享 score 切到 `StaffScoreFixtures.aMajorAccidentalContextReference()`，确认 A major 下 `F# / C# / G#` 默认会被调号抑制；写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp；同小节写出的 `c natural / g natural` 到下一小节会再次显示 natural，证明 measure reset 生效。",
             "将共享 score 切到 `StaffScoreFixtures.bbMajorBassAccidentalContextReference()`，确认 Bass + Bb major 下 `bb3` 默认不显示 accidental，`b3` 显示 natural，跨小节后再次按调号默认值重置。",
@@ -889,7 +950,7 @@ private extension StaffValidationRunner {
         case .macOS:
             checklist.append("在 macOS 上执行 live resize，确认调号区和音符区在 resize 过程中保持稳定，不出现 accidental 抖动或重叠。")
         case .commandLine:
-            checklist.append("命令行已覆盖命名调号 decode 回归与共享层 scene fixture，不覆盖 iOS/macOS 运行时渲染、字体注册与交互。")
+            checklist.append("命令行已覆盖命名调号 decode 回归、bare token 兼容策略、当前未实现的小调拒绝分支，以及共享层 scene fixture；不覆盖 iOS/macOS 运行时渲染、字体注册与交互。")
         }
 
         return checklist
