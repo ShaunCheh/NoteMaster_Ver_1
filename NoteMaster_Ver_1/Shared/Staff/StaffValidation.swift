@@ -748,8 +748,8 @@ private extension StaffValidationRunner {
                 continue
             }
 
-            if frame.minX <= geometry.clefAreaRect.maxX {
-                record("notehead[\(noteIndex)] 侵入 clefAreaRect。")
+            if frame.minX <= geometry.clefVisibleMaxX(for: fixture.configuration.clef) + tolerance {
+                record("notehead[\(noteIndex)] 侵入 clef 可见边界。")
             }
 
             if !contains(point: CGPoint(x: frame.midX, y: frame.midY), in: fixture.bounds) {
