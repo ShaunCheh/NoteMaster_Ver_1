@@ -55,6 +55,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             ]
         case .staff:
             return [
+                .choice(.content),
                 .choice(.clef),
                 .slider(.clefScale),
                 .slider(.clefVerticalTrim),
@@ -73,6 +74,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
 }
 
 enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
+    case content
     case instrument
     case displayMode
     case labels
@@ -84,13 +86,15 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .fretboard
-        case .clef:
+        case .content, .clef:
             return .staff
         }
     }
 
     var title: String {
         switch self {
+        case .content:
+            return "Content"
         case .instrument:
             return "Instrument"
         case .displayMode:
@@ -108,6 +112,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var accessibilityLabel: String {
         switch self {
+        case .content:
+            return "Select top content"
         case .instrument:
             return "Select instrument"
         case .displayMode:
@@ -125,7 +131,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var selectionStyle: SettingsSelectionStyle {
         switch self {
-        case .instrument, .displayMode, .labels, .spelling, .clef:
+        case .content, .instrument, .displayMode, .labels, .spelling, .clef:
             return .singleSelection
         case .octave:
             return .independent
@@ -134,7 +140,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var presentationStyle: SettingsPresentationStyle {
         switch self {
-        case .clef:
+        case .content, .clef:
             return .segmented
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .chips
@@ -143,6 +149,11 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var actionIDs: [SettingsActionID] {
         switch self {
+        case .content:
+            return [
+                .setTopContentStaff,
+                .setTopContentTargetPrompt
+            ]
         case .instrument:
             return [
                 .setInstrumentGuitar6,
@@ -180,6 +191,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 }
 
 enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
+    case setTopContentStaff
+    case setTopContentTargetPrompt
     case setInstrumentGuitar6
     case setInstrumentBass4
     case setInstrumentBass5
@@ -197,6 +210,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var rowID: SettingsChoiceRowID {
         switch self {
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt:
+            return .content
         case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5:
@@ -222,6 +238,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var title: String {
         switch self {
+        case .setTopContentStaff:
+            return "Staff"
+        case .setTopContentTargetPrompt:
+            return "Target"
         case .setInstrumentGuitar6:
             return "Guitar 6"
         case .setInstrumentBass4:
@@ -255,6 +275,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var accessibilityLabel: String {
         switch self {
+        case .setTopContentStaff:
+            return "Show staff in the top content area"
+        case .setTopContentTargetPrompt:
+            return "Show target note prompt in the top content area"
         case .setInstrumentGuitar6:
             return "Use 6-string guitar standard tuning"
         case .setInstrumentBass4:
@@ -288,9 +312,14 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     func isSelected(
         fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        staffDisplayState: StaffDisplayState,
+        topContentDisplayState: TopContentDisplayState
     ) -> Bool {
         switch self {
+        case .setTopContentStaff:
+            return topContentDisplayState.mode == .staff
+        case .setTopContentTargetPrompt:
+            return topContentDisplayState.mode == .targetPrompt
         case .setInstrumentGuitar6:
             return fretboardDisplayState.configuration.instrument == .guitar6
         case .setInstrumentBass4:
@@ -324,10 +353,13 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     func isEnabled(
         fretboardDisplayState _: FretboardDisplayState,
-        staffDisplayState _: StaffDisplayState
+        staffDisplayState _: StaffDisplayState,
+        topContentDisplayState _: TopContentDisplayState
     ) -> Bool {
         switch self {
-        case .setInstrumentGuitar6,
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt,
+             .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
@@ -347,6 +379,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     func apply(to displayState: inout FretboardDisplayState) {
         switch self {
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt:
+            return
         case .setInstrumentGuitar6:
             displayState.configuration.tuning = .standard(for: .guitar6)
         case .setInstrumentBass4:
@@ -382,7 +417,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.configuration.clef = .treble
         case .setClefBass:
             displayState.configuration.clef = .bass
-        case .setInstrumentGuitar6,
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt,
+             .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
@@ -394,6 +431,30 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setSpellingSharp,
              .setSpellingFlat,
              .toggleShowsOctave:
+            return
+        }
+    }
+
+    func apply(to displayState: inout TopContentDisplayState) {
+        switch self {
+        case .setTopContentStaff:
+            displayState.setMode(.staff)
+        case .setTopContentTargetPrompt:
+            displayState.setMode(.targetPrompt)
+        case .setInstrumentGuitar6,
+             .setInstrumentBass4,
+             .setInstrumentBass5,
+             .setDisplayModeHorizontal,
+             .setDisplayModeVertical,
+             .setVisibilityAll,
+             .setVisibilityNaturalOnly,
+             .setVisibilityAccidentalOnly,
+             .setVisibilityNone,
+             .setSpellingSharp,
+             .setSpellingFlat,
+             .toggleShowsOctave,
+             .setClefTreble,
+             .setClefBass:
             return
         }
     }
@@ -701,12 +762,14 @@ enum SettingsPanelEvent: Equatable, Sendable {
 
     func apply(
         to fretboardDisplayState: inout FretboardDisplayState,
-        and staffDisplayState: inout StaffDisplayState
+        and staffDisplayState: inout StaffDisplayState,
+        topContentDisplayState: inout TopContentDisplayState
     ) {
         switch self {
         case let .triggerAction(actionID):
             actionID.apply(to: &fretboardDisplayState)
             actionID.apply(to: &staffDisplayState)
+            actionID.apply(to: &topContentDisplayState)
         case let .setSliderValue(sliderID, value):
             sliderID.apply(value: value, to: &fretboardDisplayState)
             sliderID.apply(value: value, to: &staffDisplayState)

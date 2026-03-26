@@ -80,7 +80,8 @@ final class iOSViewController: UIViewController {
         let settingsContainerView = iOSSettingsContainerView(
             model: SettingsPanelSnapshotBuilder.makeModel(
                 fretboardDisplayState: displayState,
-                staffDisplayState: staffDisplayState
+                staffDisplayState: staffDisplayState,
+                topContentDisplayState: topContentDisplayState
             )
         )
         settingsContainerView.onEvent = { [weak self] event in
@@ -297,7 +298,8 @@ final class iOSViewController: UIViewController {
     private func applySettingsPanelState() {
         settingsContainerView.model = SettingsPanelSnapshotBuilder.makeModel(
             fretboardDisplayState: displayState,
-            staffDisplayState: staffDisplayState
+            staffDisplayState: staffDisplayState,
+            topContentDisplayState: topContentDisplayState
         )
     }
 
@@ -448,16 +450,23 @@ final class iOSViewController: UIViewController {
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
         var nextDisplayState = displayState
         var nextStaffDisplayState = staffDisplayState
+        var nextTopContentDisplayState = topContentDisplayState
         event.apply(
             to: &nextDisplayState,
-            and: &nextStaffDisplayState
+            and: &nextStaffDisplayState,
+            topContentDisplayState: &nextTopContentDisplayState
         )
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
+        let didChangeTopContent = nextTopContentDisplayState != topContentDisplayState
 
-        guard didChangeFretboard || didChangeStaff else {
+        guard didChangeFretboard || didChangeStaff || didChangeTopContent else {
             return
+        }
+
+        if didChangeTopContent {
+            topContentDisplayState = nextTopContentDisplayState
         }
 
         if didChangeFretboard {
@@ -466,6 +475,10 @@ final class iOSViewController: UIViewController {
 
         if didChangeStaff {
             staffDisplayState = nextStaffDisplayState
+        }
+
+        if didChangeTopContent, !didChangeFretboard, !didChangeStaff {
+            applySettingsPanelState()
         }
     }
 }

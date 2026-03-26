@@ -90,14 +90,16 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
     func isSelected(in displayState: FretboardDisplayState) -> Bool {
         settingsActionID.isSelected(
             fretboardDisplayState: displayState,
-            staffDisplayState: .default
+            staffDisplayState: .default,
+            topContentDisplayState: .default
         )
     }
 
     func isEnabled(in displayState: FretboardDisplayState) -> Bool {
         settingsActionID.isEnabled(
             fretboardDisplayState: displayState,
-            staffDisplayState: .default
+            staffDisplayState: .default,
+            topContentDisplayState: .default
         )
     }
 

@@ -11,14 +11,16 @@ import CoreGraphics
 enum SettingsPanelSnapshotBuilder {
     static func makeModel(
         fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        staffDisplayState: StaffDisplayState,
+        topContentDisplayState: TopContentDisplayState
     ) -> SettingsPanelModel {
         SettingsPanelModel(
             sections: SettingsSectionID.allCases.compactMap {
                 makeSection(
                     id: $0,
                     fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState
+                    staffDisplayState: staffDisplayState,
+                    topContentDisplayState: topContentDisplayState
                 )
             }
         )
@@ -27,13 +29,15 @@ enum SettingsPanelSnapshotBuilder {
     private static func makeSection(
         id: SettingsSectionID,
         fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        staffDisplayState: StaffDisplayState,
+        topContentDisplayState: TopContentDisplayState
     ) -> SettingsSection? {
         let rows = id.rowIDs.compactMap {
             makeRow(
                 id: $0,
                 fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
+                staffDisplayState: staffDisplayState,
+                topContentDisplayState: topContentDisplayState
             )
         }
 
@@ -51,7 +55,8 @@ enum SettingsPanelSnapshotBuilder {
     private static func makeRow(
         id: SettingsRowID,
         fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        staffDisplayState: StaffDisplayState,
+        topContentDisplayState: TopContentDisplayState
     ) -> SettingsRow? {
         switch id {
         case let .choice(choiceRowID):
@@ -59,7 +64,8 @@ enum SettingsPanelSnapshotBuilder {
                 makeChoiceRow(
                     id: choiceRowID,
                     fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState
+                    staffDisplayState: staffDisplayState,
+                    topContentDisplayState: topContentDisplayState
                 )
             )
         case let .slider(sliderID):
@@ -92,7 +98,8 @@ enum SettingsPanelSnapshotBuilder {
     private static func makeChoiceRow(
         id: SettingsChoiceRowID,
         fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        staffDisplayState: StaffDisplayState,
+        topContentDisplayState: TopContentDisplayState
     ) -> SettingsChoiceRow {
         SettingsChoiceRow(
             id: id,
@@ -104,7 +111,8 @@ enum SettingsPanelSnapshotBuilder {
                 makeChoiceItem(
                     id: $0,
                     fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState
+                    staffDisplayState: staffDisplayState,
+                    topContentDisplayState: topContentDisplayState
                 )
             }
         )
@@ -113,7 +121,8 @@ enum SettingsPanelSnapshotBuilder {
     private static func makeChoiceItem(
         id: SettingsActionID,
         fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        staffDisplayState: StaffDisplayState,
+        topContentDisplayState: TopContentDisplayState
     ) -> SettingsChoiceItem {
         SettingsChoiceItem(
             id: id,
@@ -121,11 +130,13 @@ enum SettingsPanelSnapshotBuilder {
             accessibilityLabel: id.accessibilityLabel,
             isSelected: id.isSelected(
                 fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
+                staffDisplayState: staffDisplayState,
+                topContentDisplayState: topContentDisplayState
             ),
             isEnabled: id.isEnabled(
                 fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
+                staffDisplayState: staffDisplayState,
+                topContentDisplayState: topContentDisplayState
             )
         )
     }
