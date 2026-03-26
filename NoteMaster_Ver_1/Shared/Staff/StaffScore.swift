@@ -5,20 +5,110 @@
 //  Created by Cursor on 2026/3/26.
 //
 
-struct StaffScore: Equatable, Sendable {
-    var clef: StaffClef
+struct StaffKeySignature: Equatable, Hashable, Sendable {
+    static let supportedFifthsRange = -7...7
+    static let natural = StaffKeySignature(fifths: 0)
+
+    private static let sharpOrder: [StaffPitchLetter] = [.f, .c, .g, .d, .a, .e, .b]
+    private static let flatOrder: [StaffPitchLetter] = [.b, .e, .a, .d, .g, .c, .f]
+
+    var fifths: Int
+
+    init(fifths: Int = 0) {
+        precondition(
+            Self.supportedFifthsRange.contains(fifths),
+            "StaffKeySignature fifths must stay within -7...7."
+        )
+        self.fifths = fifths
+    }
+
+    var isNatural: Bool {
+        fifths == 0
+    }
+
+    var signatureAccidental: StaffAccidental? {
+        if fifths > 0 {
+            return .sharp
+        }
+
+        if fifths < 0 {
+            return .flat
+        }
+
+        return nil
+    }
+
+    var alteredLetters: [StaffPitchLetter] {
+        guard let signatureAccidental else {
+            return []
+        }
+
+        let order = signatureAccidental == .sharp
+            ? Self.sharpOrder
+            : Self.flatOrder
+        return Array(order.prefix(abs(fifths)))
+    }
+
+    func accidental(for letter: StaffPitchLetter) -> StaffAccidental {
+        guard
+            alteredLetters.contains(letter),
+            let signatureAccidental
+        else {
+            return .natural
+        }
+
+        return signatureAccidental
+    }
+}
+
+struct StaffMeasure: Equatable, Sendable {
     var notes: [StaffScoreNote]
 
-    init(
-        clef: StaffClef,
-        notes: [StaffScoreNote]
-    ) {
-        self.clef = clef
+    init(notes: [StaffScoreNote]) {
         self.notes = notes
     }
 
     var isEmpty: Bool {
         notes.isEmpty
+    }
+}
+
+struct StaffScore: Equatable, Sendable {
+    var clef: StaffClef
+    var keySignature: StaffKeySignature
+    var measures: [StaffMeasure]
+
+    init(
+        clef: StaffClef,
+        keySignature: StaffKeySignature = .natural,
+        measures: [StaffMeasure]
+    ) {
+        self.clef = clef
+        self.keySignature = keySignature
+        self.measures = measures
+    }
+
+    init(
+        clef: StaffClef,
+        keySignature: StaffKeySignature = .natural,
+        notes: [StaffScoreNote]
+    ) {
+        self.init(
+            clef: clef,
+            keySignature: keySignature,
+            measures: notes.isEmpty
+            ? []
+            : [StaffMeasure(notes: notes)]
+        )
+    }
+
+    // 过渡期继续保留平铺 notes 视图，避免后续 scene builder 与验证器在阶段 1 一起被拖拽重写。
+    var notes: [StaffScoreNote] {
+        measures.flatMap(\.notes)
+    }
+
+    var isEmpty: Bool {
+        measures.allSatisfy(\.isEmpty)
     }
 }
 

@@ -10,6 +10,7 @@ import Foundation
 enum StaffScoreDecodingError: Error, Equatable, Sendable, CustomStringConvertible {
     case missingField(String)
     case invalidClef(String)
+    case invalidKeySignature(String)
     case invalidPitch(String)
     case invalidDuration(String)
 
@@ -19,6 +20,8 @@ enum StaffScoreDecodingError: Error, Equatable, Sendable, CustomStringConvertibl
             return "Missing required staff score field: \(fieldName)"
         case let .invalidClef(value):
             return "Invalid staff clef token: \(value)"
+        case let .invalidKeySignature(value):
+            return "Invalid staff key signature token: \(value)"
         case let .invalidPitch(value):
             return "Invalid staff pitch token: \(value)"
         case let .invalidDuration(value):
@@ -27,22 +30,68 @@ enum StaffScoreDecodingError: Error, Equatable, Sendable, CustomStringConvertibl
     }
 }
 
+struct StaffKeySignatureDTO: Equatable, Sendable {
+    var fifths: Int
+
+    static let natural = StaffKeySignatureDTO()
+
+    init(
+        fifths: Int = 0
+    ) {
+        self.fifths = fifths
+    }
+
+    func resolve() throws -> StaffKeySignature {
+        try StaffKeySignature.parse(fifths: fifths)
+    }
+}
+
+struct StaffMeasureDTO: Equatable, Sendable {
+    var notes: [StaffScoreNoteDTO]
+
+    init(notes: [StaffScoreNoteDTO]) {
+        self.notes = notes
+    }
+
+    func resolve() throws -> StaffMeasure {
+        StaffMeasure(notes: try notes.map { try $0.resolve() })
+    }
+}
+
 struct StaffScoreDTO: Equatable, Sendable {
     var clef: String
-    var notes: [StaffScoreNoteDTO]
+    var keySignature: StaffKeySignatureDTO
+    var measures: [StaffMeasureDTO]
 
     init(
         clef: String,
-        notes: [StaffScoreNoteDTO]
+        keySignature: StaffKeySignatureDTO = .natural,
+        measures: [StaffMeasureDTO]
     ) {
         self.clef = clef
-        self.notes = notes
+        self.keySignature = keySignature
+        self.measures = measures
+    }
+
+    init(
+        clef: String,
+        keySignature: StaffKeySignatureDTO = .natural,
+        notes: [StaffScoreNoteDTO]
+    ) {
+        self.init(
+            clef: clef,
+            keySignature: keySignature,
+            measures: notes.isEmpty
+            ? []
+            : [StaffMeasureDTO(notes: notes)]
+        )
     }
 
     func resolve() throws -> StaffScore {
         StaffScore(
             clef: try StaffClef.parse(token: clef),
-            notes: try notes.map { try $0.resolve() }
+            keySignature: try keySignature.resolve(),
+            measures: try measures.map { try $0.resolve() }
         )
     }
 
@@ -81,14 +130,113 @@ struct StaffScoreNoteDTO: Equatable, Sendable {
     }
 }
 
+extension StaffKeySignatureDTO: Codable {
+    private enum EnglishCodingKeys: String, CodingKey {
+        case fifths
+    }
+
+    private enum ChineseCodingKeys: String, CodingKey {
+        case fifths = "升降号个数"
+    }
+
+    init(from decoder: Decoder) throws {
+        if let singleValueContainer = try? decoder.singleValueContainer() {
+            if let fifths = try? singleValueContainer.decode(Int.self) {
+                self.init(fifths: fifths)
+                return
+            }
+
+            if let token = try? singleValueContainer.decode(String.self) {
+                self = StaffKeySignatureDTO(
+                    fifths: try StaffKeySignature.parse(token: token).fifths
+                )
+                return
+            }
+        }
+
+        let englishContainer = try decoder.container(keyedBy: EnglishCodingKeys.self)
+        let chineseContainer = try decoder.container(keyedBy: ChineseCodingKeys.self)
+
+        if let fifths = try englishContainer.decodeIfPresent(Int.self, forKey: .fifths) {
+            self.init(fifths: fifths)
+            return
+        }
+
+        if let token = try englishContainer.decodeIfPresent(String.self, forKey: .fifths) {
+            self = StaffKeySignatureDTO(
+                fifths: try StaffKeySignature.parse(token: token).fifths
+            )
+            return
+        }
+
+        if let fifths = try chineseContainer.decodeIfPresent(Int.self, forKey: .fifths) {
+            self.init(fifths: fifths)
+            return
+        }
+
+        if let token = try chineseContainer.decodeIfPresent(String.self, forKey: .fifths) {
+            self = StaffKeySignatureDTO(
+                fifths: try StaffKeySignature.parse(token: token).fifths
+            )
+            return
+        }
+
+        throw StaffScoreDecodingError.missingField("fifths/升降号个数")
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EnglishCodingKeys.self)
+        try container.encode(fifths, forKey: .fifths)
+    }
+}
+
+extension StaffMeasureDTO: Codable {
+    private enum EnglishCodingKeys: String, CodingKey {
+        case notes
+    }
+
+    private enum ChineseCodingKeys: String, CodingKey {
+        case notes = "音符"
+    }
+
+    init(from decoder: Decoder) throws {
+        if let singleValueContainer = try? decoder.singleValueContainer(),
+           let notes = try? singleValueContainer.decode([StaffScoreNoteDTO].self) {
+            self.init(notes: notes)
+            return
+        }
+
+        let englishContainer = try decoder.container(keyedBy: EnglishCodingKeys.self)
+        let chineseContainer = try decoder.container(keyedBy: ChineseCodingKeys.self)
+
+        let decodedNotes: [StaffScoreNoteDTO] = try StaffScoreDecodeSupport.decodeRequiredValue(
+            englishContainer: englishContainer,
+            englishKey: .notes,
+            chineseContainer: chineseContainer,
+            chineseKey: .notes,
+            fieldName: "notes/音符"
+        )
+        self.init(notes: decodedNotes)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EnglishCodingKeys.self)
+        try container.encode(notes, forKey: .notes)
+    }
+}
+
 extension StaffScoreDTO: Codable {
     private enum EnglishCodingKeys: String, CodingKey {
         case clef
+        case keySignature
+        case measures
         case notes
     }
 
     private enum ChineseCodingKeys: String, CodingKey {
         case clef = "谱号"
+        case keySignature = "调号"
+        case measures = "小节"
         case notes = "音符"
     }
 
@@ -103,19 +251,43 @@ extension StaffScoreDTO: Codable {
             chineseKey: .clef,
             fieldName: "clef/谱号"
         )
-        notes = try StaffScoreDecodeSupport.decodeRequiredValue(
+        keySignature = try StaffScoreDecodeSupport.decodeOptionalValue(
+            englishContainer: englishContainer,
+            englishKey: .keySignature,
+            chineseContainer: chineseContainer,
+            chineseKey: .keySignature
+        ) ?? .natural
+
+        if let decodedMeasures: [StaffMeasureDTO] = try StaffScoreDecodeSupport.decodeOptionalValue(
+            englishContainer: englishContainer,
+            englishKey: .measures,
+            chineseContainer: chineseContainer,
+            chineseKey: .measures
+        ) {
+            measures = decodedMeasures
+            return
+        }
+
+        if let legacyNotes: [StaffScoreNoteDTO] = try StaffScoreDecodeSupport.decodeOptionalValue(
             englishContainer: englishContainer,
             englishKey: .notes,
             chineseContainer: chineseContainer,
-            chineseKey: .notes,
-            fieldName: "notes/音符"
-        )
+            chineseKey: .notes
+        ) {
+            measures = legacyNotes.isEmpty
+                ? []
+                : [StaffMeasureDTO(notes: legacyNotes)]
+            return
+        }
+
+        throw StaffScoreDecodingError.missingField("measures/小节 or notes/音符")
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: EnglishCodingKeys.self)
         try container.encode(clef, forKey: .clef)
-        try container.encode(notes, forKey: .notes)
+        try container.encode(keySignature, forKey: .keySignature)
+        try container.encode(measures, forKey: .measures)
     }
 }
 
@@ -178,6 +350,23 @@ extension StaffScore {
 }
 
 private enum StaffScoreDecodeSupport {
+    static func decodeOptionalValue<Value: Decodable, EnglishKey: CodingKey, ChineseKey: CodingKey>(
+        englishContainer: KeyedDecodingContainer<EnglishKey>,
+        englishKey: EnglishKey,
+        chineseContainer: KeyedDecodingContainer<ChineseKey>,
+        chineseKey: ChineseKey
+    ) throws -> Value? {
+        if let value = try englishContainer.decodeIfPresent(Value.self, forKey: englishKey) {
+            return value
+        }
+
+        if let value = try chineseContainer.decodeIfPresent(Value.self, forKey: chineseKey) {
+            return value
+        }
+
+        return nil
+    }
+
     static func decodeRequiredValue<Value: Decodable, EnglishKey: CodingKey, ChineseKey: CodingKey>(
         englishContainer: KeyedDecodingContainer<EnglishKey>,
         englishKey: EnglishKey,
@@ -211,6 +400,16 @@ private enum StaffScoreDecodeSupport {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "_", with: "")
     }
+
+    static func compactKeySignatureToken(_ token: String) -> String {
+        token
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "♯", with: "#")
+            .replacingOccurrences(of: "♭", with: "b")
+    }
 }
 
 private extension StaffClef {
@@ -222,6 +421,60 @@ private extension StaffClef {
             return .bass
         default:
             throw StaffScoreDecodingError.invalidClef(token)
+        }
+    }
+}
+
+private extension StaffKeySignature {
+    static func parse(fifths: Int) throws -> StaffKeySignature {
+        guard StaffKeySignature.supportedFifthsRange.contains(fifths) else {
+            throw StaffScoreDecodingError.invalidKeySignature(String(fifths))
+        }
+
+        return StaffKeySignature(fifths: fifths)
+    }
+
+    static func parse(token: String) throws -> StaffKeySignature {
+        let compactToken = StaffScoreDecodeSupport.compactKeySignatureToken(token)
+
+        if let fifths = Int(compactToken) {
+            return try parse(fifths: fifths)
+        }
+
+        switch compactToken {
+        case "", "c", "natural", "none", "无调号", "无升降", "0升", "0降",
+                "0sharp", "0sharps", "0flat", "0flats":
+            return .natural
+        case "g", "1升", "1sharp", "1sharps":
+            return try parse(fifths: 1)
+        case "d", "2升", "2sharp", "2sharps":
+            return try parse(fifths: 2)
+        case "a", "3升", "3sharp", "3sharps":
+            return try parse(fifths: 3)
+        case "e", "4升", "4sharp", "4sharps":
+            return try parse(fifths: 4)
+        case "b", "5升", "5sharp", "5sharps":
+            return try parse(fifths: 5)
+        case "f#", "fsharp", "6升", "6sharp", "6sharps":
+            return try parse(fifths: 6)
+        case "c#", "csharp", "7升", "7sharp", "7sharps":
+            return try parse(fifths: 7)
+        case "f", "1降", "1flat", "1flats":
+            return try parse(fifths: -1)
+        case "bb", "bflat", "2降", "2flat", "2flats":
+            return try parse(fifths: -2)
+        case "eb", "eflat", "3降", "3flat", "3flats":
+            return try parse(fifths: -3)
+        case "ab", "aflat", "4降", "4flat", "4flats":
+            return try parse(fifths: -4)
+        case "db", "dflat", "5降", "5flat", "5flats":
+            return try parse(fifths: -5)
+        case "gb", "gflat", "6降", "6flat", "6flats":
+            return try parse(fifths: -6)
+        case "cb", "cflat", "7降", "7flat", "7flats":
+            return try parse(fifths: -7)
+        default:
+            throw StaffScoreDecodingError.invalidKeySignature(token)
         }
     }
 }

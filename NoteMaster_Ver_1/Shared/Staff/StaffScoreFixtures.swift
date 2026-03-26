@@ -12,6 +12,7 @@ enum StaffScoreFixtures {
         resolveScore(
             named: "default-demo",
             clef: clef,
+            keySignature: .natural,
             notesJSON: """
             [
               { "pitch": "e4",  "duration": "quarter" },
@@ -30,12 +31,20 @@ enum StaffScoreFixtures {
     private static func resolveScore(
         named fixtureName: String,
         clef: StaffClef,
+        keySignature: StaffKeySignature,
         notesJSON: String
     ) -> StaffScore {
         let json = """
         {
           "clef": "\(clef.token)",
-          "notes": \(notesJSON)
+          "keySignature": {
+            "fifths": \(keySignature.fifths)
+          },
+          "measures": [
+            {
+              "notes": \(notesJSON)
+            }
+          ]
         }
         """
 
