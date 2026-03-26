@@ -40,7 +40,7 @@ final class macOSViewController: NSViewController {
         }
     }
     // 顶部内容模式独立于 staff / fretboard display state；
-    // 后续阶段再接 settings 与 topContentHostView。
+    // 当前阶段先完成顶部 host 重构，后续再把切换应用入口统一收口。
     private var topContentDisplayState = TopContentDisplayState.default
 
     private var isSettingsPresented = false
@@ -92,6 +92,7 @@ final class macOSViewController: NSViewController {
 
     private let scrollView = NSScrollView()
     private let contentView = NSView()
+    private let topContentHostView = NSView()
     private let fretboardHostView = NSView()
     private let fretboardViewportScrollView = NSScrollView()
     private let fretboardScrollContentView = NSView()
@@ -115,6 +116,14 @@ final class macOSViewController: NSViewController {
             configuration: staffDisplayState.configuration,
             sceneProvider: staffDisplayState.sceneProvider
         )
+    }()
+
+    private lazy var targetNotePromptView: macOSTargetNotePromptView = {
+        let targetNotePromptView = macOSTargetNotePromptView(
+            prompt: currentFretboardTrainerPrompt
+        )
+        targetNotePromptView.isHidden = true
+        return targetNotePromptView
     }()
 
     override func loadView() {
@@ -141,7 +150,9 @@ final class macOSViewController: NSViewController {
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
+        topContentHostView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
+        targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
         fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
         fretboardViewportScrollView.translatesAutoresizingMaskIntoConstraints = false
         fretboardScrollContentView.translatesAutoresizingMaskIntoConstraints = false
@@ -159,7 +170,9 @@ final class macOSViewController: NSViewController {
         fretboardViewportScrollView.autohidesScrollers = true
         fretboardViewportScrollView.documentView = fretboardScrollContentView
         view.addSubview(scrollView)
-        contentView.addSubview(staffView)
+        contentView.addSubview(topContentHostView)
+        topContentHostView.addSubview(staffView)
+        topContentHostView.addSubview(targetNotePromptView)
         contentView.addSubview(fretboardHostView)
         fretboardHostView.addSubview(fretboardViewportScrollView)
         fretboardScrollContentView.addSubview(fretboardView)
@@ -199,16 +212,24 @@ final class macOSViewController: NSViewController {
             contentView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
             contentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
-            staffView.topAnchor.constraint(
+            topContentHostView.topAnchor.constraint(
                 equalTo: contentView.topAnchor,
                 constant: Layout.contentTopInset
             ),
-            staffView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            staffView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            topContentHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            topContentHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            staffView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
+            staffView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
+            staffView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
+            staffView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor),
+            targetNotePromptView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
+            targetNotePromptView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
+            targetNotePromptView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
+            targetNotePromptView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor),
             fretboardHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             fretboardHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             fretboardHostView.topAnchor.constraint(
-                equalTo: staffView.bottomAnchor,
+                equalTo: topContentHostView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
             fretboardHostView.bottomAnchor.constraint(
