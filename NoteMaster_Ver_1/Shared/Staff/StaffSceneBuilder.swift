@@ -40,6 +40,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
 
     var clef: StaffClef
     var score: StaffScore
+    var notationDisplayOptions: StaffNotationDisplayOptions
     var glyphTintColor: StaffSceneColor
     var clefRenderHint: StaffGlyphRenderHint
     var layoutMetrics: LayoutMetrics
@@ -47,12 +48,14 @@ struct StaffSceneBuilder: Equatable, Sendable {
     init(
         clef: StaffClef,
         score: StaffScore,
+        notationDisplayOptions: StaffNotationDisplayOptions = .noteheadsOnly,
         glyphTintColor: StaffSceneColor = .primaryInk,
         clefRenderHint: StaffGlyphRenderHint = .staffClef(),
         layoutMetrics: LayoutMetrics = .default
     ) {
         self.clef = clef
         self.score = score
+        self.notationDisplayOptions = notationDisplayOptions
         self.glyphTintColor = glyphTintColor
         self.clefRenderHint = clefRenderHint
         self.layoutMetrics = layoutMetrics
@@ -97,7 +100,8 @@ struct StaffSceneBuilder: Equatable, Sendable {
                 continue
             }
 
-            if let accidentalSymbolID = positionedPitch.accidentalSymbolID {
+            if notationDisplayOptions.showsAccidentals,
+               let accidentalSymbolID = positionedPitch.accidentalSymbolID {
                 glyphs.append(
                     StaffGlyphItem(
                         symbolID: accidentalSymbolID,
@@ -130,7 +134,8 @@ struct StaffSceneBuilder: Equatable, Sendable {
                 )
             )
 
-            if note.duration.showsStem {
+            if notationDisplayOptions.showsStems,
+               note.duration.showsStem {
                 strokeItems.append(
                     stemStroke(
                         for: noteheadFrame,
@@ -140,12 +145,14 @@ struct StaffSceneBuilder: Equatable, Sendable {
                 )
             }
 
-            strokeItems.append(
-                contentsOf: ledgerLineStrokes(
-                    for: noteheadFrame,
-                    ledgerLineYs: positionedPitch.ledgerLineYs
+            if notationDisplayOptions.showsLedgerLines {
+                strokeItems.append(
+                    contentsOf: ledgerLineStrokes(
+                        for: noteheadFrame,
+                        ledgerLineYs: positionedPitch.ledgerLineYs
+                    )
                 )
-            )
+            }
         }
 
         return StaffScene(
@@ -197,10 +204,13 @@ struct StaffSceneBuilder: Equatable, Sendable {
 
         let accidentalWidth = noteheadSize.width * layoutMetrics.accidentalWidthToNoteheadWidth
         let accidentalGap = noteheadSize.width * layoutMetrics.accidentalGapToNoteheadWidth
-        let leftInset = max(
-            noteheadSize.width * layoutMetrics.noteLeadingInsetInNoteheadWidths,
-            accidentalWidth + accidentalGap + (noteheadSize.width / 2)
-        )
+        let minimumLeadingInset = noteheadSize.width * layoutMetrics.noteLeadingInsetInNoteheadWidths
+        let leftInset = notationDisplayOptions.showsAccidentals
+            ? max(
+                minimumLeadingInset,
+                accidentalWidth + accidentalGap + (noteheadSize.width / 2)
+            )
+            : minimumLeadingInset
         let rightInset = noteheadSize.width * layoutMetrics.noteTrailingInsetInNoteheadWidths
 
         let centerXs = resolvedNoteCenterXs(

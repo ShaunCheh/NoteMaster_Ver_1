@@ -12,13 +12,38 @@ import CoreText
 struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
     private struct ResolvedGlyphLine {
         var line: CTLine
+        var fontPostScriptName: String
+        var appliedFontSize: CGFloat
         // opticalBounds 参与 glyph 的缩放拟合与定位；vertical clip 不应改变这部分语义。
         var opticalBounds: CGRect
         // clippedBounds 只描述最终可见裁切窗口，用于 clip 和调试显示。
         var clippedBounds: CGRect
+        // glyphBounds 描述单个音乐符号自身的实际轮廓边界；frame glyph 需要按这个边界做 fit。
+        var glyphBounds: CGRect
+        // fittingBounds 是当前 glyph 应参与尺寸拟合的边界语义。
+        var fittingBounds: CGRect
     }
 
     private typealias AnchorMetrics = StaffClefAnchorMetrics
+
+    private enum GlyphSizingMode {
+        case anchoredClef
+        case frameGlyph
+
+        func resolvedFitScale(
+            widthScale: CGFloat,
+            heightScale: CGFloat
+        ) -> CGFloat {
+            let rawScale = max(min(widthScale, heightScale), 0.01)
+
+            switch self {
+            case .anchoredClef:
+                return min(rawScale, 1)
+            case .frameGlyph:
+                return rawScale
+            }
+        }
+    }
 
     private let bundle: Bundle
 
@@ -38,6 +63,7 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         }
 
         let musicGlyph = glyphItem.symbolID.musicGlyph
+        let sizingMode = sizingMode(for: glyphItem)
         let verticalTrimRatio = verticalTrimRatio(
             for: glyphItem,
             geometry: geometry
@@ -54,7 +80,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             for: musicGlyph,
             targetSize: targetSize,
             tintColor: glyphItem.tintColor,
-            verticalTrimRatio: verticalTrimRatio
+            verticalTrimRatio: verticalTrimRatio,
+            sizingMode: sizingMode
         ) else {
             return
         }
@@ -71,6 +98,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         case let .frame(frame):
             drawGlyph(
                 resolvedLine,
+                glyphItem: glyphItem,
+                targetSize: targetSize,
                 centeredIn: frame,
                 renderHint: glyphItem.renderHint,
                 in: context,
@@ -101,7 +130,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         for glyph: MusicGlyph,
         targetSize: CGSize,
         tintColor: StaffSceneColor,
-        verticalTrimRatio: CGFloat
+        verticalTrimRatio: CGFloat,
+        sizingMode: GlyphSizingMode
     ) -> ResolvedGlyphLine? {
         let baseFontSize = max(targetSize.height, 1)
 
@@ -109,31 +139,32 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             glyph: glyph,
             fontSize: baseFontSize,
             tintColor: tintColor,
-            verticalTrimRatio: verticalTrimRatio
+            verticalTrimRatio: verticalTrimRatio,
+            sizingMode: sizingMode
         ) else {
             return nil
         }
 
-        // vertical clip 只影响可见窗口，不参与 glyph 的尺寸拟合；
-        // 因此这里继续基于完整 opticalBounds 做 shrink-to-fit，保持和引入裁切前一致的大小语义。
-        let widthScale = targetSize.width / max(resolved.opticalBounds.width, 1)
-        let heightScale = targetSize.height / max(resolved.opticalBounds.height, 1)
-        let fitScale = min(1, widthScale, heightScale)
+        let widthScale = targetSize.width / max(resolved.fittingBounds.width, 1)
+        let heightScale = targetSize.height / max(resolved.fittingBounds.height, 1)
+        let fitScale = sizingMode.resolvedFitScale(
+            widthScale: widthScale,
+            heightScale: heightScale
+        )
 
-        if fitScale < 1 {
+        if abs(fitScale - 1) > 0.001 {
             resolved = makeResolvedGlyphLine(
                 glyph: glyph,
                 fontSize: max(baseFontSize * fitScale, 1),
                 tintColor: tintColor,
-                verticalTrimRatio: verticalTrimRatio
+                verticalTrimRatio: verticalTrimRatio,
+                sizingMode: sizingMode
             ) ?? resolved
         }
 
         guard
-            !resolved.opticalBounds.isNull,
-            !resolved.opticalBounds.isEmpty,
-            !resolved.clippedBounds.isNull,
-            !resolved.clippedBounds.isEmpty
+            !resolved.fittingBounds.isNull,
+            !resolved.fittingBounds.isEmpty
         else {
             return nil
         }
@@ -145,7 +176,8 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         glyph: MusicGlyph,
         fontSize: CGFloat,
         tintColor: StaffSceneColor,
-        verticalTrimRatio: CGFloat
+        verticalTrimRatio: CGFloat,
+        sizingMode: GlyphSizingMode
     ) -> ResolvedGlyphLine? {
         guard let font = MusicFontRegistry.font(
             for: glyph.fontFace,
@@ -174,20 +206,39 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             from: opticalBounds,
             verticalTrimRatio: verticalTrimRatio
         )
+        let glyphBounds = glyphBounds(
+            for: glyph,
+            font: font,
+            fallback: clippedBounds
+        )
+        let fittingBounds = fittingBounds(
+            for: sizingMode,
+            opticalBounds: opticalBounds,
+            clippedBounds: clippedBounds,
+            glyphBounds: glyphBounds
+        )
 
         guard
             !opticalBounds.isNull,
             !opticalBounds.isEmpty,
             !clippedBounds.isNull,
-            !clippedBounds.isEmpty
+            !clippedBounds.isEmpty,
+            !glyphBounds.isNull,
+            !glyphBounds.isEmpty,
+            !fittingBounds.isNull,
+            !fittingBounds.isEmpty
         else {
             return nil
         }
 
         return ResolvedGlyphLine(
             line: line,
+            fontPostScriptName: CTFontCopyPostScriptName(font) as String,
+            appliedFontSize: fontSize,
             opticalBounds: opticalBounds,
-            clippedBounds: clippedBounds
+            clippedBounds: clippedBounds,
+            glyphBounds: glyphBounds,
+            fittingBounds: fittingBounds
         )
     }
 
@@ -243,31 +294,37 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
 
     private func drawGlyph(
         _ resolvedLine: ResolvedGlyphLine,
+        glyphItem: StaffGlyphItem,
+        targetSize: CGSize,
         centeredIn frame: CGRect,
         renderHint: StaffGlyphRenderHint,
         in context: CGContext,
         geometry: StaffGeometry
     ) {
-        let alignmentBounds = alignedBounds(
-            for: resolvedLine,
-            renderHint: renderHint
-        )
+        let alignmentBounds = resolvedLine.glyphBounds
         let frameCenter = CGPoint(
             x: frame.midX,
             y: geometry.bounds.height - frame.midY
         )
-        // 普通 frame glyph 默认按 optical bounds 对齐；若后续某些 glyph 需要按 clipped bounds 对齐，
-        // 只需切换 renderHint，不必回改 renderer 的类别判断。
         let drawOrigin = CGPoint(
             x: frameCenter.x - alignmentBounds.midX,
             y: frameCenter.y - alignmentBounds.midY
+        )
+
+        logFrameGlyphIfNeeded(
+            glyphItem: glyphItem,
+            targetSize: targetSize,
+            frame: frame,
+            drawOrigin: drawOrigin,
+            resolvedLine: resolvedLine,
+            geometry: geometry
         )
 
         drawLine(
             resolvedLine.line,
             at: drawOrigin,
             clipBounds: flippedBounds(
-                for: resolvedLine.clippedBounds,
+                for: resolvedLine.glyphBounds,
                 drawOrigin: drawOrigin
             ),
             in: context,
@@ -275,22 +332,13 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         )
         drawBoundsOverlayIfNeeded(
             logicalBounds(
-                for: resolvedLine.clippedBounds,
+                for: resolvedLine.glyphBounds,
                 drawOrigin: drawOrigin,
                 geometry: geometry
             ),
             renderHint: renderHint,
             in: context
         )
-    }
-
-    private func alignedBounds(
-        for resolvedLine: ResolvedGlyphLine,
-        renderHint: StaffGlyphRenderHint
-    ) -> CGRect {
-        renderHint.prefersOpticalBoundsAlignment
-            ? resolvedLine.opticalBounds
-            : resolvedLine.clippedBounds
     }
 
     private func drawLine(
@@ -441,6 +489,94 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             from: bounds,
             verticalTrimRatio: verticalTrimRatio
         )
+    }
+
+    private func sizingMode(
+        for glyphItem: StaffGlyphItem
+    ) -> GlyphSizingMode {
+        switch glyphItem.placement {
+        case .anchor:
+            return .anchoredClef
+        case .frame:
+            return .frameGlyph
+        }
+    }
+
+    private func glyphBounds(
+        for glyph: MusicGlyph,
+        font: CTFont,
+        fallback: CGRect
+    ) -> CGRect {
+        let characters = Array(glyph.string.utf16)
+        guard characters.count == 1 else {
+            return fallback
+        }
+
+        var resolvedCharacters = characters
+        var glyphs = [CGGlyph](repeating: 0, count: 1)
+        guard CTFontGetGlyphsForCharacters(font, &resolvedCharacters, &glyphs, 1) else {
+            return fallback
+        }
+
+        let bounds = CTFontGetBoundingRectsForGlyphs(
+            font,
+            .default,
+            &glyphs,
+            nil,
+            1
+        )
+        guard !bounds.isNull, !bounds.isEmpty else {
+            return fallback
+        }
+
+        return bounds
+    }
+
+    private func fittingBounds(
+        for sizingMode: GlyphSizingMode,
+        opticalBounds: CGRect,
+        clippedBounds: CGRect,
+        glyphBounds: CGRect
+    ) -> CGRect {
+        switch sizingMode {
+        case .anchoredClef:
+            return opticalBounds
+        case .frameGlyph:
+            return glyphBounds
+        }
+    }
+
+    private func logFrameGlyphIfNeeded(
+        glyphItem: StaffGlyphItem,
+        targetSize: CGSize,
+        frame: CGRect,
+        drawOrigin: CGPoint,
+        resolvedLine: ResolvedGlyphLine,
+        geometry: StaffGeometry
+    ) {
+        #if DEBUG
+        guard
+            geometry.configuration.debugOptions.showsNoteheadDiagnostics,
+            glyphItem.symbolID.isNotehead
+        else {
+            return
+        }
+
+        let key = [
+            "renderer",
+            glyphItem.symbolID.debugName,
+            StaffDebugLogger.format(frame),
+            StaffDebugLogger.format(resolvedLine.fittingBounds),
+            StaffDebugLogger.format(resolvedLine.appliedFontSize)
+        ].joined(separator: "::")
+
+        StaffDebugLogger.logOnce(
+            key: key,
+            message: """
+            [StaffDebug][Renderer] symbol=\(glyphItem.symbolID.debugName) frame=\(StaffDebugLogger.format(frame)) targetSize=\(StaffDebugLogger.format(targetSize)) font=\(resolvedLine.fontPostScriptName) fontSize=\(StaffDebugLogger.format(resolvedLine.appliedFontSize)) fittingBounds=\(StaffDebugLogger.format(resolvedLine.fittingBounds)) glyphBounds=\(StaffDebugLogger.format(resolvedLine.glyphBounds)) opticalBounds=\(StaffDebugLogger.format(resolvedLine.opticalBounds)) clippedBounds=\(StaffDebugLogger.format(resolvedLine.clippedBounds)) drawOrigin=\(StaffDebugLogger.format(drawOrigin))
+            """
+        )
+        #endif
     }
 }
 

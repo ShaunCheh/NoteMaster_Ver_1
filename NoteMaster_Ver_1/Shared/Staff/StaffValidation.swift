@@ -98,6 +98,7 @@ private struct StaffValidationFixture {
     var name: String
     var configuration: StaffConfiguration
     var score: StaffScore
+    var notationDisplayOptions: StaffNotationDisplayOptions
     var bounds: CGRect
     var expectedLedgerLineCount: Int
 }
@@ -121,6 +122,7 @@ private extension StaffValidationRunner {
                 name: "treble-default-demo",
                 configuration: trebleConfiguration,
                 score: StaffScoreFixtures.defaultDemo(clef: .treble),
+                notationDisplayOptions: .noteheadsOnly,
                 bounds: fixtureBounds(configuration: trebleConfiguration),
                 expectedLedgerLineCount: 0
             ),
@@ -140,6 +142,7 @@ private extension StaffValidationRunner {
                         ("a3", .whole)
                     ]
                 ),
+                notationDisplayOptions: .noteheadsOnly,
                 bounds: fixtureBounds(configuration: bassConfiguration),
                 expectedLedgerLineCount: 0
             ),
@@ -154,11 +157,12 @@ private extension StaffValidationRunner {
                         ("c6", .half)
                     ]
                 ),
+                notationDisplayOptions: .noteheadsOnly,
                 bounds: fixtureBounds(
                     configuration: trebleConfiguration,
                     extraVerticalSpaces: 8
                 ),
-                expectedLedgerLineCount: 4
+                expectedLedgerLineCount: 0
             ),
             StaffValidationFixture(
                 name: "bass-ledger-both-sides",
@@ -171,11 +175,12 @@ private extension StaffValidationRunner {
                         ("e4", .half)
                     ]
                 ),
+                notationDisplayOptions: .noteheadsOnly,
                 bounds: fixtureBounds(
                     configuration: bassConfiguration,
                     extraVerticalSpaces: 8
                 ),
-                expectedLedgerLineCount: 4
+                expectedLedgerLineCount: 0
             )
         ]
     }
@@ -221,7 +226,8 @@ private extension StaffValidationRunner {
         )
         let scene = StaffSceneProvider(
             clef: fixture.configuration.clef,
-            score: fixture.score
+            score: fixture.score,
+            notationDisplayOptions: fixture.notationDisplayOptions
         ).makeScene(geometry: geometry)
         var issues: [StaffValidationIssue] = []
 
@@ -251,11 +257,13 @@ private extension StaffValidationRunner {
             fixture: fixture,
             record: record
         )
-        validateAccidentals(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
+        if fixture.notationDisplayOptions.showsAccidentals {
+            validateAccidentals(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
         validatePitchOrdering(
             scene: scene,
             fixture: fixture,
@@ -292,23 +300,30 @@ private extension StaffValidationRunner {
             record("notehead glyph 数量错误，期望 \(fixture.score.notes.count)，实际 \(noteheadGlyphs.count)。")
         }
 
-        let expectedAccidentalCount = fixture.score.notes.filter {
-            $0.pitch.accidental != .natural
-        }.count
+        let expectedAccidentalCount = fixture.notationDisplayOptions.showsAccidentals
+            ? fixture.score.notes.filter {
+                $0.pitch.accidental != .natural
+            }.count
+            : 0
         let actualAccidentalCount = scene.glyphs.filter(\.symbolID.isAccidental).count
         if actualAccidentalCount != expectedAccidentalCount {
             record("accidental glyph 数量错误，期望 \(expectedAccidentalCount)，实际 \(actualAccidentalCount)。")
         }
 
-        let expectedStemCount = fixture.score.notes.filter(\.duration.showsStem).count
+        let expectedStemCount = fixture.notationDisplayOptions.showsStems
+            ? fixture.score.notes.filter(\.duration.showsStem).count
+            : 0
         let actualStemCount = scene.strokeItems.filter { $0.semantic == .stem }.count
         if actualStemCount != expectedStemCount {
             record("stem 数量错误，期望 \(expectedStemCount)，实际 \(actualStemCount)。")
         }
 
+        let expectedLedgerLineCount = fixture.notationDisplayOptions.showsLedgerLines
+            ? fixture.expectedLedgerLineCount
+            : 0
         let actualLedgerLineCount = scene.strokeItems.filter { $0.semantic == .ledgerLine }.count
-        if actualLedgerLineCount != fixture.expectedLedgerLineCount {
-            record("ledger line 数量错误，期望 \(fixture.expectedLedgerLineCount)，实际 \(actualLedgerLineCount)。")
+        if actualLedgerLineCount != expectedLedgerLineCount {
+            record("ledger line 数量错误，期望 \(expectedLedgerLineCount)，实际 \(actualLedgerLineCount)。")
         }
     }
 
@@ -458,9 +473,9 @@ private extension StaffValidationRunner {
 
     static func manualChecklist(for platform: StaffValidationPlatform) -> [String] {
         var checklist = [
-            "启动 App，确认五线谱除 clef 外还能看到 demo notehead、stem 和 accidental，且没有回退成 clef-only 场景。",
-            "在 settings 中切换 Treble / Bass，确认同一组 demo notes 会按新 clef 重新布局，accidental 仍位于 notehead 左侧。",
-            "观察包含高低音边界的音符，确认 ledger line 会随音符出现且与 notehead 对齐。",
+            "启动 App，确认五线谱除 clef 外已经能看到 demo notehead，且没有回退成 clef-only 场景。",
+            "当前阶段故意不绘制 accidental / stem / ledger line；确认界面上只看到 clef、staff line 与 notehead。",
+            "在 settings 中切换 Treble / Bass，确认同一组 demo notes 会按新 clef 重新布局，notehead 的上下行关系正确。",
             "调整窗口大小或设备方向，确认 note spacing 与 glyph 位置稳定更新，不出现 clefArea 与 noteArea 重叠。"
         ]
 
@@ -468,7 +483,7 @@ private extension StaffValidationRunner {
         case .iOS:
             checklist.append("在 iOS 上验证 settings 打开/关闭与滚动共存时，五线谱内容不会闪烁或错位。")
         case .macOS:
-            checklist.append("在 macOS 上执行 live resize，确认五线谱中的 notehead / stem / ledger line 在 resize 过程中保持稳定。")
+            checklist.append("在 macOS 上执行 live resize，确认五线谱中的 notehead 在 resize 过程中保持稳定。")
         case .commandLine:
             checklist.append("命令行只覆盖共享层 scene fixture，不覆盖 iOS/macOS 运行时渲染与交互。")
         }
@@ -551,36 +566,5 @@ private extension StaffValidationRunner {
 
     static func approximatelyEqual(_ lhs: CGFloat, _ rhs: CGFloat) -> Bool {
         abs(lhs - rhs) <= tolerance
-    }
-}
-
-private extension StaffGlyphSymbolID {
-    var isClef: Bool {
-        switch self {
-        case .trebleClef, .bassClef:
-            return true
-        case .noteheadWhole, .noteheadHalf, .noteheadBlack,
-                .accidentalFlat, .accidentalNatural, .accidentalSharp:
-            return false
-        }
-    }
-
-    var isNotehead: Bool {
-        switch self {
-        case .noteheadWhole, .noteheadHalf, .noteheadBlack:
-            return true
-        case .trebleClef, .bassClef,
-                .accidentalFlat, .accidentalNatural, .accidentalSharp:
-            return false
-        }
-    }
-
-    var isAccidental: Bool {
-        switch self {
-        case .accidentalFlat, .accidentalNatural, .accidentalSharp:
-            return true
-        case .trebleClef, .bassClef, .noteheadWhole, .noteheadHalf, .noteheadBlack:
-            return false
-        }
     }
 }

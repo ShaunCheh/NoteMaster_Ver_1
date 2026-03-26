@@ -26,7 +26,8 @@ final class iOSViewController: UIViewController {
             trebleClefAnchorLogicalDownwardShiftRatio: 0.06,
             debugOptions: .init(
                 showsClefBounds: true,
-                showsClefAnchor: true
+                showsClefAnchor: true,
+                showsNoteheadDiagnostics: true
             )
         ),
         score: StaffScoreFixtures.defaultDemo(clef: .treble)

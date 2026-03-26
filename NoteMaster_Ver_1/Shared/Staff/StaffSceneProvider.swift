@@ -11,17 +11,20 @@ import CoreGraphics
 struct StaffSceneProvider: Equatable, Sendable {
     var clef: StaffClef
     var score: StaffScore?
+    var notationDisplayOptions: StaffNotationDisplayOptions
     var glyphTintColor: StaffSceneColor
     var renderHint: StaffGlyphRenderHint
 
     init(
         clef: StaffClef = .treble,
         score: StaffScore? = nil,
+        notationDisplayOptions: StaffNotationDisplayOptions = .noteheadsOnly,
         glyphTintColor: StaffSceneColor = .primaryInk,
         renderHint: StaffGlyphRenderHint = .staffClef()
     ) {
         self.clef = clef
         self.score = score
+        self.notationDisplayOptions = notationDisplayOptions
         self.glyphTintColor = glyphTintColor
         self.renderHint = renderHint
     }
@@ -43,6 +46,7 @@ struct StaffSceneProvider: Equatable, Sendable {
             return StaffSceneBuilder(
                 clef: clef,
                 score: score,
+                notationDisplayOptions: notationDisplayOptions,
                 glyphTintColor: glyphTintColor,
                 clefRenderHint: renderHint
             ).makeScene(geometry: geometry)

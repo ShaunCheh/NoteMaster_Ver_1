@@ -7,6 +7,28 @@
 
 import CoreGraphics
 
+struct StaffNotationDisplayOptions: Equatable, Sendable {
+    var showsAccidentals: Bool
+    var showsStems: Bool
+    var showsLedgerLines: Bool
+
+    static let noteheadsOnly = StaffNotationDisplayOptions(
+        showsAccidentals: false,
+        showsStems: false,
+        showsLedgerLines: false
+    )
+
+    static let fullNotation = StaffNotationDisplayOptions(
+        showsAccidentals: true,
+        showsStems: true,
+        showsLedgerLines: true
+    )
+
+    var debugSummary: String {
+        "accidentals=\(showsAccidentals) stems=\(showsStems) ledgerLines=\(showsLedgerLines)"
+    }
+}
+
 struct ClefAnchor: Equatable, Sendable {
     enum Semantic: Equatable, Sendable {
         case trebleGLine
@@ -223,6 +245,56 @@ extension StaffGlyphSymbolID {
         case .noteheadWhole, .noteheadHalf, .noteheadBlack,
                 .accidentalFlat, .accidentalNatural, .accidentalSharp:
             return nil
+        }
+    }
+
+    var isClef: Bool {
+        switch self {
+        case .trebleClef, .bassClef:
+            return true
+        case .noteheadWhole, .noteheadHalf, .noteheadBlack,
+                .accidentalFlat, .accidentalNatural, .accidentalSharp:
+            return false
+        }
+    }
+
+    var isNotehead: Bool {
+        switch self {
+        case .noteheadWhole, .noteheadHalf, .noteheadBlack:
+            return true
+        case .trebleClef, .bassClef,
+                .accidentalFlat, .accidentalNatural, .accidentalSharp:
+            return false
+        }
+    }
+
+    var isAccidental: Bool {
+        switch self {
+        case .accidentalFlat, .accidentalNatural, .accidentalSharp:
+            return true
+        case .trebleClef, .bassClef, .noteheadWhole, .noteheadHalf, .noteheadBlack:
+            return false
+        }
+    }
+
+    var debugName: String {
+        switch self {
+        case .trebleClef:
+            return "trebleClef"
+        case .bassClef:
+            return "bassClef"
+        case .noteheadWhole:
+            return "noteheadWhole"
+        case .noteheadHalf:
+            return "noteheadHalf"
+        case .noteheadBlack:
+            return "noteheadBlack"
+        case .accidentalFlat:
+            return "accidentalFlat"
+        case .accidentalNatural:
+            return "accidentalNatural"
+        case .accidentalSharp:
+            return "accidentalSharp"
         }
     }
 }

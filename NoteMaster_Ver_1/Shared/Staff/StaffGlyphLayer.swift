@@ -81,6 +81,10 @@ final class StaffGlyphLayer: CALayer {
             orientation: configuration.canvasOrientation
         )
         let scene = sceneProvider.makeScene(geometry: geometry)
+        logNoteheadSceneIfNeeded(
+            scene: scene,
+            geometry: geometry
+        )
         guard !scene.glyphs.isEmpty || !scene.strokeItems.isEmpty else {
             return
         }
@@ -138,6 +142,44 @@ final class StaffGlyphLayer: CALayer {
             context.strokePath()
             context.restoreGState()
         }
+    }
+
+    private func logNoteheadSceneIfNeeded(
+        scene: StaffScene,
+        geometry: StaffGeometry
+    ) {
+        #if DEBUG
+        guard configuration.debugOptions.showsNoteheadDiagnostics else {
+            return
+        }
+
+        let noteheadEntries = scene.glyphs.enumerated().compactMap { index, glyph -> String? in
+            guard glyph.symbolID.isNotehead else {
+                return nil
+            }
+
+            guard case let .frame(frame) = glyph.placement else {
+                return "#\(index):\(glyph.symbolID.debugName):non-frame"
+            }
+
+            return "#\(index):\(glyph.symbolID.debugName):frame=\(StaffDebugLogger.format(frame))"
+        }
+        let key = [
+            "scene",
+            configuration.clef.title,
+            sceneProvider.notationDisplayOptions.debugSummary,
+            StaffDebugLogger.format(bounds),
+            noteheadEntries.joined(separator: "|"),
+            "strokeCount=\(scene.strokeItems.count)"
+        ].joined(separator: "::")
+
+        StaffDebugLogger.logOnce(
+            key: key,
+            message: """
+            [StaffDebug][Scene] clef=\(configuration.clef.title) notation=\(sceneProvider.notationDisplayOptions.debugSummary) drawingRect=\(StaffDebugLogger.format(geometry.drawingRect)) glyphCount=\(scene.glyphs.count) strokeCount=\(scene.strokeItems.count) noteheads=\(noteheadEntries.isEmpty ? "none" : noteheadEntries.joined(separator: "; "))
+            """
+        )
+        #endif
     }
 }
 

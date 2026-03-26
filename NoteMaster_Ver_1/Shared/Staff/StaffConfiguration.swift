@@ -36,6 +36,7 @@ struct StaffConfiguration: Equatable, Sendable {
         var showsClefAnchor: Bool
         var clefAnchorLineWidth: CGFloat
         var clefAnchorCrossHalfLength: CGFloat
+        var showsNoteheadDiagnostics: Bool
 
         static let `default` = DebugOptions()
 
@@ -44,13 +45,15 @@ struct StaffConfiguration: Equatable, Sendable {
             clefBoundsLineWidth: CGFloat = 1,
             showsClefAnchor: Bool = false,
             clefAnchorLineWidth: CGFloat = 1,
-            clefAnchorCrossHalfLength: CGFloat = 4
+            clefAnchorCrossHalfLength: CGFloat = 4,
+            showsNoteheadDiagnostics: Bool = false
         ) {
             self.showsClefBounds = showsClefBounds
             self.clefBoundsLineWidth = max(clefBoundsLineWidth, 0.5)
             self.showsClefAnchor = showsClefAnchor
             self.clefAnchorLineWidth = max(clefAnchorLineWidth, 0.5)
             self.clefAnchorCrossHalfLength = max(clefAnchorCrossHalfLength, 2)
+            self.showsNoteheadDiagnostics = showsNoteheadDiagnostics
         }
     }
 

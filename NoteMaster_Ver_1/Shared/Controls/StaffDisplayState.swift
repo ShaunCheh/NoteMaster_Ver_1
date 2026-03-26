@@ -30,6 +30,7 @@ struct StaffDisplayState: Equatable, Sendable {
         StaffSceneProvider(
             clef: configuration.clef,
             score: resolvedScore,
+            notationDisplayOptions: .noteheadsOnly,
             renderHint: .staffClef(
                 boundsOverlayStyle: configuration.debugOptions.showsClefBounds
                 ? .clefDebug(lineWidth: configuration.debugOptions.clefBoundsLineWidth)
