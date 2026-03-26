@@ -39,6 +39,9 @@ final class macOSViewController: NSViewController {
             applyStaffDisplayState()
         }
     }
+    // 顶部内容模式独立于 staff / fretboard display state；
+    // 后续阶段再接 settings 与 topContentHostView。
+    private var topContentDisplayState = TopContentDisplayState.default
 
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
