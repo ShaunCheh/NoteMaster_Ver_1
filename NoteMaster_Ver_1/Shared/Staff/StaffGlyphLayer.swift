@@ -80,8 +80,8 @@ final class StaffGlyphLayer: CALayer {
             bounds: bounds,
             orientation: configuration.canvasOrientation
         )
-        let glyphs = sceneProvider.makeScene(geometry: geometry).glyphs
-        guard !glyphs.isEmpty else {
+        let scene = sceneProvider.makeScene(geometry: geometry)
+        guard !scene.glyphs.isEmpty || !scene.strokeItems.isEmpty else {
             return
         }
 
@@ -93,7 +93,9 @@ final class StaffGlyphLayer: CALayer {
         context.saveGState()
         applyContextNormalizationIfNeeded(in: context)
 
-        for glyph in glyphs {
+        drawStrokeItems(scene.strokeItems, in: context)
+
+        for glyph in scene.glyphs {
             renderer.draw(
                 glyphItem: glyph,
                 in: context,
@@ -120,5 +122,45 @@ final class StaffGlyphLayer: CALayer {
             context.translateBy(x: 0, y: bounds.height)
             context.scaleBy(x: 1, y: -1)
         }
+    }
+
+    private func drawStrokeItems(
+        _ strokeItems: [StaffStrokeItem],
+        in context: CGContext
+    ) {
+        for strokeItem in strokeItems {
+            context.saveGState()
+            context.setStrokeColor(strokeItem.style.strokeColor.cgColor)
+            context.setLineWidth(strokeItem.style.lineWidth)
+            context.setLineCap(strokeItem.style.lineCap.cgLineCap)
+            context.move(to: strokeItem.start)
+            context.addLine(to: strokeItem.end)
+            context.strokePath()
+            context.restoreGState()
+        }
+    }
+}
+
+private extension StaffStrokeLineCap {
+    var cgLineCap: CGLineCap {
+        switch self {
+        case .butt:
+            return .butt
+        case .round:
+            return .round
+        case .square:
+            return .square
+        }
+    }
+}
+
+private extension StaffSceneColor {
+    var cgColor: CGColor {
+        CGColor(
+            red: red,
+            green: green,
+            blue: blue,
+            alpha: alpha
+        )
     }
 }

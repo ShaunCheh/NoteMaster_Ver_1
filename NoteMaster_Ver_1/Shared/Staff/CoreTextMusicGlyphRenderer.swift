@@ -248,14 +248,19 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         in context: CGContext,
         geometry: StaffGeometry
     ) {
+        let alignmentBounds = alignedBounds(
+            for: resolvedLine,
+            renderHint: renderHint
+        )
         let frameCenter = CGPoint(
             x: frame.midX,
             y: geometry.bounds.height - frame.midY
         )
-        // frame 布局继续按完整 opticalBounds 居中，避免 vertical clip 改变 glyph 的视觉尺寸和位置。
+        // 普通 frame glyph 默认按 optical bounds 对齐；若后续某些 glyph 需要按 clipped bounds 对齐，
+        // 只需切换 renderHint，不必回改 renderer 的类别判断。
         let drawOrigin = CGPoint(
-            x: frameCenter.x - resolvedLine.opticalBounds.midX,
-            y: frameCenter.y - resolvedLine.opticalBounds.midY
+            x: frameCenter.x - alignmentBounds.midX,
+            y: frameCenter.y - alignmentBounds.midY
         )
 
         drawLine(
@@ -277,6 +282,15 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
             renderHint: renderHint,
             in: context
         )
+    }
+
+    private func alignedBounds(
+        for resolvedLine: ResolvedGlyphLine,
+        renderHint: StaffGlyphRenderHint
+    ) -> CGRect {
+        renderHint.prefersOpticalBoundsAlignment
+            ? resolvedLine.opticalBounds
+            : resolvedLine.clippedBounds
     }
 
     private func drawLine(
@@ -400,15 +414,23 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         for glyphItem: StaffGlyphItem,
         geometry: StaffGeometry
     ) -> CGFloat {
-        let clef: StaffClef
-        switch glyphItem.placement {
-        case let .anchor(anchor):
-            clef = anchor.semantic.clef
-        case .frame:
-            clef = glyphItem.symbolID.clef
-        }
+        switch glyphItem.renderHint.verticalTrimMode {
+        case .none:
+            return 0
+        case .clefSpecific:
+            switch glyphItem.placement {
+            case let .anchor(anchor):
+                return geometry.configuration.clefVerticalTrimRatio(
+                    for: anchor.semantic.clef
+                )
+            case .frame:
+                guard let clef = glyphItem.symbolID.clef else {
+                    return 0
+                }
 
-        return geometry.configuration.clefVerticalTrimRatio(for: clef)
+                return geometry.configuration.clefVerticalTrimRatio(for: clef)
+            }
+        }
     }
 
     private func trimmedBounds(

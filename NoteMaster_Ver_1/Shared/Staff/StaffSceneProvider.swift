@@ -39,6 +39,7 @@ struct StaffSceneProvider: Equatable, Sendable {
 
         return StaffScene(
             lineSegments: geometry.staffLineSegments,
+            strokeItems: [],
             glyphs: glyphs
         )
     }

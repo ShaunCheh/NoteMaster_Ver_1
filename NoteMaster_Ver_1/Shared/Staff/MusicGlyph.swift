@@ -56,6 +56,42 @@ struct MusicGlyph: Equatable, Sendable {
         fontFace: .bravura,
         scalarValue: 0xE062
     )
+
+    // SMuFL noteheadWhole，对应 Bravura 中的全音符符头。
+    static let noteheadWhole = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE0A2
+    )
+
+    // SMuFL noteheadHalf，对应 Bravura 中的二分音符符头。
+    static let noteheadHalf = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE0A3
+    )
+
+    // SMuFL noteheadBlack，对应 Bravura 中的黑色符头。
+    static let noteheadBlack = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE0A4
+    )
+
+    // SMuFL accidentalFlat，对应 Bravura 中的降号。
+    static let accidentalFlat = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE260
+    )
+
+    // SMuFL accidentalNatural，对应 Bravura 中的还原号。
+    static let accidentalNatural = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE261
+    )
+
+    // SMuFL accidentalSharp，对应 Bravura 中的升号。
+    static let accidentalSharp = MusicGlyph(
+        fontFace: .bravura,
+        scalarValue: 0xE262
+    )
 }
 
 extension StaffGlyphSymbolID {
@@ -65,6 +101,18 @@ extension StaffGlyphSymbolID {
             return .trebleClef
         case .bassClef:
             return .bassClef
+        case .noteheadWhole:
+            return .noteheadWhole
+        case .noteheadHalf:
+            return .noteheadHalf
+        case .noteheadBlack:
+            return .noteheadBlack
+        case .accidentalFlat:
+            return .accidentalFlat
+        case .accidentalNatural:
+            return .accidentalNatural
+        case .accidentalSharp:
+            return .accidentalSharp
         }
     }
 }
