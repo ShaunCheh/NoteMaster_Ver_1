@@ -28,7 +28,8 @@ final class iOSViewController: UIViewController {
                 showsClefBounds: true,
                 showsClefAnchor: true
             )
-        )
+        ),
+        score: StaffScoreFixtures.defaultDemo(clef: .treble)
     ) {
         didSet {
             guard isViewLoaded else {

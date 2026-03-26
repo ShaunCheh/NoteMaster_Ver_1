@@ -7,6 +7,7 @@
 
 struct StaffDisplayState: Equatable, Sendable {
     var configuration: StaffConfiguration
+    var score: StaffScore?
     // 组件边界描线属于平台展示状态，不进入五线谱 scene/config 语义。
     var showsComponentBoundsOverlay: Bool
 
@@ -16,9 +17,11 @@ struct StaffDisplayState: Equatable, Sendable {
 
     init(
         configuration: StaffConfiguration,
+        score: StaffScore? = nil,
         showsComponentBoundsOverlay: Bool = false
     ) {
         self.configuration = configuration
+        self.score = score
         self.showsComponentBoundsOverlay = showsComponentBoundsOverlay
     }
 
@@ -26,6 +29,7 @@ struct StaffDisplayState: Equatable, Sendable {
     var sceneProvider: StaffSceneProvider {
         StaffSceneProvider(
             clef: configuration.clef,
+            score: resolvedScore,
             renderHint: .staffClef(
                 boundsOverlayStyle: configuration.debugOptions.showsClefBounds
                 ? .clefDebug(lineWidth: configuration.debugOptions.clefBoundsLineWidth)
@@ -38,6 +42,17 @@ struct StaffDisplayState: Equatable, Sendable {
                 : nil
             )
         )
+    }
+
+    // 显示状态中的 clef 仍然是当前五线谱的视觉真相来源；
+    // score 作为内容输入保留原始 note 序列，但在投影到 scene 时会对齐当前配置的 clef。
+    private var resolvedScore: StaffScore? {
+        guard var score else {
+            return nil
+        }
+
+        score.clef = configuration.clef
+        return score
     }
 }
 
