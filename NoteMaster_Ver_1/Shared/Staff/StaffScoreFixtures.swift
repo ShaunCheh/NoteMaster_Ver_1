@@ -28,6 +28,24 @@ enum StaffScoreFixtures {
         )
     }
 
+    static func namedKeySignatureDemo(clef: StaffClef = .treble) -> StaffScore {
+        resolveScore(
+            named: "named-key-signature-demo",
+            clef: clef,
+            keySignatureToken: "D大调",
+            measures: [[
+                ("e4", .quarter),
+                ("f#4", .quarter),
+                ("g4", .quarter),
+                ("bb4", .half),
+                ("c5", .quarter),
+                ("d5", .quarter),
+                ("e5", .half),
+                ("f5", .whole)
+            ]]
+        )
+    }
+
     static func keySignatureReference(
         clef: StaffClef,
         keySignature: StaffKeySignature
@@ -35,7 +53,7 @@ enum StaffScoreFixtures {
         resolveScore(
             named: "key-signature-reference-\(clef.token)-\(keySignature.fifths)",
             clef: clef,
-            keySignature: keySignature,
+            keySignatureToken: namedMajorToken(for: keySignature),
             measures: [referenceMeasure(for: clef, keySignature: keySignature)]
         )
     }
@@ -44,7 +62,7 @@ enum StaffScoreFixtures {
         resolveScore(
             named: "g-major-accidental-context",
             clef: .treble,
-            keySignature: StaffKeySignature(fifths: 1),
+            keySignatureToken: "G大调",
             measures: [
                 [
                     ("f#4", .quarter),
@@ -65,7 +83,7 @@ enum StaffScoreFixtures {
         resolveScore(
             named: "a-major-accidental-context",
             clef: .treble,
-            keySignature: StaffKeySignature(fifths: 3),
+            keySignatureToken: "A大调",
             measures: [
                 [
                     ("f#4", .quarter),
@@ -91,7 +109,7 @@ enum StaffScoreFixtures {
         resolveScore(
             named: "bb-major-bass-accidental-context",
             clef: .bass,
-            keySignature: StaffKeySignature(fifths: -2),
+            keySignatureToken: "降B大调",
             measures: [
                 [
                     ("bb3", .quarter),
@@ -137,6 +155,38 @@ enum StaffScoreFixtures {
             return StaffScore(
                 clef: clef,
                 keySignature: keySignature,
+                measures: []
+            )
+        }
+    }
+
+    private static func resolveScore(
+        named fixtureName: String,
+        clef: StaffClef,
+        keySignatureToken: String,
+        measures: [MeasureDefinition]
+    ) -> StaffScore {
+        let measuresJSON = measures
+            .map(measureJSON(for:))
+            .joined(separator: ",\n")
+        let json = """
+        {
+          "clef": "\(clef.token)",
+          "keySignature": "\(keySignatureToken)",
+          "measures": [
+        \(measuresJSON)
+          ]
+        }
+        """
+
+        do {
+            return try StaffScore.decode(from: json)
+        } catch {
+            assertionFailure(
+                "Failed to decode staff score fixture '\(fixtureName)': \(error)"
+            )
+            return StaffScore(
+                clef: clef,
                 measures: []
             )
         }
@@ -252,6 +302,45 @@ enum StaffScoreFixtures {
             return 3
         case (.bass, .g), (.bass, .a), (.bass, .b):
             return 2
+        }
+    }
+
+    private static func namedMajorToken(
+        for keySignature: StaffKeySignature
+    ) -> String {
+        switch keySignature.fifths {
+        case 0:
+            return "C大调"
+        case 1:
+            return "G大调"
+        case 2:
+            return "D大调"
+        case 3:
+            return "A大调"
+        case 4:
+            return "E大调"
+        case 5:
+            return "B大调"
+        case 6:
+            return "升F大调"
+        case 7:
+            return "升C大调"
+        case -1:
+            return "F大调"
+        case -2:
+            return "降B大调"
+        case -3:
+            return "降E大调"
+        case -4:
+            return "降A大调"
+        case -5:
+            return "降D大调"
+        case -6:
+            return "降G大调"
+        case -7:
+            return "降C大调"
+        default:
+            preconditionFailure("Named major token must stay within -7...7.")
         }
     }
 }

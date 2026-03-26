@@ -266,6 +266,17 @@ private extension StaffValidationRunner {
                 notationDisplayOptions: .noteheadsOnly
             ),
             fixture(
+                name: "treble-named-key-demo-full-notation",
+                configuration: trebleConfiguration,
+                score: StaffScoreFixtures.namedKeySignatureDemo(clef: .treble),
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 3, accidental: .flat),
+                    noteAccidental(noteIndex: 4, accidental: .natural),
+                    noteAccidental(noteIndex: 7, accidental: .natural)
+                ]
+            ),
+            fixture(
                 name: "bass-ascending-reference-full-notation",
                 configuration: bassConfiguration,
                 score: score(
@@ -862,7 +873,7 @@ private extension StaffValidationRunner {
 
     static func manualChecklist(for platform: StaffValidationPlatform) -> [String] {
         var checklist = [
-            "启动 App，确认默认五线谱已恢复完整记谱显示：除 clef 与 notehead 外，还能看到 stem，以及需要时的 accidental / ledger line，且没有回退成 clef-only 场景。",
+            "启动 App，确认默认五线谱已恢复完整记谱显示，且默认 demo 已切到命名调号输入示例：当前应能看到 `D大调` 对应的 key signature，同时保留 stem，以及需要时的 accidental / ledger line。",
             "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 major circle-of-fifths 参考谱例：`C / G / D / A / E / B / F# / C# / F / Bb / Eb / Ab / Db / Gb / Cb`，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确。",
             "把调号输入临时切成命名形式，例如 `D大调`、`A大调`、`D major`、`A major`，以及 keyed 对象形式 `{ \"fifths\": \"D大调\" }`；确认 scene 结果与直接传 `fifths` 等价。",
             "将共享 score 切到 `StaffScoreFixtures.gMajorAccidentalContextReference()`，确认同小节里 `f#` 会被调号抑制、写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp，跨小节后恢复调号默认规则。",

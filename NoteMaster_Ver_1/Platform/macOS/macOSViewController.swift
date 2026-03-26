@@ -29,7 +29,7 @@ final class macOSViewController: NSViewController {
                 showsClefAnchor: true
             )
         ),
-        score: StaffScoreFixtures.defaultDemo(clef: .treble)
+        score: StaffScoreFixtures.namedKeySignatureDemo(clef: .treble)
     ) {
         didSet {
             guard isViewLoaded else {
