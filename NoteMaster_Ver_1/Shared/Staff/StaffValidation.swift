@@ -807,6 +807,20 @@ private extension StaffValidationRunner {
             record("key signature accidental 序列错误，期望 \(expectedKeySignatureSymbols)，实际 \(actualKeySignatureSymbols)。")
         }
 
+        if let firstKeySignatureFrame = actualKeySignatureFrames.first {
+            let expectedStartX = geometry.clefContentStartX(
+                for: fixture.configuration.clef,
+                gapInSpaces: StaffSceneBuilder.LayoutMetrics.default.clefToNoteGapInSpaces
+            )
+            if !approximatelyEqual(firstKeySignatureFrame.minX, expectedStartX) {
+                record("首个 key signature accidental 起点错误，期望 \(expectedStartX)，实际 \(firstKeySignatureFrame.minX)。")
+            }
+
+            if firstKeySignatureFrame.minX <= geometry.clefVisibleMaxX(for: fixture.configuration.clef) + tolerance {
+                record("首个 key signature accidental 侵入 clef 可见边界。")
+            }
+        }
+
         let expectedKeySignatureStaffPositions = expectedKeySignatureStaffPositions(
             clef: fixture.configuration.clef,
             keySignature: fixture.score.keySignature,
@@ -935,7 +949,7 @@ private extension StaffValidationRunner {
     static func manualChecklist(for platform: StaffValidationPlatform) -> [String] {
         var checklist = [
             "启动 App，确认默认五线谱已恢复完整记谱显示，且默认 demo 已切到命名调号输入示例：当前应能看到 `D大调` 对应的 key signature，同时保留 stem，以及需要时的 accidental / ledger line。",
-            "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 major circle-of-fifths 参考谱例：`C / G / D / A / E / B / F# / C# / F / Bb / Eb / Ab / Db / Gb / Cb`，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确。",
+            "将共享 score 临时切到 `StaffScoreFixtures.keySignatureReference(...)` 的 major circle-of-fifths 参考谱例：`C / G / D / A / E / B / F# / C# / F / Bb / Eb / Ab / Db / Gb / Cb`，并在 Treble / Bass 间切换；确认调号 glyph 数量、sharp/flat 顺序和垂直落点正确，同时首个调号 glyph 紧贴 clef 实际可见右边界，不再被整块 clefArea 预留宽度推得过远。",
             "把调号输入临时切成命名形式，例如 `D大调`、`A大调`、`D major`、`A major`，以及 keyed 对象形式 `{ \"fifths\": \"D大调\" }`；确认 scene 结果与直接传 `fifths` 等价。同时确认 bare token `a` 仍按 `A大调` 兼容，而 `A minor / A小调` 当前会在 decode 边界明确拒绝。",
             "将共享 score 切到 `StaffScoreFixtures.gMajorAccidentalContextReference()`，确认同小节里 `f#` 会被调号抑制、写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp，跨小节后恢复调号默认规则。",
             "将共享 score 切到 `StaffScoreFixtures.aMajorAccidentalContextReference()`，确认 A major 下 `F# / C# / G#` 默认会被调号抑制；写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp；同小节写出的 `c natural / g natural` 到下一小节会再次显示 natural，证明 measure reset 生效。",

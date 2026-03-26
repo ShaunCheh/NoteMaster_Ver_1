@@ -21,6 +21,11 @@ struct StaffClefVisibleExtents: Equatable, Sendable {
     }
 }
 
+struct StaffClefHorizontalExtents: Equatable, Sendable {
+    var leading: CGFloat
+    var trailing: CGFloat
+}
+
 struct StaffClefLayoutInsets: Equatable, Sendable {
     var top: CGFloat
     var bottom: CGFloat
@@ -33,8 +38,16 @@ struct StaffClefAnchorMetrics: Equatable, Sendable {
 
 enum StaffClefLayoutGuide {
     private static let measurementGlyphHeight: CGFloat = 1000
+    static let anchoredTargetWidthRatio: CGFloat = 0.92
+
+    private struct StaffClefMeasuredMetrics: Equatable, Sendable {
+        var visibleExtentRatios: StaffClefVisibleExtents
+        var opticalWidthToFontSize: CGFloat
+        var opticalHeightToFontSize: CGFloat
+    }
+
     private static let lock = NSLock()
-    private static var cachedDefaultVisibleExtentRatios: [StaffClef: StaffClefVisibleExtents] = [:]
+    private static var cachedDefaultMeasuredMetrics: [StaffClef: StaffClefMeasuredMetrics] = [:]
 
     static func defaultLayoutInsets(
         for clef: StaffClef,
@@ -89,6 +102,44 @@ enum StaffClefLayoutGuide {
         }
     }
 
+    static func defaultHorizontalExtents(
+        for clef: StaffClef,
+        targetHeight: CGFloat,
+        targetWidth: CGFloat,
+        downwardShiftRatio: CGFloat,
+        bundle: Bundle = .main
+    ) -> StaffClefHorizontalExtents? {
+        guard targetHeight > 0, targetWidth > 0 else {
+            return nil
+        }
+
+        guard let measuredMetrics = defaultMeasuredMetrics(
+            for: clef,
+            bundle: bundle
+        ) else {
+            return nil
+        }
+
+        let baseOpticalWidth = measuredMetrics.opticalWidthToFontSize * targetHeight
+        let baseOpticalHeight = measuredMetrics.opticalHeightToFontSize * targetHeight
+        let widthScale = targetWidth / max(baseOpticalWidth, 1)
+        let heightScale = targetHeight / max(baseOpticalHeight, 1)
+        let fitScale = min(
+            max(min(widthScale, heightScale), 0.01),
+            1
+        )
+        let resolvedOpticalWidth = baseOpticalWidth * fitScale
+        let anchorMetrics = anchorMetrics(
+            for: clef,
+            downwardShiftRatio: downwardShiftRatio
+        )
+
+        return StaffClefHorizontalExtents(
+            leading: resolvedOpticalWidth * anchorMetrics.xRatio,
+            trailing: resolvedOpticalWidth * (1 - anchorMetrics.xRatio)
+        )
+    }
+
     static func trimmedBounds(
         from bounds: CGRect,
         verticalTrimRatio: CGFloat
@@ -113,15 +164,25 @@ enum StaffClefLayoutGuide {
         for clef: StaffClef,
         bundle: Bundle
     ) -> StaffClefVisibleExtents? {
+        defaultMeasuredMetrics(
+            for: clef,
+            bundle: bundle
+        )?.visibleExtentRatios
+    }
+
+    private static func defaultMeasuredMetrics(
+        for clef: StaffClef,
+        bundle: Bundle
+    ) -> StaffClefMeasuredMetrics? {
         lock.lock()
-        let cachedValue = cachedDefaultVisibleExtentRatios[clef]
+        let cachedValue = cachedDefaultMeasuredMetrics[clef]
         lock.unlock()
 
         if let cachedValue {
             return cachedValue
         }
 
-        guard let measuredValue = measureDefaultVisibleExtentRatios(
+        guard let measuredValue = measureDefaultMetrics(
             for: clef,
             bundle: bundle
         ) else {
@@ -129,15 +190,15 @@ enum StaffClefLayoutGuide {
         }
 
         lock.lock()
-        cachedDefaultVisibleExtentRatios[clef] = measuredValue
+        cachedDefaultMeasuredMetrics[clef] = measuredValue
         lock.unlock()
         return measuredValue
     }
 
-    private static func measureDefaultVisibleExtentRatios(
+    private static func measureDefaultMetrics(
         for clef: StaffClef,
         bundle: Bundle
-    ) -> StaffClefVisibleExtents? {
+    ) -> StaffClefMeasuredMetrics? {
         guard let font = MusicFontRegistry.font(
             for: clef.musicGlyph.fontFace,
             size: measurementGlyphHeight,
@@ -183,9 +244,13 @@ enum StaffClefLayoutGuide {
         let visibleTop = max(clippedBounds.maxY - anchorY, 0)
         let visibleBottom = max(anchorY - clippedBounds.minY, 0)
 
-        return StaffClefVisibleExtents(
-            top: visibleTop / opticalBounds.height,
-            bottom: visibleBottom / opticalBounds.height
+        return StaffClefMeasuredMetrics(
+            visibleExtentRatios: StaffClefVisibleExtents(
+                top: visibleTop / opticalBounds.height,
+                bottom: visibleBottom / opticalBounds.height
+            ),
+            opticalWidthToFontSize: opticalBounds.width / measurementGlyphHeight,
+            opticalHeightToFontSize: opticalBounds.height / measurementGlyphHeight
         )
     }
 }

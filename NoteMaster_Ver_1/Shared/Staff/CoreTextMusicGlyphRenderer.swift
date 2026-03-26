@@ -115,7 +115,10 @@ struct CoreTextMusicGlyphRenderer: MusicGlyphRenderer {
         switch glyphItem.placement {
         case let .anchor(anchor):
             return CGSize(
-                width: max(geometry.clefAreaRect.width * 0.92, 1),
+                width: max(
+                    geometry.clefAreaRect.width * StaffClefLayoutGuide.anchoredTargetWidthRatio,
+                    1
+                ),
                 height: max(anchor.targetHeight, 1)
             )
         case let .frame(frame):

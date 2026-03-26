@@ -140,6 +140,40 @@ struct StaffGeometry: Equatable, Sendable {
         )
     }
 
+    func clefVisibleMaxX(for clef: StaffClef) -> CGFloat {
+        guard !drawingRect.isNull else {
+            return 0
+        }
+
+        let anchor = clefAnchor(for: clef)
+        guard let horizontalExtents = StaffClefLayoutGuide.defaultHorizontalExtents(
+            for: clef,
+            targetHeight: anchor.targetHeight,
+            targetWidth: max(
+                clefAreaRect.width * StaffClefLayoutGuide.anchoredTargetWidthRatio,
+                1
+            ),
+            downwardShiftRatio: configuration.clefAnchorLogicalDownwardShiftRatio(
+                for: clef
+            )
+        ) else {
+            return min(clefAreaRect.maxX, drawingRect.maxX)
+        }
+
+        return min(anchor.point.x + horizontalExtents.trailing, drawingRect.maxX)
+    }
+
+    func clefContentStartX(
+        for clef: StaffClef,
+        gapInSpaces: CGFloat
+    ) -> CGFloat {
+        min(
+            clefVisibleMaxX(for: clef)
+                + (staffSpaceHeight * gapInSpaces),
+            drawingRect.maxX
+        )
+    }
+
     private var resolvedStaffLineCount: Int {
         configuration.layoutMetrics.normalizedStaffLineCount
     }

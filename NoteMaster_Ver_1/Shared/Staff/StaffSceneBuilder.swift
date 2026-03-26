@@ -380,10 +380,9 @@ struct StaffSceneBuilder: Equatable, Sendable {
     private func resolvedContentStartX(
         geometry: StaffGeometry
     ) -> CGFloat {
-        min(
-            geometry.clefAreaRect.maxX
-                + (geometry.staffSpaceHeight * layoutMetrics.clefToNoteGapInSpaces),
-            geometry.drawingRect.maxX
+        geometry.clefContentStartX(
+            for: clef,
+            gapInSpaces: layoutMetrics.clefToNoteGapInSpaces
         )
     }
 
