@@ -32,6 +32,30 @@ struct InstrumentTuning: Equatable, Hashable, Sendable {
         return openStringsLowToHigh[stringIndex]
     }
 
+    func notePitch(
+        stringIndex: Int,
+        fret: Int
+    ) -> NotePitch? {
+        guard
+            fret >= 0,
+            let openPitch = openStringPitch(for: stringIndex)
+        else {
+            return nil
+        }
+
+        return openPitch.advanced(by: fret)
+    }
+
+    func pitchClass(
+        stringIndex: Int,
+        fret: Int
+    ) -> PitchClass? {
+        notePitch(
+            stringIndex: stringIndex,
+            fret: fret
+        )?.pitchClass
+    }
+
     static func standard(for instrument: InstrumentType) -> InstrumentTuning {
         switch instrument {
         case .guitar6:

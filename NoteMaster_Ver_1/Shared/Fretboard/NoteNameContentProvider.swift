@@ -46,15 +46,14 @@ struct NoteNameContentProvider: FretboardContentProviding, Equatable, Sendable {
         var labels: [FretboardLabelContent] = []
 
         for stringIndex in 0..<configuration.stringCount {
-            guard
-                let openPitch = configuration.tuning.openStringPitch(for: stringIndex)
-            else {
-                continue
-            }
-
             for fret in configuration.fretRange {
-                let pitch = openPitch.advanced(by: fret)
-                guard visibility.allows(pitch.pitchClass) else {
+                guard
+                    let pitch = configuration.notePitch(
+                        stringIndex: stringIndex,
+                        fret: fret
+                    ),
+                    visibility.allows(pitch.pitchClass)
+                else {
                     continue
                 }
 

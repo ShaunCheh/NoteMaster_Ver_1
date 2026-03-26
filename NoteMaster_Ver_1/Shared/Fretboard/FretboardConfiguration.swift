@@ -315,6 +315,44 @@ struct FretboardConfiguration: Equatable, Sendable {
         maxFret + 1
     }
 
+    func notePitch(
+        stringIndex: Int,
+        fret: Int
+    ) -> NotePitch? {
+        guard
+            (0..<stringCount).contains(stringIndex),
+            fretRange.contains(fret)
+        else {
+            return nil
+        }
+
+        return tuning.notePitch(
+            stringIndex: stringIndex,
+            fret: fret
+        )
+    }
+
+    func notePitch(for cell: FretboardCell) -> NotePitch? {
+        notePitch(
+            stringIndex: cell.stringIndex,
+            fret: cell.fret
+        )
+    }
+
+    func pitchClass(
+        stringIndex: Int,
+        fret: Int
+    ) -> PitchClass? {
+        notePitch(
+            stringIndex: stringIndex,
+            fret: fret
+        )?.pitchClass
+    }
+
+    func pitchClass(for cell: FretboardCell) -> PitchClass? {
+        notePitch(for: cell)?.pitchClass
+    }
+
     // 竖向局部横滚阶段的共享尺寸真相：页面决定可见高度，shared 几何反推出整把指板内容宽度。
     func verticalContentLayout(
         forViewportHeight viewportHeight: CGFloat
