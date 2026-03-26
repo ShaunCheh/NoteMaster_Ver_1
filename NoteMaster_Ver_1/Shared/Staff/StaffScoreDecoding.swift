@@ -157,27 +157,19 @@ extension StaffKeySignatureDTO: Codable {
         let englishContainer = try decoder.container(keyedBy: EnglishCodingKeys.self)
         let chineseContainer = try decoder.container(keyedBy: ChineseCodingKeys.self)
 
-        if let fifths = try englishContainer.decodeIfPresent(Int.self, forKey: .fifths) {
+        if let fifths = Self.decodeFifthsValue(
+            from: englishContainer,
+            key: .fifths
+        ) {
             self.init(fifths: fifths)
             return
         }
 
-        if let token = try englishContainer.decodeIfPresent(String.self, forKey: .fifths) {
-            self = StaffKeySignatureDTO(
-                fifths: try StaffKeySignature.parse(token: token).fifths
-            )
-            return
-        }
-
-        if let fifths = try chineseContainer.decodeIfPresent(Int.self, forKey: .fifths) {
+        if let fifths = Self.decodeFifthsValue(
+            from: chineseContainer,
+            key: .fifths
+        ) {
             self.init(fifths: fifths)
-            return
-        }
-
-        if let token = try chineseContainer.decodeIfPresent(String.self, forKey: .fifths) {
-            self = StaffKeySignatureDTO(
-                fifths: try StaffKeySignature.parse(token: token).fifths
-            )
             return
         }
 
@@ -187,6 +179,23 @@ extension StaffKeySignatureDTO: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: EnglishCodingKeys.self)
         try container.encode(fifths, forKey: .fifths)
+    }
+
+    // keyed 容器里的 fifths 可能是 Int，也可能是命名调号字符串；
+    // 这里显式按两种类型依次尝试，避免 decodeIfPresent(Int.self, ...) 在字符串场景下提前抛 typeMismatch。
+    private static func decodeFifthsValue<Keys: CodingKey>(
+        from container: KeyedDecodingContainer<Keys>,
+        key: Keys
+    ) -> Int? {
+        if let fifths = try? container.decode(Int.self, forKey: key) {
+            return fifths
+        }
+
+        if let token = try? container.decode(String.self, forKey: key) {
+            return try? StaffKeySignature.parse(token: token).fifths
+        }
+
+        return nil
     }
 }
 
@@ -425,6 +434,189 @@ private extension StaffClef {
     }
 }
 
+private enum StaffKeySignatureTokenParser {
+    private enum TonalityMode: Sendable {
+        case major
+        case minor
+    }
+
+    private struct NamedTonality: Sendable {
+        var tonicToken: String
+        var mode: TonalityMode
+    }
+
+    private static let naturalAliases: Set<String> = [
+        "",
+        "natural",
+        "none",
+        "无调号",
+        "无升降"
+    ]
+
+    private static let countAliases: [String: Int] = [
+        "0升": 0,
+        "0降": 0,
+        "0sharp": 0,
+        "0sharps": 0,
+        "0flat": 0,
+        "0flats": 0,
+        "1升": 1,
+        "1sharp": 1,
+        "1sharps": 1,
+        "2升": 2,
+        "2sharp": 2,
+        "2sharps": 2,
+        "3升": 3,
+        "3sharp": 3,
+        "3sharps": 3,
+        "4升": 4,
+        "4sharp": 4,
+        "4sharps": 4,
+        "5升": 5,
+        "5sharp": 5,
+        "5sharps": 5,
+        "6升": 6,
+        "6sharp": 6,
+        "6sharps": 6,
+        "7升": 7,
+        "7sharp": 7,
+        "7sharps": 7,
+        "1降": -1,
+        "1flat": -1,
+        "1flats": -1,
+        "2降": -2,
+        "2flat": -2,
+        "2flats": -2,
+        "3降": -3,
+        "3flat": -3,
+        "3flats": -3,
+        "4降": -4,
+        "4flat": -4,
+        "4flats": -4,
+        "5降": -5,
+        "5flat": -5,
+        "5flats": -5,
+        "6降": -6,
+        "6flat": -6,
+        "6flats": -6,
+        "7降": -7,
+        "7flat": -7,
+        "7flats": -7
+    ]
+
+    private static let majorFifthsByCanonicalTonic: [String: Int] = [
+        "c": 0,
+        "g": 1,
+        "d": 2,
+        "a": 3,
+        "e": 4,
+        "b": 5,
+        "f#": 6,
+        "c#": 7,
+        "f": -1,
+        "bb": -2,
+        "eb": -3,
+        "ab": -4,
+        "db": -5,
+        "gb": -6,
+        "cb": -7
+    ]
+
+    private static let namedTonalitySuffixes: [(suffix: String, mode: TonalityMode)] = [
+        ("major", .major),
+        ("大调", .major),
+        ("minor", .minor),
+        ("小调", .minor)
+    ]
+
+    static func parse(token: String) throws -> StaffKeySignature {
+        let compactToken = StaffScoreDecodeSupport.compactKeySignatureToken(token)
+
+        if let fifths = Int(compactToken) {
+            return try StaffKeySignature.parse(fifths: fifths)
+        }
+
+        if naturalAliases.contains(compactToken) {
+            return .natural
+        }
+
+        if let fifths = countAliases[compactToken] {
+            return try StaffKeySignature.parse(fifths: fifths)
+        }
+
+        // 继续兼容 bare tonic（如 "d" / "a"）；
+        // 显式 major/minor 名称则走下方的 tonality 解析分支，避免把 mode 语义揉进模糊字符串裁剪。
+        if let canonicalTonic = canonicalMajorTonicToken(from: compactToken),
+           let fifths = majorFifthsByCanonicalTonic[canonicalTonic] {
+            return try StaffKeySignature.parse(fifths: fifths)
+        }
+
+        if let namedTonality = parseNamedTonality(from: compactToken) {
+            switch namedTonality.mode {
+            case .major:
+                guard
+                    let canonicalTonic = canonicalMajorTonicToken(
+                        from: namedTonality.tonicToken
+                    ),
+                    let fifths = majorFifthsByCanonicalTonic[canonicalTonic]
+                else {
+                    break
+                }
+                return try StaffKeySignature.parse(fifths: fifths)
+            case .minor:
+                break
+            }
+        }
+
+        throw StaffScoreDecodingError.invalidKeySignature(token)
+    }
+
+    private static func parseNamedTonality(
+        from compactToken: String
+    ) -> NamedTonality? {
+        for (suffix, mode) in namedTonalitySuffixes where compactToken.hasSuffix(suffix) {
+            let tonicToken = String(compactToken.dropLast(suffix.count))
+            guard !tonicToken.isEmpty else {
+                return nil
+            }
+
+            return NamedTonality(
+                tonicToken: tonicToken,
+                mode: mode
+            )
+        }
+
+        return nil
+    }
+
+    private static func canonicalMajorTonicToken(
+        from token: String
+    ) -> String? {
+        switch token {
+        case "c", "g", "d", "a", "e", "b", "f#", "c#", "f", "bb", "eb", "ab", "db", "gb", "cb":
+            return token
+        case "fsharp", "升f":
+            return "f#"
+        case "csharp", "升c":
+            return "c#"
+        case "bflat", "降b":
+            return "bb"
+        case "eflat", "降e":
+            return "eb"
+        case "aflat", "降a":
+            return "ab"
+        case "dflat", "降d":
+            return "db"
+        case "gflat", "降g":
+            return "gb"
+        case "cflat", "降c":
+            return "cb"
+        default:
+            return nil
+        }
+    }
+}
+
 private extension StaffKeySignature {
     static func parse(fifths: Int) throws -> StaffKeySignature {
         guard StaffKeySignature.supportedFifthsRange.contains(fifths) else {
@@ -435,47 +627,7 @@ private extension StaffKeySignature {
     }
 
     static func parse(token: String) throws -> StaffKeySignature {
-        let compactToken = StaffScoreDecodeSupport.compactKeySignatureToken(token)
-
-        if let fifths = Int(compactToken) {
-            return try parse(fifths: fifths)
-        }
-
-        switch compactToken {
-        case "", "c", "natural", "none", "无调号", "无升降", "0升", "0降",
-                "0sharp", "0sharps", "0flat", "0flats":
-            return .natural
-        case "g", "1升", "1sharp", "1sharps":
-            return try parse(fifths: 1)
-        case "d", "2升", "2sharp", "2sharps":
-            return try parse(fifths: 2)
-        case "a", "3升", "3sharp", "3sharps":
-            return try parse(fifths: 3)
-        case "e", "4升", "4sharp", "4sharps":
-            return try parse(fifths: 4)
-        case "b", "5升", "5sharp", "5sharps":
-            return try parse(fifths: 5)
-        case "f#", "fsharp", "6升", "6sharp", "6sharps":
-            return try parse(fifths: 6)
-        case "c#", "csharp", "7升", "7sharp", "7sharps":
-            return try parse(fifths: 7)
-        case "f", "1降", "1flat", "1flats":
-            return try parse(fifths: -1)
-        case "bb", "bflat", "2降", "2flat", "2flats":
-            return try parse(fifths: -2)
-        case "eb", "eflat", "3降", "3flat", "3flats":
-            return try parse(fifths: -3)
-        case "ab", "aflat", "4降", "4flat", "4flats":
-            return try parse(fifths: -4)
-        case "db", "dflat", "5降", "5flat", "5flats":
-            return try parse(fifths: -5)
-        case "gb", "gflat", "6降", "6flat", "6flats":
-            return try parse(fifths: -6)
-        case "cb", "cflat", "7降", "7flat", "7flats":
-            return try parse(fifths: -7)
-        default:
-            throw StaffScoreDecodingError.invalidKeySignature(token)
-        }
+        try StaffKeySignatureTokenParser.parse(token: token)
     }
 }
 
