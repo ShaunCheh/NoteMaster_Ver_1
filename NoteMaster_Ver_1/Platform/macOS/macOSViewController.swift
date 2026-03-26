@@ -43,6 +43,10 @@ final class macOSViewController: NSViewController {
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
 
+    private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
+        fretboardTrainerState.prompt
+    }
+
     private lazy var settingsButton: NSButton = {
         let button = NSButton()
         button.isBordered = false
@@ -119,7 +123,7 @@ final class macOSViewController: NSViewController {
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         configureLayout()
         applyDisplayState()
-        printCurrentTrainerTarget(reason: "initial")
+        applyFretboardTrainerPrompt(reason: "initial")
     }
 
     override func viewDidLayout() {
@@ -371,23 +375,25 @@ final class macOSViewController: NSViewController {
             return
         case .ignored(.missingHitCell):
             print(
-                "[FretboardTrainer][macOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=missingHitCell"
+                "[FretboardTrainer][macOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
             )
         case let .ignored(.unresolvedHitPitch(cell)):
             print(
-                "[FretboardTrainer][macOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
+                "[FretboardTrainer][macOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
             )
         case let .evaluated(evaluation):
             print("[macOS] \(evaluation.debugSummary())")
             if evaluation.didAdvanceTarget {
-                printCurrentTrainerTarget(reason: "advanced")
+                applyFretboardTrainerPrompt(reason: "advanced")
             }
         }
     }
 
-    private func printCurrentTrainerTarget(reason: String) {
+    // 当前阶段只输出控制台；后续如果要显示目标音 UI，只需在这里同步 overlay。
+    private func applyFretboardTrainerPrompt(reason: String) {
+        let prompt = currentFretboardTrainerPrompt
         print(
-            "[FretboardTrainer][macOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) state=\(reason)"
+            "[FretboardTrainer][macOS] target=\(prompt.displayText) state=\(reason)"
         )
     }
 

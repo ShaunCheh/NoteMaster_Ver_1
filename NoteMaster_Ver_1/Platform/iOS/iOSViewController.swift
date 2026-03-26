@@ -43,6 +43,10 @@ final class iOSViewController: UIViewController {
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
 
+    private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
+        fretboardTrainerState.prompt
+    }
+
     private lazy var settingsButton: UIButton = {
         let button = UIButton(type: .system)
         var configuration = UIButton.Configuration.filled()
@@ -114,7 +118,7 @@ final class iOSViewController: UIViewController {
         view.backgroundColor = .systemBackground
         configureLayout()
         applyDisplayState()
-        printCurrentTrainerTarget(reason: "initial")
+        applyFretboardTrainerPrompt(reason: "initial")
     }
 
     override func viewDidLayoutSubviews() {
@@ -379,23 +383,25 @@ final class iOSViewController: UIViewController {
             return
         case .ignored(.missingHitCell):
             print(
-                "[FretboardTrainer][iOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=missingHitCell"
+                "[FretboardTrainer][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
             )
         case let .ignored(.unresolvedHitPitch(cell)):
             print(
-                "[FretboardTrainer][iOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
+                "[FretboardTrainer][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
             )
         case let .evaluated(evaluation):
             print("[iOS] \(evaluation.debugSummary())")
             if evaluation.didAdvanceTarget {
-                printCurrentTrainerTarget(reason: "advanced")
+                applyFretboardTrainerPrompt(reason: "advanced")
             }
         }
     }
 
-    private func printCurrentTrainerTarget(reason: String) {
+    // 当前阶段只输出控制台；后续如果要显示目标音 UI，只需在这里同步 overlay。
+    private func applyFretboardTrainerPrompt(reason: String) {
+        let prompt = currentFretboardTrainerPrompt
         print(
-            "[FretboardTrainer][iOS] target=\(fretboardTrainerState.targetPitchClass.displayText()) state=\(reason)"
+            "[FretboardTrainer][iOS] target=\(prompt.displayText) state=\(reason)"
         )
     }
 

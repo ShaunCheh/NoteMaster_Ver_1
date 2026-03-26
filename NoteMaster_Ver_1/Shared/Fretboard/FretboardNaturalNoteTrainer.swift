@@ -38,11 +38,23 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         case evaluated(Evaluation)
     }
 
+    struct Prompt: Equatable, Sendable {
+        var targetPitchClass: PitchClass
+
+        var displayText: String {
+            targetPitchClass.displayText()
+        }
+    }
+
     private static let naturalPitchClasses: [PitchClass] = [
         .c, .d, .e, .f, .g, .a, .b
     ]
 
     private(set) var targetPitchClass: PitchClass
+
+    var prompt: Prompt {
+        Prompt(targetPitchClass: targetPitchClass)
+    }
 
     init(targetPitchClass: PitchClass) {
         precondition(
