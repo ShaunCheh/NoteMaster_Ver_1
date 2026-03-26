@@ -30,9 +30,38 @@ final class iOSSettingsContainerView: UIView {
 
     private let backdropView = UIControl()
     private let cardView = UIView()
+    private let headerView = UIView()
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let settingsPanelView: iOSSettingsPanelView
+    private lazy var closeButton: UIButton = {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.filled()
+        configuration.buttonSize = .medium
+        configuration.cornerStyle = .capsule
+        configuration.image = UIImage(systemName: "xmark")
+        configuration.baseBackgroundColor = .systemBlue
+        configuration.baseForegroundColor = .white
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 10,
+            leading: 10,
+            bottom: 10,
+            trailing: 10
+        )
+        button.configuration = configuration
+        button.accessibilityIdentifier = "settings-container-close-button"
+        button.accessibilityLabel = "Close settings"
+        button.addTarget(
+            self,
+            action: #selector(handleCloseButtonTap),
+            for: .touchUpInside
+        )
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.12
+        button.layer.shadowRadius = 12
+        button.layer.shadowOffset = CGSize(width: 0, height: 4)
+        return button
+    }()
 
     override init(frame: CGRect) {
         model = .empty
@@ -92,15 +121,21 @@ final class iOSSettingsContainerView: UIView {
         cardView.layer.shadowOffset = CGSize(width: 0, height: 10)
         cardView.accessibilityIdentifier = "settings-container-card"
 
+        headerView.translatesAutoresizingMaskIntoConstraints = false
+        headerView.accessibilityIdentifier = "settings-container-header"
+
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
         scrollView.showsHorizontalScrollIndicator = false
 
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsPanelView.translatesAutoresizingMaskIntoConstraints = false
+        closeButton.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(backdropView)
         addSubview(cardView)
+        cardView.addSubview(headerView)
+        headerView.addSubview(closeButton)
         cardView.addSubview(scrollView)
         scrollView.addSubview(contentView)
         contentView.addSubview(settingsPanelView)
@@ -141,6 +176,25 @@ final class iOSSettingsContainerView: UIView {
             ),
             preferredWidthConstraint,
 
+            headerView.leadingAnchor.constraint(
+                equalTo: cardView.leadingAnchor,
+                constant: Style.cardContentInset
+            ),
+            headerView.trailingAnchor.constraint(
+                equalTo: cardView.trailingAnchor,
+                constant: -Style.cardContentInset
+            ),
+            headerView.topAnchor.constraint(
+                equalTo: cardView.topAnchor,
+                constant: Style.cardContentInset
+            ),
+            headerView.heightAnchor.constraint(equalToConstant: Style.headerHeight),
+
+            closeButton.trailingAnchor.constraint(equalTo: headerView.trailingAnchor),
+            closeButton.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
+            closeButton.widthAnchor.constraint(equalToConstant: Style.closeButtonSize),
+            closeButton.heightAnchor.constraint(equalToConstant: Style.closeButtonSize),
+
             scrollView.leadingAnchor.constraint(
                 equalTo: cardView.leadingAnchor,
                 constant: Style.cardContentInset
@@ -150,8 +204,8 @@ final class iOSSettingsContainerView: UIView {
                 constant: -Style.cardContentInset
             ),
             scrollView.topAnchor.constraint(
-                equalTo: cardView.topAnchor,
-                constant: Style.cardContentInset
+                equalTo: headerView.bottomAnchor,
+                constant: Style.headerBottomSpacing
             ),
             scrollView.bottomAnchor.constraint(
                 equalTo: cardView.bottomAnchor,
@@ -177,6 +231,11 @@ final class iOSSettingsContainerView: UIView {
     private func handleBackdropTap() {
         requestDismiss()
     }
+
+    @objc
+    private func handleCloseButtonTap() {
+        requestDismiss()
+    }
 }
 
 private enum Style {
@@ -184,6 +243,9 @@ private enum Style {
     static let preferredCardWidth: CGFloat = 360
     static let maximumScrollHeight: CGFloat = 520
     static let cardContentInset: CGFloat = 16
+    static let headerHeight: CGFloat = 40
+    static let headerBottomSpacing: CGFloat = 8
+    static let closeButtonSize: CGFloat = 40
     static let cardCornerRadius: CGFloat = 22
     static let backdropOpacity: CGFloat = 0.28
 }
