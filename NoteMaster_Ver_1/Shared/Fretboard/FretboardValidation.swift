@@ -251,6 +251,14 @@ private extension FretboardValidationRunner {
             sceneBuilder: sceneBuilder,
             record: record
         )
+        validatePitchResolution(
+            fixture: fixture,
+            record: record
+        )
+        validateNaturalNoteTrainer(
+            fixture: fixture,
+            record: record
+        )
 
         return issues
     }
@@ -572,10 +580,228 @@ private extension FretboardValidationRunner {
         }
     }
 
+    static func validatePitchResolution(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        let configuration = fixture.configuration
+
+        for stringIndex in 0..<configuration.stringCount {
+            guard let openPitch = configuration.tuning.openStringPitch(for: stringIndex) else {
+                record("string[\(stringIndex)] 找不到空弦音高。")
+                continue
+            }
+
+            for fret in configuration.fretRange {
+                let expectedPitch = openPitch.advanced(by: fret)
+                let cell = FretboardCell(
+                    stringIndex: stringIndex,
+                    fret: fret
+                )
+
+                guard let resolvedPitch = configuration.notePitch(
+                    stringIndex: stringIndex,
+                    fret: fret
+                ) else {
+                    record("cell(\(stringIndex), \(fret)) 无法解析 NotePitch。")
+                    continue
+                }
+
+                if resolvedPitch != expectedPitch {
+                    record(
+                        "cell(\(stringIndex), \(fret)) NotePitch 解析错误，期望 \(expectedPitch.displayText())，实际 \(resolvedPitch.displayText())。"
+                    )
+                }
+
+                if configuration.notePitch(for: cell) != expectedPitch {
+                    record("cell(\(stringIndex), \(fret)) 的 cell 入口 NotePitch 解析与直接入口不一致。")
+                }
+
+                if configuration.pitchClass(
+                    stringIndex: stringIndex,
+                    fret: fret
+                ) != expectedPitch.pitchClass {
+                    record("cell(\(stringIndex), \(fret)) 的 pitchClass 解析与 NotePitch 不一致。")
+                }
+
+                if configuration.pitchClass(for: cell) != expectedPitch.pitchClass {
+                    record("cell(\(stringIndex), \(fret)) 的 cell 入口 pitchClass 解析与直接入口不一致。")
+                }
+            }
+        }
+
+        if configuration.notePitch(stringIndex: -1, fret: 0) != nil {
+            record("非法 stringIndex(-1) 仍然解析出了 NotePitch。")
+        }
+
+        if configuration.notePitch(
+            stringIndex: configuration.stringCount,
+            fret: 0
+        ) != nil {
+            record("越界 stringIndex(\(configuration.stringCount)) 仍然解析出了 NotePitch。")
+        }
+
+        if configuration.notePitch(stringIndex: 0, fret: -1) != nil {
+            record("非法 fret(-1) 仍然解析出了 NotePitch。")
+        }
+
+        if configuration.notePitch(
+            stringIndex: 0,
+            fret: configuration.maxFret + 1
+        ) != nil {
+            record("越界 fret(\(configuration.maxFret + 1)) 仍然解析出了 NotePitch。")
+        }
+    }
+
+    static func validateNaturalNoteTrainer(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard fixture.name == "horizontal-guitar6-reference" else {
+            return
+        }
+
+        let configuration = fixture.configuration
+        let correctCell = FretboardCell(stringIndex: 2, fret: 10)
+        let accidentalCell = FretboardCell(stringIndex: 1, fret: 4)
+        let invalidCell = FretboardCell(
+            stringIndex: configuration.stringCount,
+            fret: 0
+        )
+
+        guard let correctPitch = configuration.notePitch(for: correctCell) else {
+            record("trainer 验证基准 cell(\(correctCell.stringIndex), \(correctCell.fret)) 无法解析 NotePitch。")
+            return
+        }
+
+        if correctPitch.pitchClass != .c {
+            record(
+                "trainer 正确命中基准 cell(\(correctCell.stringIndex), \(correctCell.fret)) 应为 C，实际 \(correctPitch.displayText())。"
+            )
+        }
+
+        guard let accidentalPitch = configuration.notePitch(for: accidentalCell) else {
+            record("trainer 验证 accidental cell(\(accidentalCell.stringIndex), \(accidentalCell.fret)) 无法解析 NotePitch。")
+            return
+        }
+
+        if accidentalPitch.pitchClass == .c || !accidentalPitch.pitchClass.isAccidental {
+            record(
+                "trainer 错误命中基准 cell(\(accidentalCell.stringIndex), \(accidentalCell.fret)) 应为非 C 的升降音，实际 \(accidentalPitch.displayText())。"
+            )
+        }
+
+        var ignoredPhaseTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        let ignoredPhaseResult = ignoredPhaseTrainer.handle(
+            hitResult: makeHitResult(
+                phase: .began,
+                cell: correctCell
+            ),
+            configuration: configuration
+        )
+        if ignoredPhaseResult != .ignored(.nonEndedPhase(.began)) {
+            record("trainer 对非 ended 事件未返回 ignored(.nonEndedPhase(.began))。")
+        }
+        if ignoredPhaseTrainer.targetPitchClass != .c {
+            record("trainer 在忽略非 ended 事件后不应推进目标音。")
+        }
+
+        var missingHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        let missingHitResult = missingHitTrainer.handle(
+            hitResult: makeHitResult(
+                phase: .ended,
+                cell: nil
+            ),
+            configuration: configuration
+        )
+        if missingHitResult != .ignored(.missingHitCell) {
+            record("trainer 对空命中事件未返回 ignored(.missingHitCell)。")
+        }
+        if missingHitTrainer.targetPitchClass != .c {
+            record("trainer 在忽略空命中事件后不应推进目标音。")
+        }
+
+        var unresolvedHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        let unresolvedHitResult = unresolvedHitTrainer.handle(
+            hitResult: makeHitResult(
+                phase: .ended,
+                cell: invalidCell
+            ),
+            configuration: configuration
+        )
+        if unresolvedHitResult != .ignored(.unresolvedHitPitch(invalidCell)) {
+            record("trainer 对不可解析 cell 未返回 ignored(.unresolvedHitPitch)。")
+        }
+        if unresolvedHitTrainer.targetPitchClass != .c {
+            record("trainer 在忽略不可解析 cell 后不应推进目标音。")
+        }
+
+        var incorrectTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        switch incorrectTrainer.handle(
+            hitResult: makeHitResult(
+                phase: .ended,
+                cell: accidentalCell
+            ),
+            configuration: configuration
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.selectedPitch != accidentalPitch {
+                record("trainer 错误命中时返回的 selectedPitch 与配置解析结果不一致。")
+            }
+            if evaluation.isCorrect {
+                record("trainer 把 \(accidentalPitch.displayText()) 错判成了目标音 C。")
+            }
+            if evaluation.didAdvanceTarget {
+                record("trainer 在答错后不应把 didAdvanceTarget 标记为 true。")
+            }
+            if evaluation.nextTargetPitchClass != .c {
+                record("trainer 在答错后不应切换到下一题。")
+            }
+            if incorrectTrainer.targetPitchClass != .c {
+                record("trainer 在答错后不应修改当前目标音状态。")
+            }
+        default:
+            record("trainer 对升降音错误命中未返回 evaluated 结果。")
+        }
+
+        var correctTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        switch correctTrainer.handle(
+            hitResult: makeHitResult(
+                phase: .ended,
+                cell: correctCell
+            ),
+            configuration: configuration
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.selectedPitch != correctPitch {
+                record("trainer 正确命中时返回的 selectedPitch 与配置解析结果不一致。")
+            }
+            if !evaluation.isCorrect {
+                record("trainer 未把不同八度的 C 判定为正确。")
+            }
+            if !evaluation.didAdvanceTarget {
+                record("trainer 在答对后应把 didAdvanceTarget 标记为 true。")
+            }
+            if evaluation.nextTargetPitchClass == .c {
+                record("trainer 在答对后未切换到新的目标音。")
+            }
+            if evaluation.nextTargetPitchClass.isAccidental {
+                record("trainer 在答对后切换到了非自然音目标。")
+            }
+            if correctTrainer.targetPitchClass != evaluation.nextTargetPitchClass {
+                record("trainer 内部状态与 evaluation.nextTargetPitchClass 不一致。")
+            }
+        default:
+            record("trainer 对正确命中未返回 evaluated 结果。")
+        }
+    }
+
     static func manualChecklist(for platform: FretboardValidationPlatform) -> [String] {
         var checklist = [
             "切换 Guitar 6 / Bass 4 / Bass 5，并在 Horizontal / Vertical 之间切换；确认 horizontal 视觉回归不变，vertical 为“左低右高、上空弦下高品、文字正立”。",
             "点击空弦区与普通品位区，确认控制台输出的 string / fret 与可见格子一致。",
+            "观察页面加载后的控制台目标音日志；点击与目标同名但不同八度的音位，确认判定为 correct，并立即打印下一题目标音。",
+            "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",
             "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
             "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。"
         ]
@@ -634,5 +860,18 @@ private extension FretboardValidationRunner {
             && approximatelyEqual(lhs.minY, rhs.minY)
             && approximatelyEqual(lhs.width, rhs.width)
             && approximatelyEqual(lhs.height, rhs.height)
+    }
+
+    static func makeHitResult(
+        phase: FretboardEventPhase,
+        cell: FretboardCell?
+    ) -> FretboardHitResult {
+        FretboardHitResult(
+            phase: phase,
+            locationInView: .zero,
+            cell: cell,
+            isInsideDrawingRect: cell != nil,
+            distanceToNearestString: nil
+        )
     }
 }
