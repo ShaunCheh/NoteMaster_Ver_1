@@ -92,6 +92,9 @@ final class macOSTargetNotePromptView: NSView {
         sequenceStackView.alignment = .centerY
         sequenceStackView.distribution = .fill
         sequenceStackView.spacing = Style.sequenceItemSpacing
+        // sequenceStackView 走手动 frame 布局，不能再保留 autoresizing mask
+        // 转 Auto Layout；否则初始 0 高度会生成冲突约束。
+        sequenceStackView.translatesAutoresizingMaskIntoConstraints = false
         sequenceDocumentView.addSubview(sequenceStackView)
 
         addSubview(noteLabel)
