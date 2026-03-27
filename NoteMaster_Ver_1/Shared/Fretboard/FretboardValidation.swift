@@ -842,6 +842,119 @@ private extension FretboardValidationRunner {
         if naturalSession.currentIndex != 0 {
             record("quarter-note trainer 新建 session 的 currentIndex 应为 0。")
         }
+        if naturalSession.totalCount != naturalPrompt.expectedPitchClasses.count {
+            record("quarter-note trainer 新建 session 的 totalCount 与 prompt 不一致。")
+        }
+        if naturalSession.answeredCount != 0 || naturalSession.remainingCount != naturalSession.totalCount {
+            record("quarter-note trainer 新建 session 的 answeredCount / remainingCount 初始值错误。")
+        }
+        if naturalSession.isCompleted {
+            record("quarter-note trainer 新建 session 不应直接处于 completed 状态。")
+        }
+        if naturalSession.currentExpectedPitchClass != naturalPrompt.expectedPitchClasses.first {
+            record("quarter-note trainer 新建 session 的 currentExpectedPitchClass 未对齐首个答案。")
+        }
+
+        guard let firstExpectedPitchClass = naturalPrompt.expectedPitchClasses.first else {
+            record("quarter-note trainer natural prompt 缺少首个 expectedPitchClass。")
+            return
+        }
+
+        let incorrectPitchClass = PitchClass.allCases.first { candidate in
+            candidate != firstExpectedPitchClass
+        }
+        guard let incorrectPitchClass else {
+            record("quarter-note trainer 无法构造与首题不同的错误答案。")
+            return
+        }
+
+        var incorrectSession = naturalSession
+        switch naturalTrainer.handleQuarterNoteSequenceAnswer(
+            incorrectPitchClass,
+            session: &incorrectSession
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.expectedPitchClass != firstExpectedPitchClass {
+                record("quarter-note trainer 错误作答时返回的 expectedPitchClass 与 session 首题不一致。")
+            }
+            if evaluation.answeredPitchClass != incorrectPitchClass {
+                record("quarter-note trainer 错误作答时返回的 answeredPitchClass 不一致。")
+            }
+            if evaluation.isCorrect {
+                record("quarter-note trainer 把错误答案误判成了正确。")
+            }
+            if evaluation.didAdvanceIndex {
+                record("quarter-note trainer 错误作答后不应推进 currentIndex。")
+            }
+            if evaluation.answeredIndex != 0 || evaluation.nextIndex != 0 {
+                record("quarter-note trainer 错误作答后的 answeredIndex / nextIndex 不正确。")
+            }
+            if evaluation.isSequenceCompleted {
+                record("quarter-note trainer 错误作答后不应把序列标记为完成。")
+            }
+        default:
+            record("quarter-note trainer 错误作答未返回 evaluated 结果。")
+        }
+        if incorrectSession.currentIndex != 0 {
+            record("quarter-note trainer 错误作答后 session.currentIndex 不应变化。")
+        }
+        if incorrectSession.currentExpectedPitchClass != firstExpectedPitchClass {
+            record("quarter-note trainer 错误作答后 currentExpectedPitchClass 不应变化。")
+        }
+
+        var completedSession = naturalSession
+        for (index, expectedPitchClass) in naturalPrompt.expectedPitchClasses.enumerated() {
+            switch naturalTrainer.handleQuarterNoteSequenceAnswer(
+                expectedPitchClass,
+                session: &completedSession
+            ) {
+            case let .evaluated(evaluation):
+                let expectedNextIndex = index + 1
+                let shouldComplete = expectedNextIndex == naturalPrompt.expectedPitchClasses.count
+                if evaluation.expectedPitchClass != expectedPitchClass {
+                    record("quarter-note trainer 正确作答时返回的 expectedPitchClass 与当前题目不一致。")
+                }
+                if evaluation.answeredPitchClass != expectedPitchClass {
+                    record("quarter-note trainer 正确作答时返回的 answeredPitchClass 不一致。")
+                }
+                if !evaluation.isCorrect {
+                    record("quarter-note trainer 未把正确答案判定为 correct。")
+                }
+                if !evaluation.didAdvanceIndex {
+                    record("quarter-note trainer 正确作答后应推进 currentIndex。")
+                }
+                if evaluation.answeredIndex != index || evaluation.nextIndex != expectedNextIndex {
+                    record("quarter-note trainer 正确作答后的 answeredIndex / nextIndex 不正确。")
+                }
+                if evaluation.isSequenceCompleted != shouldComplete {
+                    record("quarter-note trainer 的完成态判断与最后一题边界不一致。")
+                }
+            default:
+                record("quarter-note trainer 正确作答未返回 evaluated 结果。")
+                return
+            }
+
+            if completedSession.currentIndex != index + 1 {
+                record("quarter-note trainer 正确作答后 session.currentIndex 未同步推进。")
+                return
+            }
+        }
+
+        if !completedSession.isCompleted {
+            record("quarter-note trainer 回答完整个序列后应进入 completed 状态。")
+        }
+        if completedSession.remainingCount != 0 {
+            record("quarter-note trainer 完成序列后 remainingCount 应为 0。")
+        }
+        if completedSession.currentExpectedPitchClass != nil {
+            record("quarter-note trainer 完成序列后 currentExpectedPitchClass 应为空。")
+        }
+        if naturalTrainer.handleQuarterNoteSequenceAnswer(
+            firstExpectedPitchClass,
+            session: &completedSession
+        ) != .ignored(.completedSession) {
+            record("quarter-note trainer 完成序列后继续作答应返回 ignored(.completedSession)。")
+        }
 
         let accidentalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: .bass,

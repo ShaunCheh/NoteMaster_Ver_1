@@ -53,6 +53,7 @@ final class macOSViewController: NSViewController {
 
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
+    private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
 
     private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
         fretboardTrainerState.prompt
@@ -571,28 +572,60 @@ final class macOSViewController: NSViewController {
             return
         }
 
-        guard let prompt = currentQuarterNoteSequencePrompt else {
+        guard let selectedCell = hitResult.cell else {
+            print(
+                "[QuarterNoteSequence][macOS] result=ignored reason=missingHitCell"
+            )
+            return
+        }
+
+        guard let selectedPitch = displayState.configuration.notePitch(for: selectedCell) else {
+            print(
+                "[QuarterNoteSequence][macOS] result=ignored reason=unresolvedHitPitch string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
+            )
+            return
+        }
+
+        guard currentQuarterNoteSequencePrompt != nil else {
             print(
                 "[QuarterNoteSequence][macOS] result=ignored reason=missingPrompt"
             )
             return
         }
 
-        let locationSuffix: String
-        if let cell = hitResult.cell {
-            locationSuffix = " string=\(cell.stringIndex) fret=\(cell.fret)"
-        } else {
-            locationSuffix = " missingHitCell=true"
+        if quarterNoteSequenceSession == nil {
+            quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
         }
 
-        print(
-            "[QuarterNoteSequence][macOS] clef=\(prompt.spec.clef.title) noteCount=\(prompt.spec.noteCount) includesAccidentals=\(prompt.spec.includesAccidentals) result=ignored reason=pendingAnswerFlow\(locationSuffix)"
+        guard var quarterNoteSequenceSession else {
+            print(
+                "[QuarterNoteSequence][macOS] result=ignored reason=missingSession"
+            )
+            return
+        }
+
+        let answerResult = fretboardTrainerState.handleQuarterNoteSequenceAnswer(
+            selectedPitch.pitchClass,
+            session: &quarterNoteSequenceSession
         )
+        self.quarterNoteSequenceSession = quarterNoteSequenceSession
+
+        switch answerResult {
+        case .ignored(.completedSession):
+            print(
+                "[QuarterNoteSequence][macOS] result=ignored reason=completedSession string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
+            )
+        case let .evaluated(evaluation):
+            print(
+                "[macOS] \(evaluation.debugSummary()) selected=\(selectedPitch.displayText()) string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
+            )
+        }
     }
 
     // trainer prompt 的平台组装入口仍然收口在控制器：
     // 这里同时同步控制台日志与目标音组件显示内容。
     private func applyFretboardTrainerPrompt(reason: String) {
+        quarterNoteSequenceSession = nil
         let prompt = currentFretboardTrainerPrompt
         targetNotePromptView.apply(prompt: prompt)
         print(
@@ -609,6 +642,7 @@ final class macOSViewController: NSViewController {
             quarterNoteSequenceSpec: spec
         )
         let prompt = fretboardTrainerState.generateQuarterNoteSequencePrompt()
+        quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
         applyQuarterNoteSequencePromptToStaff(prompt, reason: "generated")
     }
 
@@ -618,6 +652,7 @@ final class macOSViewController: NSViewController {
     ) {
         var nextPageDisplayState = pageDisplayState
         nextPageDisplayState.topContentMode = .staff
+        nextPageDisplayState.mainContentMode = .fretboard
 
         var nextStaffDisplayState = staffDisplayState
         nextStaffDisplayState.apply(quarterNoteSequencePrompt: prompt)
@@ -643,6 +678,7 @@ final class macOSViewController: NSViewController {
         }
 
         stateContext.pageDisplayState.topContentMode = .staff
+        stateContext.pageDisplayState.mainContentMode = .fretboard
 
         if let currentQuarterNoteSequencePrompt {
             stateContext.staffDisplayState.apply(

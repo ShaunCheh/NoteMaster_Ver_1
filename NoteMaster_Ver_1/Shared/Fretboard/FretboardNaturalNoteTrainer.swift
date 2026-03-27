@@ -124,10 +124,69 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             self.prompt = prompt
             self.currentIndex = currentIndex
         }
+
+        var totalCount: Int {
+            prompt.expectedPitchClasses.count
+        }
+
+        var answeredCount: Int {
+            currentIndex
+        }
+
+        var remainingCount: Int {
+            max(totalCount - currentIndex, 0)
+        }
+
+        var isCompleted: Bool {
+            currentIndex >= totalCount
+        }
+
+        var currentExpectedPitchClass: PitchClass? {
+            guard !isCompleted else {
+                return nil
+            }
+
+            return prompt.expectedPitchClasses[currentIndex]
+        }
+    }
+
+    enum QuarterNoteSequenceIgnoreReason: Equatable, Sendable {
+        case completedSession
+    }
+
+    struct QuarterNoteSequenceEvaluation: Equatable, Sendable {
+        var expectedPitchClass: PitchClass
+        var answeredPitchClass: PitchClass
+        var answeredIndex: Int
+        var nextIndex: Int
+        var totalCount: Int
+
+        var isCorrect: Bool {
+            answeredPitchClass == expectedPitchClass
+        }
+
+        var didAdvanceIndex: Bool {
+            isCorrect
+        }
+
+        var isSequenceCompleted: Bool {
+            nextIndex >= totalCount
+        }
+
+        var remainingCount: Int {
+            max(totalCount - nextIndex, 0)
+        }
+
+        func debugSummary() -> String {
+            let resultText = isCorrect ? "correct" : "wrong"
+            let stateText = isSequenceCompleted ? "completed" : "inProgress"
+            return "[QuarterNoteSequence] step=\(answeredIndex + 1)/\(totalCount) expected=\(expectedPitchClass.displayText()) answered=\(answeredPitchClass.displayText()) result=\(resultText) nextIndex=\(nextIndex) remaining=\(remainingCount) state=\(stateText)"
+        }
     }
 
     enum QuarterNoteSequenceAnswerResult: Equatable, Sendable {
-        case pendingImplementation
+        case ignored(QuarterNoteSequenceIgnoreReason)
+        case evaluated(QuarterNoteSequenceEvaluation)
     }
 
     struct Prompt: Equatable, Sendable {
@@ -207,25 +266,38 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     }
 
     func makeQuarterNoteSequenceSession() -> QuarterNoteSequenceSession {
-        guard let quarterNoteSequencePrompt else {
-            preconditionFailure(
-                "Generate a quarter-note sequence prompt before creating a session."
-            )
-        }
-
-        return QuarterNoteSequenceSession(prompt: quarterNoteSequencePrompt)
+        QuarterNoteSequenceSession(prompt: requireCurrentQuarterNoteSequencePrompt())
     }
 
-    // Step 2 stub:
-    // 顺序判题会基于 session.currentIndex 对 expectedPitchClasses 逐个比较。
     mutating func handleQuarterNoteSequenceAnswer(
         _ pitchClass: PitchClass,
         session: inout QuarterNoteSequenceSession
     ) -> QuarterNoteSequenceAnswerResult {
-        let _ = pitchClass
-        let _ = session
-        preconditionFailure(
-            "Quarter-note sequence answering will be implemented in a later step."
+        let prompt = requireCurrentQuarterNoteSequencePrompt()
+        precondition(
+            session.prompt == prompt,
+            "Quarter-note sequence session prompt must match the current trainer prompt."
+        )
+
+        guard let expectedPitchClass = session.currentExpectedPitchClass else {
+            return .ignored(.completedSession)
+        }
+
+        let answeredIndex = session.currentIndex
+        let isCorrect = pitchClass == expectedPitchClass
+        let nextIndex = isCorrect ? answeredIndex + 1 : answeredIndex
+        if isCorrect {
+            session.currentIndex = nextIndex
+        }
+
+        return .evaluated(
+            QuarterNoteSequenceEvaluation(
+                expectedPitchClass: expectedPitchClass,
+                answeredPitchClass: pitchClass,
+                answeredIndex: answeredIndex,
+                nextIndex: nextIndex,
+                totalCount: session.totalCount
+            )
         )
     }
 
@@ -335,6 +407,20 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         return spec
+    }
+
+    private func requireCurrentQuarterNoteSequencePrompt(
+        _ function: StaticString = #function
+    ) -> QuarterNoteSequencePrompt {
+        requireQuarterNoteSequenceSpec(function)
+
+        guard let quarterNoteSequencePrompt else {
+            preconditionFailure(
+                "\(function) requires a generated quarter-note sequence prompt."
+            )
+        }
+
+        return quarterNoteSequencePrompt
     }
 }
 
