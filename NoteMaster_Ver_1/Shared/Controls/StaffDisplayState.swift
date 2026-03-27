@@ -66,12 +66,19 @@ extension StaffDisplayState {
         event.apply(to: &self)
     }
 
-    // quarter-note sequence 的谱面仍然落到统一的 StaffDisplayState，
-    // 控制器只需要通过这个适配点同步 clef 与 score。
+    // quarter-note sequence 的谱面显示直接消费共享序列真相源，
+    // 避免 staff 继续依赖旧 prompt 适配层。
+    mutating func apply(
+        generatedSequence: GeneratedNoteSequence
+    ) {
+        configuration.clef = generatedSequence.clef
+        score = generatedSequence.score
+    }
+
+    // 兼容旧调用方；阶段 6 清理适配层后可继续收缩。
     mutating func apply(
         quarterNoteSequencePrompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt
     ) {
-        configuration.clef = quarterNoteSequencePrompt.spec.clef
-        score = quarterNoteSequencePrompt.score
+        apply(generatedSequence: quarterNoteSequencePrompt.generatedSequence)
     }
 }

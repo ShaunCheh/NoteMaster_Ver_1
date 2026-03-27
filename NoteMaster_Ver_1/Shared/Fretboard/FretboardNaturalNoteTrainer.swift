@@ -119,23 +119,23 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     }
 
     struct QuarterNoteSequenceSession: Equatable, Sendable {
-        var prompt: QuarterNoteSequencePrompt
+        var generatedSequence: GeneratedNoteSequence
         var currentIndex: Int
 
         init(
-            prompt: QuarterNoteSequencePrompt,
+            generatedSequence: GeneratedNoteSequence,
             currentIndex: Int = 0
         ) {
             precondition(
-                currentIndex >= 0 && currentIndex <= prompt.expectedPitchClasses.count,
-                "Quarter-note sequence session index must stay within the prompt range."
+                currentIndex >= 0 && currentIndex <= generatedSequence.noteCount,
+                "Quarter-note sequence session index must stay within the sequence range."
             )
-            self.prompt = prompt
+            self.generatedSequence = generatedSequence
             self.currentIndex = currentIndex
         }
 
         var totalCount: Int {
-            prompt.expectedPitchClasses.count
+            generatedSequence.noteCount
         }
 
         var answeredCount: Int {
@@ -150,12 +150,16 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             currentIndex >= totalCount
         }
 
-        var currentExpectedPitchClass: PitchClass? {
+        var currentItem: GeneratedNoteSequenceItem? {
             guard !isCompleted else {
                 return nil
             }
 
-            return prompt.expectedPitchClasses[currentIndex]
+            return generatedSequence.items[currentIndex]
+        }
+
+        var currentExpectedPitchClass: PitchClass? {
+            currentItem?.answerPitchClass
         }
     }
 
@@ -164,11 +168,19 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     }
 
     struct QuarterNoteSequenceEvaluation: Equatable, Sendable {
-        var expectedPitchClass: PitchClass
+        var expectedItem: GeneratedNoteSequenceItem
         var answeredPitchClass: PitchClass
         var answeredIndex: Int
         var nextIndex: Int
         var totalCount: Int
+
+        var expectedPitchClass: PitchClass {
+            expectedItem.answerPitchClass
+        }
+
+        var expectedWrittenPitch: StaffPitch {
+            expectedItem.writtenPitch
+        }
 
         var isCorrect: Bool {
             answeredPitchClass == expectedPitchClass
@@ -189,7 +201,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         func debugSummary() -> String {
             let resultText = isCorrect ? "correct" : "wrong"
             let stateText = isSequenceCompleted ? "completed" : "inProgress"
-            return "[QuarterNoteSequence] step=\(answeredIndex + 1)/\(totalCount) expected=\(expectedPitchClass.displayText()) answered=\(answeredPitchClass.displayText()) result=\(resultText) nextIndex=\(nextIndex) remaining=\(remainingCount) state=\(stateText)"
+            return "[QuarterNoteSequence] step=\(answeredIndex + 1)/\(totalCount) expected=\(expectedPitchClass.displayText()) written=\(expectedWrittenPitch.scientificName) answered=\(answeredPitchClass.displayText()) result=\(resultText) nextIndex=\(nextIndex) remaining=\(remainingCount) state=\(stateText)"
         }
     }
 
@@ -208,12 +220,25 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     private(set) var mode: ExerciseMode
     private(set) var targetPitchClass: PitchClass
-    private(set) var quarterNoteSequencePrompt: QuarterNoteSequencePrompt?
+    private(set) var generatedQuarterNoteSequence: GeneratedNoteSequence?
 
     // 兼容当前单目标自然音训练链路；
-    // 四分音序列模式的输出走 quarterNoteSequencePrompt。
+    // 四分音序列模式的共享真相源为 generatedQuarterNoteSequence，
+    // quarterNoteSequencePrompt 仅保留为兼容适配层。
     var prompt: Prompt {
         Prompt(targetPitchClass: targetPitchClass)
+    }
+
+    var quarterNoteSequencePrompt: QuarterNoteSequencePrompt? {
+        guard case let .quarterNoteSequence(spec) = mode,
+              let generatedQuarterNoteSequence else {
+            return nil
+        }
+
+        return QuarterNoteSequencePrompt(
+            spec: spec,
+            generatedSequence: generatedQuarterNoteSequence
+        )
     }
 
     init(targetPitchClass: PitchClass) {
@@ -223,14 +248,14 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
         self.mode = .singleNaturalTarget
         self.targetPitchClass = targetPitchClass
-        quarterNoteSequencePrompt = nil
+        generatedQuarterNoteSequence = nil
     }
 
     init(quarterNoteSequenceSpec spec: QuarterNoteSequenceSpec) {
         mode = .quarterNoteSequence(spec)
         // 保留一个稳定的 legacy target 值，避免当前单目标 API 在未来迁移完成前失去初始化基线。
         targetPitchClass = .c
-        quarterNoteSequencePrompt = nil
+        generatedQuarterNoteSequence = nil
     }
 
     init() {
@@ -244,6 +269,31 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
+    mutating func generateQuarterNoteSequence() -> GeneratedNoteSequence {
+        var generator = SystemRandomNumberGenerator()
+        return generateQuarterNoteSequence(using: &generator)
+    }
+
+    mutating func generateQuarterNoteSequence<R: RandomNumberGenerator>(
+        using generator: inout R
+    ) -> GeneratedNoteSequence {
+        let spec = requireQuarterNoteSequenceSpec()
+        let generatedSequence = StaffQuarterNoteSequenceGenerator().makeSequence(
+            spec: spec.staffGeneratorSpec,
+            using: &generator
+        )
+        generatedQuarterNoteSequence = generatedSequence
+        return generatedSequence
+    }
+
+    mutating func generateQuarterNoteSequence(
+        for spec: QuarterNoteSequenceSpec
+    ) -> GeneratedNoteSequence {
+        mode = .quarterNoteSequence(spec)
+        generatedQuarterNoteSequence = nil
+        return generateQuarterNoteSequence()
+    }
+
     mutating func generateQuarterNoteSequencePrompt() -> QuarterNoteSequencePrompt {
         var generator = SystemRandomNumberGenerator()
         return generateQuarterNoteSequencePrompt(using: &generator)
@@ -253,45 +303,45 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         using generator: inout R
     ) -> QuarterNoteSequencePrompt {
         let spec = requireQuarterNoteSequenceSpec()
-        let generatedSequence = StaffQuarterNoteSequenceGenerator().makeSequence(
-            spec: spec.staffGeneratorSpec,
-            using: &generator
-        )
-        let prompt = QuarterNoteSequencePrompt(
+        let generatedSequence = generateQuarterNoteSequence(using: &generator)
+        return QuarterNoteSequencePrompt(
             spec: spec,
             generatedSequence: generatedSequence
         )
-        quarterNoteSequencePrompt = prompt
-        return prompt
     }
 
     mutating func generateQuarterNoteSequencePrompt(
         for spec: QuarterNoteSequenceSpec
     ) -> QuarterNoteSequencePrompt {
-        mode = .quarterNoteSequence(spec)
-        quarterNoteSequencePrompt = nil
-        return generateQuarterNoteSequencePrompt()
+        let generatedSequence = generateQuarterNoteSequence(for: spec)
+        return QuarterNoteSequencePrompt(
+            spec: spec,
+            generatedSequence: generatedSequence
+        )
     }
 
     func makeQuarterNoteSequenceSession() -> QuarterNoteSequenceSession {
-        QuarterNoteSequenceSession(prompt: requireCurrentQuarterNoteSequencePrompt())
+        QuarterNoteSequenceSession(
+            generatedSequence: requireCurrentQuarterNoteSequence()
+        )
     }
 
     mutating func handleQuarterNoteSequenceAnswer(
         _ pitchClass: PitchClass,
         session: inout QuarterNoteSequenceSession
     ) -> QuarterNoteSequenceAnswerResult {
-        let prompt = requireCurrentQuarterNoteSequencePrompt()
+        let generatedSequence = requireCurrentQuarterNoteSequence()
         precondition(
-            session.prompt == prompt,
-            "Quarter-note sequence session prompt must match the current trainer prompt."
+            session.generatedSequence == generatedSequence,
+            "Quarter-note sequence session sequence must match the current trainer sequence."
         )
 
-        guard let expectedPitchClass = session.currentExpectedPitchClass else {
+        guard let expectedItem = session.currentItem else {
             return .ignored(.completedSession)
         }
 
         let answeredIndex = session.currentIndex
+        let expectedPitchClass = expectedItem.answerPitchClass
         let isCorrect = pitchClass == expectedPitchClass
         let nextIndex = isCorrect ? answeredIndex + 1 : answeredIndex
         if isCorrect {
@@ -300,7 +350,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
         return .evaluated(
             QuarterNoteSequenceEvaluation(
-                expectedPitchClass: expectedPitchClass,
+                expectedItem: expectedItem,
                 answeredPitchClass: pitchClass,
                 answeredIndex: answeredIndex,
                 nextIndex: nextIndex,
@@ -417,18 +467,18 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return spec
     }
 
-    private func requireCurrentQuarterNoteSequencePrompt(
+    private func requireCurrentQuarterNoteSequence(
         _ function: StaticString = #function
-    ) -> QuarterNoteSequencePrompt {
+    ) -> GeneratedNoteSequence {
         requireQuarterNoteSequenceSpec(function)
 
-        guard let quarterNoteSequencePrompt else {
+        guard let generatedQuarterNoteSequence else {
             preconditionFailure(
-                "\(function) requires a generated quarter-note sequence prompt."
+                "\(function) requires a generated quarter-note sequence."
             )
         }
 
-        return quarterNoteSequencePrompt
+        return generatedQuarterNoteSequence
     }
 }
 

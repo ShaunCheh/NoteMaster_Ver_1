@@ -74,25 +74,25 @@ final class macOSViewController: NSViewController {
         fretboardTrainerState.prompt
     }
 
-    private var currentQuarterNoteSequencePrompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt? {
+    private var currentGeneratedQuarterNoteSequence: GeneratedNoteSequence? {
         guard case .quarterNoteSequence = fretboardTrainerState.mode else {
             return nil
         }
 
-        return fretboardTrainerState.quarterNoteSequencePrompt
+        return fretboardTrainerState.generatedQuarterNoteSequence
     }
 
     private var currentQuarterNoteSequenceTargetPromptContent: TargetPromptContent? {
-        guard let prompt = currentQuarterNoteSequencePrompt else {
+        guard let generatedSequence = currentGeneratedQuarterNoteSequence else {
             return nil
         }
 
         if let quarterNoteSequenceSession,
-           quarterNoteSequenceSession.prompt == prompt {
+           quarterNoteSequenceSession.generatedSequence == generatedSequence {
             return quarterNoteSequenceSession.targetPromptContent()
         }
 
-        return prompt.targetPromptContent()
+        return generatedSequence.targetPromptContent()
     }
 
     private var configuredQuarterNoteSequenceSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec {
@@ -616,14 +616,14 @@ final class macOSViewController: NSViewController {
             return
         }
 
-        guard let prompt = currentQuarterNoteSequencePrompt else {
+        guard let generatedSequence = currentGeneratedQuarterNoteSequence else {
             print(
-                "[QuarterNoteSequence][macOS] result=ignored reason=missingPrompt"
+                "[QuarterNoteSequence][macOS] result=ignored reason=missingSequence"
             )
             return
         }
 
-        if quarterNoteSequenceSession == nil {
+        if quarterNoteSequenceSession?.generatedSequence != generatedSequence {
             quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
         }
 
@@ -640,7 +640,7 @@ final class macOSViewController: NSViewController {
         )
         self.quarterNoteSequenceSession = quarterNoteSequenceSession
         applyQuarterNoteSequenceProjection(
-            prompt,
+            generatedSequence,
             reason: "answered",
             showsLog: false
         )
@@ -710,46 +710,43 @@ final class macOSViewController: NSViewController {
             pageDisplayState.setMainContentMode(.fretboard)
         }
 
-        let requiresNewPrompt: Bool
+        let requiresNewSequence: Bool
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
-            requiresNewPrompt = true
+            requiresNewSequence = true
         case let .quarterNoteSequence(currentSpec):
-            requiresNewPrompt = currentSpec != configuredQuarterNoteSequenceSpec
-                || currentQuarterNoteSequencePrompt == nil
+            requiresNewSequence = currentSpec != configuredQuarterNoteSequenceSpec
+                || currentGeneratedQuarterNoteSequence == nil
         }
 
-        if requiresNewPrompt {
+        let generatedSequence: GeneratedNoteSequence
+        if requiresNewSequence {
             fretboardTrainerState = FretboardNaturalNoteTrainerState(
                 quarterNoteSequenceSpec: configuredQuarterNoteSequenceSpec
             )
-        }
-
-        let prompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt
-        if requiresNewPrompt || currentQuarterNoteSequencePrompt == nil {
-            prompt = fretboardTrainerState.generateQuarterNoteSequencePrompt()
+            generatedSequence = fretboardTrainerState.generateQuarterNoteSequence()
         } else {
-            prompt = currentQuarterNoteSequencePrompt!
+            generatedSequence = currentGeneratedQuarterNoteSequence!
         }
 
-        if quarterNoteSequenceSession?.prompt != prompt {
+        if quarterNoteSequenceSession?.generatedSequence != generatedSequence {
             quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
         }
 
-        applyQuarterNoteSequenceProjection(prompt, reason: reason)
+        applyQuarterNoteSequenceProjection(generatedSequence, reason: reason)
     }
 
     private func applyQuarterNoteSequenceProjection(
-        _ prompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt,
+        _ generatedSequence: GeneratedNoteSequence,
         reason: String,
         showsLog: Bool = true
     ) {
         let content = currentQuarterNoteSequenceTargetPromptContent
-            ?? prompt.targetPromptContent()
+            ?? generatedSequence.targetPromptContent()
         targetNotePromptView.apply(content: content)
 
         var nextStaffDisplayState = staffDisplayState
-        nextStaffDisplayState.apply(quarterNoteSequencePrompt: prompt)
+        nextStaffDisplayState.apply(generatedSequence: generatedSequence)
 
         if nextStaffDisplayState != staffDisplayState {
             staffDisplayState = nextStaffDisplayState
@@ -757,7 +754,7 @@ final class macOSViewController: NSViewController {
 
         if showsLog {
             print(
-                "[QuarterNoteSequence][macOS] clef=\(prompt.spec.clef.title) noteCount=\(prompt.spec.noteCount) includesAccidentals=\(prompt.spec.includesAccidentals) state=\(reason)"
+                "[QuarterNoteSequence][macOS] clef=\(generatedSequence.clef.title) noteCount=\(generatedSequence.noteCount) includesAccidentals=\(configuredQuarterNoteSequenceSpec.includesAccidentals) state=\(reason)"
             )
         }
     }
@@ -771,9 +768,9 @@ final class macOSViewController: NSViewController {
 
         stateContext.pageDisplayState.mainContentMode = .fretboard
 
-        if let currentQuarterNoteSequencePrompt {
+        if let currentGeneratedQuarterNoteSequence {
             stateContext.staffDisplayState.apply(
-                quarterNoteSequencePrompt: currentQuarterNoteSequencePrompt
+                generatedSequence: currentGeneratedQuarterNoteSequence
             )
         }
     }

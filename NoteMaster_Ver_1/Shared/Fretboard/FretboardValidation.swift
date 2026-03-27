@@ -834,16 +834,19 @@ private extension FretboardValidationRunner {
         if naturalTrainer.quarterNoteSequencePrompt != naturalPrompt {
             record("quarter-note trainer 未保存最近一次生成的 natural prompt。")
         }
+        if naturalTrainer.generatedQuarterNoteSequence != naturalPrompt.generatedSequence {
+            record("quarter-note trainer 未保存最近一次生成的 natural shared sequence。")
+        }
 
         let naturalSession = naturalTrainer.makeQuarterNoteSequenceSession()
-        if naturalSession.prompt != naturalPrompt {
-            record("quarter-note trainer 生成的 session prompt 与最近一次 prompt 不一致。")
+        if naturalSession.generatedSequence != naturalPrompt.generatedSequence {
+            record("quarter-note trainer 生成的 session sequence 与最近一次 shared sequence 不一致。")
         }
         if naturalSession.currentIndex != 0 {
             record("quarter-note trainer 新建 session 的 currentIndex 应为 0。")
         }
-        if naturalSession.totalCount != naturalPrompt.expectedPitchClasses.count {
-            record("quarter-note trainer 新建 session 的 totalCount 与 prompt 不一致。")
+        if naturalSession.totalCount != naturalPrompt.generatedSequence.noteCount {
+            record("quarter-note trainer 新建 session 的 totalCount 与 shared sequence 不一致。")
         }
         if naturalSession.answeredCount != 0 || naturalSession.remainingCount != naturalSession.totalCount {
             record("quarter-note trainer 新建 session 的 answeredCount / remainingCount 初始值错误。")
@@ -854,8 +857,13 @@ private extension FretboardValidationRunner {
         if naturalSession.currentExpectedPitchClass != naturalPrompt.expectedPitchClasses.first {
             record("quarter-note trainer 新建 session 的 currentExpectedPitchClass 未对齐首个答案。")
         }
+        if naturalSession.targetPromptContent() != naturalPrompt.generatedSequence.targetPromptContent(
+            currentIndex: naturalSession.currentIndex
+        ) {
+            record("quarter-note trainer 新建 session 的 targetPromptContent 未对齐 shared sequence/currentIndex。")
+        }
 
-        guard let firstExpectedPitchClass = naturalPrompt.expectedPitchClasses.first else {
+        guard let firstExpectedPitchClass = naturalPrompt.generatedSequence.answerPitchClasses.first else {
             record("quarter-note trainer natural prompt 缺少首个 expectedPitchClass。")
             return
         }
@@ -901,16 +909,21 @@ private extension FretboardValidationRunner {
         if incorrectSession.currentExpectedPitchClass != firstExpectedPitchClass {
             record("quarter-note trainer 错误作答后 currentExpectedPitchClass 不应变化。")
         }
+        if incorrectSession.targetPromptContent() != naturalPrompt.generatedSequence.targetPromptContent(
+            currentIndex: incorrectSession.currentIndex
+        ) {
+            record("quarter-note trainer 错误作答后 targetPromptContent 未与当前 session.currentIndex 同步。")
+        }
 
         var completedSession = naturalSession
-        for (index, expectedPitchClass) in naturalPrompt.expectedPitchClasses.enumerated() {
+        for (index, expectedPitchClass) in naturalPrompt.generatedSequence.answerPitchClasses.enumerated() {
             switch naturalTrainer.handleQuarterNoteSequenceAnswer(
                 expectedPitchClass,
                 session: &completedSession
             ) {
             case let .evaluated(evaluation):
                 let expectedNextIndex = index + 1
-                let shouldComplete = expectedNextIndex == naturalPrompt.expectedPitchClasses.count
+                let shouldComplete = expectedNextIndex == naturalPrompt.generatedSequence.noteCount
                 if evaluation.expectedPitchClass != expectedPitchClass {
                     record("quarter-note trainer 正确作答时返回的 expectedPitchClass 与当前题目不一致。")
                 }
@@ -936,6 +949,12 @@ private extension FretboardValidationRunner {
 
             if completedSession.currentIndex != index + 1 {
                 record("quarter-note trainer 正确作答后 session.currentIndex 未同步推进。")
+                return
+            }
+            if completedSession.targetPromptContent() != naturalPrompt.generatedSequence.targetPromptContent(
+                currentIndex: completedSession.currentIndex
+            ) {
+                record("quarter-note trainer 正确作答后 targetPromptContent 未与当前 session.currentIndex 同步。")
                 return
             }
         }
@@ -981,6 +1000,9 @@ private extension FretboardValidationRunner {
         }
         if accidentalTrainer.quarterNoteSequencePrompt != accidentalPrompt {
             record("quarter-note trainer 未保存最近一次生成的 accidental prompt。")
+        }
+        if accidentalTrainer.generatedQuarterNoteSequence != accidentalPrompt.generatedSequence {
+            record("quarter-note trainer 未保存最近一次生成的 accidental shared sequence。")
         }
     }
 

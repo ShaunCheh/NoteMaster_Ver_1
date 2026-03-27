@@ -106,7 +106,7 @@ extension FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession {
     func targetPromptContent(
         spelling: PitchSpelling = .sharp
     ) -> TargetPromptContent {
-        prompt.targetPromptContent(
+        generatedSequence.targetPromptContent(
             currentIndex: currentIndex,
             spelling: spelling
         )
