@@ -20,6 +20,16 @@ final class FretboardLabelsLayer: CALayer {
         }
     }
 
+    var contextNormalizationMode: FretboardContextNormalizationMode = .none {
+        didSet {
+            guard oldValue != contextNormalizationMode else {
+                return
+            }
+
+            setNeedsDisplay()
+        }
+    }
+
     var scene: FretboardScene = .empty {
         didSet {
             guard oldValue != scene else {
@@ -48,6 +58,7 @@ final class FretboardLabelsLayer: CALayer {
             configuration = otherLayer.configuration
             scene = otherLayer.scene
             contentProvider = otherLayer.contentProvider
+            contextNormalizationMode = otherLayer.contextNormalizationMode
         }
 
         configureLayer()
@@ -67,6 +78,7 @@ final class FretboardLabelsLayer: CALayer {
             return
         }
 
+        applyContextNormalizationIfNeeded(in: context)
         let labels = contentProvider.makeLabels(
             configuration: configuration,
             scene: scene
@@ -94,6 +106,13 @@ final class FretboardLabelsLayer: CALayer {
         isOpaque = false
         drawsAsynchronously = false
         needsDisplayOnBoundsChange = true
+    }
+
+    private func applyContextNormalizationIfNeeded(in context: CGContext) {
+        contextNormalizationMode.applyIfNeeded(
+            to: context,
+            in: bounds
+        )
     }
 
     private func drawLabelBadge(

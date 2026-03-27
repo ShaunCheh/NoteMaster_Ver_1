@@ -36,7 +36,8 @@ struct FretboardCell: Equatable, Hashable, Sendable {
 
 struct FretboardHitResult: Equatable, Sendable {
     var phase: FretboardEventPhase
-    // 使用平台包装视图本地坐标，和 FretboardGeometry 的 bounds 语义保持一致。
+    // 使用与 FretboardGeometry.bounds 一致的本地坐标语义；
+    // 平台层若存在坐标翻转，会先做必要归一化后再写入这里。
     var locationInView: CGPoint
     var cell: FretboardCell?
     var isInsideDrawingRect: Bool

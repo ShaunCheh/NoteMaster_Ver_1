@@ -570,6 +570,38 @@ private extension FretboardValidationRunner {
             }
         }
 
+        if fixture.configuration.displayMode == .vertical {
+            for anchor in scene.labelAnchors {
+                let expectedCell = FretboardCell(
+                    stringIndex: anchor.stringIndex,
+                    fret: anchor.fret
+                )
+                let mirroredDisplayPoint = CGPoint(
+                    x: anchor.center.x,
+                    y: fixture.bounds.minY + fixture.bounds.maxY - anchor.center.y
+                )
+                let normalizedPoint = FretboardContextNormalizationMode.flipYToTopLeft
+                    .normalizedPoint(
+                        mirroredDisplayPoint,
+                        in: fixture.bounds
+                    )
+
+                if !approximatelyEqual(normalizedPoint.x, anchor.center.x)
+                    || !approximatelyEqual(normalizedPoint.y, anchor.center.y) {
+                    record("vertical 模式下坐标归一化后未回到 anchor(\(anchor.stringIndex), \(anchor.fret)) 的共享几何中心。")
+                }
+
+                let normalizedHit = sceneBuilder.hitTest(
+                    normalizedPoint,
+                    phase: .began,
+                    scene: scene
+                )
+                if normalizedHit.cell != expectedCell {
+                    record("vertical 模式下归一化后的命中测试未命中 (\(anchor.stringIndex), \(anchor.fret))，实际 \(String(describing: normalizedHit.cell))。")
+                }
+            }
+        }
+
         let outsidePoint = CGPoint(
             x: scene.drawingRect.minX - 1,
             y: scene.drawingRect.minY - 1
@@ -1152,6 +1184,7 @@ private extension FretboardValidationRunner {
             checklist.append("在 iOS 上同时验证滚动与点击：轻点/短拖动仍命中，纵向拖动可平滑接管 scroll view。")
         case .macOS:
             checklist.append("在 macOS 上执行 live resize，确认 vertical 模式不闪烁，指板在 resize 过程中保持居中且命中仍正常。")
+            checklist.append("在 macOS 的 vertical 模式下分别点击顶部空弦区与底部高品区，确认可见格子与控制台 string / fret 一致，不再出现上下反向。")
         case .commandLine:
             checklist.append("命令行只能覆盖共享层自动化夹具；iOS 滚动与 macOS live resize 需在 App 运行时手工回归。")
         }

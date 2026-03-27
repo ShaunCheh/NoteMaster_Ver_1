@@ -8,6 +8,37 @@
 import Foundation
 import QuartzCore
 
+enum FretboardContextNormalizationMode: Equatable, Sendable {
+    case none
+    case flipYToTopLeft
+
+    func normalizedPoint(
+        _ point: CGPoint,
+        in bounds: CGRect
+    ) -> CGPoint {
+        switch self {
+        case .none:
+            return point
+        case .flipYToTopLeft:
+            let mirroredY = bounds.minY + bounds.maxY - point.y
+            return CGPoint(x: point.x, y: mirroredY)
+        }
+    }
+
+    func applyIfNeeded(
+        to context: CGContext,
+        in bounds: CGRect
+    ) {
+        switch self {
+        case .none:
+            return
+        case .flipYToTopLeft:
+            context.translateBy(x: 0, y: bounds.minY + bounds.maxY)
+            context.scaleBy(x: 1, y: -1)
+        }
+    }
+}
+
 final class FretboardLayer: CALayer {
     var configuration: FretboardConfiguration = .init() {
         didSet {
@@ -22,6 +53,16 @@ final class FretboardLayer: CALayer {
     // provider 只负责音名内容；board 与 labels 共用同一份 scene。
     var contentProvider: (any FretboardContentProviding)? {
         didSet {
+            invalidateSublayersForCurrentState()
+        }
+    }
+
+    var contextNormalizationMode: FretboardContextNormalizationMode = .none {
+        didSet {
+            guard oldValue != contextNormalizationMode else {
+                return
+            }
+
             invalidateSublayersForCurrentState()
         }
     }
@@ -51,6 +92,7 @@ final class FretboardLayer: CALayer {
         if let otherLayer = layer as? FretboardLayer {
             configuration = otherLayer.configuration
             contentProvider = otherLayer.contentProvider
+            contextNormalizationMode = otherLayer.contextNormalizationMode
         }
 
         configureLayer()
@@ -93,6 +135,8 @@ final class FretboardLayer: CALayer {
             labelsLayer.scene = scene
             boardLayer.contentsScale = contentsScale
             labelsLayer.contentsScale = contentsScale
+            boardLayer.contextNormalizationMode = contextNormalizationMode
+            labelsLayer.contextNormalizationMode = contextNormalizationMode
             labelsLayer.contentProvider = contentProvider
         }
     }
