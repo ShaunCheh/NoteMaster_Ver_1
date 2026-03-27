@@ -26,35 +26,10 @@ struct StaffQuarterNoteSequenceGenerator: Equatable, Sendable {
         }
     }
 
-    struct Sequence: Equatable, Sendable {
-        var score: StaffScore
-        var expectedPitchClasses: [PitchClass]
-
-        init(
-            score: StaffScore,
-            expectedPitchClasses: [PitchClass]
-        ) {
-            precondition(
-                score.keySignature == .natural,
-                "Quarter-note sequence score should use a natural key signature."
-            )
-            precondition(
-                score.notes.allSatisfy { $0.duration == .quarter },
-                "Quarter-note sequence score should only contain quarter notes."
-            )
-            precondition(
-                expectedPitchClasses.count == score.notes.count,
-                "Quarter-note sequence answers must align with the generated score."
-            )
-            self.score = score
-            self.expectedPitchClasses = expectedPitchClasses
-        }
-    }
-
     func makeSequence<R: RandomNumberGenerator>(
         spec: Spec,
         using generator: inout R
-    ) -> Sequence {
+    ) -> GeneratedNoteSequence {
         let candidates = resolvedCandidates(for: spec)
         guard !candidates.isEmpty else {
             preconditionFailure(
@@ -70,24 +45,15 @@ struct StaffQuarterNoteSequenceGenerator: Equatable, Sendable {
             }
             return pitch
         }
-        let notes = selectedPitches.map {
-            StaffScoreNote(
-                pitch: $0,
-                duration: .quarter
+        let items = selectedPitches.map {
+            GeneratedNoteSequenceItem(
+                writtenPitch: $0
             )
         }
-        let score = StaffScore(
-            clef: spec.clef,
-            keySignature: .natural,
-            measures: makeMeasures(from: notes)
-        )
-        let expectedPitchClasses = selectedPitches.map {
-            $0.notePitch.pitchClass
-        }
 
-        return Sequence(
-            score: score,
-            expectedPitchClasses: expectedPitchClasses
+        return GeneratedNoteSequence(
+            clef: spec.clef,
+            items: items
         )
     }
 
@@ -153,17 +119,6 @@ struct StaffQuarterNoteSequenceGenerator: Equatable, Sendable {
                 StaffPitch(letter: .g, accidental: .sharp, octave: 3),
                 StaffPitch(letter: .a, accidental: .sharp, octave: 3)
             ]
-        }
-    }
-
-    private func makeMeasures(
-        from notes: [StaffScoreNote]
-    ) -> [StaffMeasure] {
-        stride(from: 0, to: notes.count, by: 4).map { startIndex in
-            let endIndex = min(startIndex + 4, notes.count)
-            return StaffMeasure(
-                notes: Array(notes[startIndex..<endIndex])
-            )
         }
     }
 }

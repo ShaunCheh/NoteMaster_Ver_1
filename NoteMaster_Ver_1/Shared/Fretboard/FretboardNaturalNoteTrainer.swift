@@ -65,47 +65,56 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     struct QuarterNoteSequencePrompt: Equatable, Sendable {
         var spec: QuarterNoteSequenceSpec
-        var score: StaffScore
-        var expectedPitchClasses: [PitchClass]
+        private(set) var generatedSequence: GeneratedNoteSequence
 
         init(
             spec: QuarterNoteSequenceSpec,
-            score: StaffScore,
-            expectedPitchClasses: [PitchClass]
+            generatedSequence: GeneratedNoteSequence
         ) {
             precondition(
-                score.clef == spec.clef,
-                "Quarter-note sequence score clef must match the spec clef."
+                generatedSequence.clef == spec.clef,
+                "Quarter-note sequence generated sequence clef must match the spec clef."
             )
             precondition(
-                score.keySignature == .natural,
+                generatedSequence.score.keySignature == .natural,
                 "Quarter-note sequence score should use a natural key signature."
             )
             precondition(
-                score.notes.count == spec.noteCount,
-                "Quarter-note sequence score note count must match the spec."
+                generatedSequence.noteCount == spec.noteCount,
+                "Quarter-note sequence generated sequence note count must match the spec."
             )
             precondition(
-                score.notes.allSatisfy { $0.duration == .quarter },
+                generatedSequence.notes.allSatisfy { $0.duration == .quarter },
                 "Quarter-note sequence score should only contain quarter notes."
             )
             precondition(
-                expectedPitchClasses.count == score.notes.count,
+                generatedSequence.answerPitchClasses.count == generatedSequence.notes.count,
                 "Quarter-note sequence answers must align with the generated score."
             )
             if !spec.includesAccidentals {
                 precondition(
-                    expectedPitchClasses.allSatisfy(\.isNatural),
+                    generatedSequence.answerPitchClasses.allSatisfy(\.isNatural),
                     "Quarter-note sequence without accidentals must only contain natural pitches."
                 )
             }
             self.spec = spec
-            self.score = score
-            self.expectedPitchClasses = expectedPitchClasses
+            self.generatedSequence = generatedSequence
+        }
+
+        var score: StaffScore {
+            generatedSequence.score
+        }
+
+        var expectedPitchClasses: [PitchClass] {
+            generatedSequence.answerPitchClasses
+        }
+
+        var displayPitchClasses: [PitchClass] {
+            generatedSequence.displayPitchClasses
         }
 
         var notes: [StaffScoreNote] {
-            score.notes
+            generatedSequence.notes
         }
     }
 
@@ -244,14 +253,13 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         using generator: inout R
     ) -> QuarterNoteSequencePrompt {
         let spec = requireQuarterNoteSequenceSpec()
-        let sequence = StaffQuarterNoteSequenceGenerator().makeSequence(
+        let generatedSequence = StaffQuarterNoteSequenceGenerator().makeSequence(
             spec: spec.staffGeneratorSpec,
             using: &generator
         )
         let prompt = QuarterNoteSequencePrompt(
             spec: spec,
-            score: sequence.score,
-            expectedPitchClasses: sequence.expectedPitchClasses
+            generatedSequence: generatedSequence
         )
         quarterNoteSequencePrompt = prompt
         return prompt
