@@ -58,3 +58,23 @@ struct TrainerDisplayState: Equatable, Sendable {
         exerciseMode = mode
     }
 }
+
+extension TrainerSequenceConfiguration {
+    init(
+        quarterNoteSequenceSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec
+    ) {
+        self.init(
+            clef: quarterNoteSequenceSpec.clef,
+            noteCount: quarterNoteSequenceSpec.noteCount,
+            includesAccidentals: quarterNoteSequenceSpec.includesAccidentals
+        )
+    }
+
+    var quarterNoteSequenceSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec {
+        FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
+            clef: clef,
+            noteCount: noteCount,
+            includesAccidentals: includesAccidentals
+        )
+    }
+}
