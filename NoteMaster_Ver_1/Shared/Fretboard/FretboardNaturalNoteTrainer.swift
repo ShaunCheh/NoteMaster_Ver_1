@@ -185,9 +185,14 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         using generator: inout R
     ) -> QuarterNoteSequencePrompt {
         let spec = requireQuarterNoteSequenceSpec()
-        let prompt = StaffQuarterNoteSequenceGenerator().makePrompt(
-            spec: spec,
+        let sequence = StaffQuarterNoteSequenceGenerator().makeSequence(
+            spec: spec.staffGeneratorSpec,
             using: &generator
+        )
+        let prompt = QuarterNoteSequencePrompt(
+            spec: spec,
+            score: sequence.score,
+            expectedPitchClasses: sequence.expectedPitchClasses
         )
         quarterNoteSequencePrompt = prompt
         return prompt
@@ -330,5 +335,15 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         return spec
+    }
+}
+
+private extension FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec {
+    var staffGeneratorSpec: StaffQuarterNoteSequenceGenerator.Spec {
+        StaffQuarterNoteSequenceGenerator.Spec(
+            clef: clef,
+            noteCount: noteCount,
+            includesAccidentals: includesAccidentals
+        )
     }
 }

@@ -6,10 +6,55 @@
 //
 
 struct StaffQuarterNoteSequenceGenerator: Equatable, Sendable {
-    func makePrompt<R: RandomNumberGenerator>(
-        spec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec,
+    struct Spec: Equatable, Sendable {
+        var clef: StaffClef
+        var noteCount: Int
+        var includesAccidentals: Bool
+
+        init(
+            clef: StaffClef,
+            noteCount: Int,
+            includesAccidentals: Bool
+        ) {
+            precondition(
+                noteCount > 0,
+                "Quarter-note sequence note count must be greater than zero."
+            )
+            self.clef = clef
+            self.noteCount = noteCount
+            self.includesAccidentals = includesAccidentals
+        }
+    }
+
+    struct Sequence: Equatable, Sendable {
+        var score: StaffScore
+        var expectedPitchClasses: [PitchClass]
+
+        init(
+            score: StaffScore,
+            expectedPitchClasses: [PitchClass]
+        ) {
+            precondition(
+                score.keySignature == .natural,
+                "Quarter-note sequence score should use a natural key signature."
+            )
+            precondition(
+                score.notes.allSatisfy { $0.duration == .quarter },
+                "Quarter-note sequence score should only contain quarter notes."
+            )
+            precondition(
+                expectedPitchClasses.count == score.notes.count,
+                "Quarter-note sequence answers must align with the generated score."
+            )
+            self.score = score
+            self.expectedPitchClasses = expectedPitchClasses
+        }
+    }
+
+    func makeSequence<R: RandomNumberGenerator>(
+        spec: Spec,
         using generator: inout R
-    ) -> FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt {
+    ) -> Sequence {
         let candidates = resolvedCandidates(for: spec)
         guard !candidates.isEmpty else {
             preconditionFailure(
@@ -40,15 +85,14 @@ struct StaffQuarterNoteSequenceGenerator: Equatable, Sendable {
             $0.notePitch.pitchClass
         }
 
-        return FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt(
-            spec: spec,
+        return Sequence(
             score: score,
             expectedPitchClasses: expectedPitchClasses
         )
     }
 
     private func resolvedCandidates(
-        for spec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec
+        for spec: Spec
     ) -> [StaffPitch] {
         let naturalCandidates = naturalCandidates(for: spec.clef)
         guard spec.includesAccidentals else {
