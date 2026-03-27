@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: phase2-shared-scene-sequence-rendering
     content: 把 sequence 展示语义接入 StaffSceneProvider / StaffScene / StaffSceneBuilder，让 scene 直接表达游标和整颗音符的红绿反馈
-    status: pending
+    status: completed
   - id: phase3-controller-sequence-projection
     content: 在 iOS/macOS controller 中保存最近一次 sequence evaluation，并把 generatedSequence + currentIndex + lastEvaluation 一起投影到 prompt 与 staff
     status: pending

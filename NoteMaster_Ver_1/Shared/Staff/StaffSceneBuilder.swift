@@ -63,6 +63,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
     var clef: StaffClef
     var score: StaffScore
     var notationDisplayOptions: StaffNotationDisplayOptions
+    var sequencePresentation: StaffSequencePresentation?
     var glyphTintColor: StaffSceneColor
     var clefRenderHint: StaffGlyphRenderHint
     var layoutMetrics: LayoutMetrics
@@ -71,6 +72,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
         clef: StaffClef,
         score: StaffScore,
         notationDisplayOptions: StaffNotationDisplayOptions = .fullNotation,
+        sequencePresentation: StaffSequencePresentation? = nil,
         glyphTintColor: StaffSceneColor = .primaryInk,
         clefRenderHint: StaffGlyphRenderHint = .staffClef(),
         layoutMetrics: LayoutMetrics = .default
@@ -78,6 +80,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
         self.clef = clef
         self.score = score
         self.notationDisplayOptions = notationDisplayOptions
+        self.sequencePresentation = sequencePresentation
         self.glyphTintColor = glyphTintColor
         self.clefRenderHint = clefRenderHint
         self.layoutMetrics = layoutMetrics
@@ -124,7 +127,19 @@ struct StaffSceneBuilder: Equatable, Sendable {
             )
         )
 
-        for noteLayout in noteLayouts {
+        if let cursorStroke = sequenceCursorStroke(
+            noteLayouts: noteLayouts,
+            geometry: geometry
+        ) {
+            strokeItems.append(cursorStroke)
+        }
+
+        let noteCount = noteLayouts.count
+        for (noteIndex, noteLayout) in noteLayouts.enumerated() {
+            let noteTintColor = noteTintColor(
+                for: noteIndex,
+                noteCount: noteCount
+            )
             if notationDisplayOptions.showsNoteAccidentals,
                let displayedAccidental = noteLayout.displayedAccidental,
                let accidentalSymbolID = accidentalSymbolID(
@@ -139,7 +154,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
                                 centerY: noteLayout.positionedPitch.centerY
                             )
                         ),
-                        tintColor: glyphTintColor,
+                        tintColor: noteTintColor,
                         renderHint: .accidental()
                     )
                 )
@@ -149,7 +164,7 @@ struct StaffSceneBuilder: Equatable, Sendable {
                 StaffGlyphItem(
                     symbolID: noteheadSymbolID(for: noteLayout.note.duration),
                     placement: .frame(noteLayout.noteheadFrame),
-                    tintColor: glyphTintColor,
+                    tintColor: noteTintColor,
                     renderHint: .notehead()
                 )
             )
@@ -160,7 +175,8 @@ struct StaffSceneBuilder: Equatable, Sendable {
                     stemStroke(
                         for: noteLayout.noteheadFrame,
                         positionedPitch: noteLayout.positionedPitch,
-                        geometry: geometry
+                        geometry: geometry,
+                        strokeColor: noteTintColor
                     )
                 )
             }
@@ -169,7 +185,8 @@ struct StaffSceneBuilder: Equatable, Sendable {
                 strokeItems.append(
                     contentsOf: ledgerLineStrokes(
                         for: noteLayout.noteheadFrame,
-                        ledgerLineYs: noteLayout.positionedPitch.ledgerLineYs
+                        ledgerLineYs: noteLayout.positionedPitch.ledgerLineYs,
+                        strokeColor: noteTintColor
                     )
                 )
             }
@@ -491,7 +508,8 @@ struct StaffSceneBuilder: Equatable, Sendable {
     private func stemStroke(
         for noteheadFrame: CGRect,
         positionedPitch: StaffPitchLayout.PositionedPitch,
-        geometry: StaffGeometry
+        geometry: StaffGeometry,
+        strokeColor: StaffSceneColor
     ) -> StaffStrokeItem {
         let length = geometry.staffSpaceHeight * layoutMetrics.stemLengthInSpaces
         let xInset = noteheadFrame.width * layoutMetrics.stemAnchorInsetToNoteheadWidth
@@ -516,14 +534,15 @@ struct StaffSceneBuilder: Equatable, Sendable {
             start: CGPoint(x: stemX, y: startY),
             end: CGPoint(x: stemX, y: endY),
             style: .stem(
-                strokeColor: glyphTintColor
+                strokeColor: strokeColor
             )
         )
     }
 
     private func ledgerLineStrokes(
         for noteheadFrame: CGRect,
-        ledgerLineYs: [CGFloat]
+        ledgerLineYs: [CGFloat],
+        strokeColor: StaffSceneColor
     ) -> [StaffStrokeItem] {
         let ledgerWidth = noteheadFrame.width * layoutMetrics.ledgerLineWidthToNoteheadWidth
         let startX = noteheadFrame.midX - (ledgerWidth / 2)
@@ -535,10 +554,92 @@ struct StaffSceneBuilder: Equatable, Sendable {
                 start: CGPoint(x: startX, y: $0),
                 end: CGPoint(x: endX, y: $0),
                 style: .ledgerLine(
-                    strokeColor: glyphTintColor
+                    strokeColor: strokeColor
                 )
             )
         }
+    }
+
+    // 将“最近一次判题结果”映射到 note 级别颜色，保证 notehead / accidental /
+    // stem / ledger line 使用同一反馈色，而不是由平台分别高亮不同子图元。
+    private func noteTintColor(
+        for noteIndex: Int,
+        noteCount: Int
+    ) -> StaffSceneColor {
+        guard
+            noteIndex == resolvedSequenceIndex(
+                sequencePresentation?.lastEvaluatedIndex,
+                label: "lastEvaluatedIndex",
+                noteCount: noteCount
+            ),
+            let lastEvaluationResult = sequencePresentation?.lastEvaluationResult
+        else {
+            return glyphTintColor
+        }
+
+        switch lastEvaluationResult {
+        case .correct:
+            return .sequenceCorrectGreen
+        case .incorrect:
+            return .sequenceIncorrectRed
+        }
+    }
+
+    private func sequenceCursorStroke(
+        noteLayouts: [PositionedNoteLayout],
+        geometry: StaffGeometry
+    ) -> StaffStrokeItem? {
+        guard
+            let cursorIndex = resolvedSequenceIndex(
+                sequencePresentation?.cursorIndex,
+                label: "cursorIndex",
+                noteCount: noteLayouts.count
+            )
+        else {
+            return nil
+        }
+
+        let noteheadFrame = noteLayouts[cursorIndex].noteheadFrame
+        return StaffStrokeItem(
+            semantic: .sequenceCursor,
+            start: CGPoint(
+                x: noteheadFrame.midX,
+                y: geometry.drawingRect.minY
+            ),
+            end: CGPoint(
+                x: noteheadFrame.midX,
+                y: geometry.drawingRect.maxY
+            ),
+            style: .sequenceCursor(
+                lineWidth: max(geometry.staffSpaceHeight * 0.18, 1.4)
+            )
+        )
+    }
+
+    private func resolvedSequenceIndex(
+        _ index: Int?,
+        label: String,
+        noteCount: Int
+    ) -> Int? {
+        guard let index else {
+            return nil
+        }
+
+        guard noteCount > 0 else {
+            assertionFailure(
+                "StaffSceneBuilder received \(label) but no note layouts were generated."
+            )
+            return nil
+        }
+
+        guard index >= 0, index < noteCount else {
+            assertionFailure(
+                "StaffSceneBuilder received \(label)=\(index) outside rendered note range 0..<\(noteCount)."
+            )
+            return nil
+        }
+
+        return index
     }
 
     private func centeredFrame(

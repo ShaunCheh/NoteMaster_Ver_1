@@ -81,6 +81,27 @@ struct StaffSceneColor: Equatable, Sendable {
         blue: 0.18,
         alpha: 1
     )
+
+    static let sequenceCorrectGreen = StaffSceneColor(
+        red: 0.18,
+        green: 0.62,
+        blue: 0.28,
+        alpha: 1
+    )
+
+    static let sequenceIncorrectRed = StaffSceneColor(
+        red: 0.84,
+        green: 0.24,
+        blue: 0.2,
+        alpha: 1
+    )
+
+    static let sequenceCursorBlue = StaffSceneColor(
+        red: 0.2,
+        green: 0.45,
+        blue: 0.9,
+        alpha: 0.95
+    )
 }
 
 enum StaffSequenceEvaluationResult: Equatable, Sendable {
@@ -323,6 +344,7 @@ struct StaffGlyphItem: Equatable, Sendable {
 enum StaffStrokeSemantic: Equatable, Sendable {
     case stem
     case ledgerLine
+    case sequenceCursor
 }
 
 enum StaffStrokeLineCap: Equatable, Sendable {
@@ -354,6 +376,17 @@ struct StaffStrokeStyle: Equatable, Sendable {
         StaffStrokeStyle(
             strokeColor: strokeColor,
             lineWidth: max(lineWidth, 0.5),
+            lineCap: .round
+        )
+    }
+
+    static func sequenceCursor(
+        strokeColor: StaffSceneColor = .sequenceCursorBlue,
+        lineWidth: CGFloat = 1.6
+    ) -> Self {
+        StaffStrokeStyle(
+            strokeColor: strokeColor,
+            lineWidth: max(lineWidth, 0.75),
             lineCap: .round
         )
     }

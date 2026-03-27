@@ -52,6 +52,7 @@ struct StaffSceneProvider: Equatable, Sendable {
                 clef: clef,
                 score: score,
                 notationDisplayOptions: notationDisplayOptions,
+                sequencePresentation: sequencePresentation,
                 glyphTintColor: glyphTintColor,
                 clefRenderHint: renderHint
             ).makeScene(geometry: geometry)

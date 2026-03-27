@@ -942,6 +942,14 @@ private extension StaffValidationRunner {
                 if !(stroke.end.x > stroke.start.x + tolerance) {
                     record("ledgerLine[\(index)] 宽度非法。")
                 }
+            case .sequenceCursor:
+                if !approximatelyEqual(stroke.start.x, stroke.end.x) {
+                    record("sequenceCursor[\(index)] 不是竖线。")
+                }
+
+                if !(stroke.end.y > stroke.start.y + tolerance) {
+                    record("sequenceCursor[\(index)] 高度非法。")
+                }
             }
         }
     }
