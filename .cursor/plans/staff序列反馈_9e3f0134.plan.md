@@ -4,7 +4,7 @@ overview: 为 `topContent = staff` 且 `exerciseMode = sequence` 的场景制定
 todos:
   - id: phase1-shared-staff-sequence-state
     content: 在 shared staff 显示状态中补齐 sequence 展示语义，能够表达 cursorIndex、lastEvaluatedIndex、lastEvaluationResult 以及 idle/wrong/correct/completed 状态
-    status: pending
+    status: completed
   - id: phase2-shared-scene-sequence-rendering
     content: 把 sequence 展示语义接入 StaffSceneProvider / StaffScene / StaffSceneBuilder，让 scene 直接表达游标和整颗音符的红绿反馈
     status: pending

@@ -83,6 +83,152 @@ struct StaffSceneColor: Equatable, Sendable {
     )
 }
 
+enum StaffSequenceEvaluationResult: Equatable, Sendable {
+    case correct
+    case incorrect
+}
+
+struct StaffSequencePresentation: Equatable, Sendable {
+    enum State: Equatable, Sendable {
+        case idle
+        case wrong
+        case correct
+        case completed
+    }
+
+    var state: State
+    var cursorIndex: Int?
+    var lastEvaluatedIndex: Int?
+    var lastEvaluationResult: StaffSequenceEvaluationResult?
+
+    // 序列反馈状态先在共享层标准化，后续 builder/layer 直接消费这一语义，
+    // 避免双端控制器各自推导“当前游标 + 上次判题”的显示规则。
+    private init(
+        state: State,
+        cursorIndex: Int?,
+        lastEvaluatedIndex: Int?,
+        lastEvaluationResult: StaffSequenceEvaluationResult?
+    ) {
+        if let cursorIndex {
+            precondition(
+                cursorIndex >= 0,
+                "Staff sequence cursor index must not be negative."
+            )
+        }
+        if let lastEvaluatedIndex {
+            precondition(
+                lastEvaluatedIndex >= 0,
+                "Staff sequence last evaluated index must not be negative."
+            )
+        }
+
+        switch state {
+        case .idle:
+            precondition(
+                cursorIndex != nil,
+                "Idle staff sequence presentation requires a cursor index."
+            )
+            precondition(
+                lastEvaluatedIndex == nil && lastEvaluationResult == nil,
+                "Idle staff sequence presentation must not carry evaluation feedback."
+            )
+        case .wrong:
+            precondition(
+                cursorIndex != nil,
+                "Wrong staff sequence presentation requires a cursor index."
+            )
+            precondition(
+                lastEvaluatedIndex != nil,
+                "Wrong staff sequence presentation requires a last evaluated index."
+            )
+            precondition(
+                lastEvaluationResult == .incorrect,
+                "Wrong staff sequence presentation must carry an incorrect evaluation result."
+            )
+        case .correct:
+            precondition(
+                cursorIndex != nil,
+                "Correct staff sequence presentation requires the next cursor index."
+            )
+            precondition(
+                lastEvaluatedIndex != nil,
+                "Correct staff sequence presentation requires a last evaluated index."
+            )
+            precondition(
+                lastEvaluationResult == .correct,
+                "Correct staff sequence presentation must carry a correct evaluation result."
+            )
+        case .completed:
+            precondition(
+                cursorIndex == nil,
+                "Completed staff sequence presentation must hide the cursor."
+            )
+            precondition(
+                (lastEvaluatedIndex == nil) == (lastEvaluationResult == nil),
+                "Completed staff sequence presentation must either keep both evaluation fields or neither."
+            )
+        }
+
+        self.state = state
+        self.cursorIndex = cursorIndex
+        self.lastEvaluatedIndex = lastEvaluatedIndex
+        self.lastEvaluationResult = lastEvaluationResult
+    }
+
+    static func idle(cursorIndex: Int) -> Self {
+        StaffSequencePresentation(
+            state: .idle,
+            cursorIndex: cursorIndex,
+            lastEvaluatedIndex: nil,
+            lastEvaluationResult: nil
+        )
+    }
+
+    static func wrong(
+        cursorIndex: Int,
+        evaluatedIndex: Int
+    ) -> Self {
+        StaffSequencePresentation(
+            state: .wrong,
+            cursorIndex: cursorIndex,
+            lastEvaluatedIndex: evaluatedIndex,
+            lastEvaluationResult: .incorrect
+        )
+    }
+
+    static func correct(
+        cursorIndex: Int,
+        evaluatedIndex: Int
+    ) -> Self {
+        StaffSequencePresentation(
+            state: .correct,
+            cursorIndex: cursorIndex,
+            lastEvaluatedIndex: evaluatedIndex,
+            lastEvaluationResult: .correct
+        )
+    }
+
+    static func completed(
+        lastEvaluatedIndex: Int? = nil,
+        lastEvaluationResult: StaffSequenceEvaluationResult? = nil
+    ) -> Self {
+        StaffSequencePresentation(
+            state: .completed,
+            cursorIndex: nil,
+            lastEvaluatedIndex: lastEvaluatedIndex,
+            lastEvaluationResult: lastEvaluationResult
+        )
+    }
+
+    var showsCursor: Bool {
+        cursorIndex != nil
+    }
+
+    var isCompleted: Bool {
+        state == .completed
+    }
+}
+
 struct StaffGlyphBoundsOverlayStyle: Equatable, Sendable {
     var strokeColor: StaffSceneColor
     var lineWidth: CGFloat

@@ -12,6 +12,9 @@ struct StaffSceneProvider: Equatable, Sendable {
     var clef: StaffClef
     var score: StaffScore?
     var notationDisplayOptions: StaffNotationDisplayOptions
+    // 阶段 1 先把序列展示语义纳入 provider 真相源；
+    // 阶段 2 再由 scene builder 消费并转成实际游标/高亮图元。
+    var sequencePresentation: StaffSequencePresentation?
     var glyphTintColor: StaffSceneColor
     var renderHint: StaffGlyphRenderHint
 
@@ -19,12 +22,14 @@ struct StaffSceneProvider: Equatable, Sendable {
         clef: StaffClef = .treble,
         score: StaffScore? = nil,
         notationDisplayOptions: StaffNotationDisplayOptions = .fullNotation,
+        sequencePresentation: StaffSequencePresentation? = nil,
         glyphTintColor: StaffSceneColor = .primaryInk,
         renderHint: StaffGlyphRenderHint = .staffClef()
     ) {
         self.clef = clef
         self.score = score
         self.notationDisplayOptions = notationDisplayOptions
+        self.sequencePresentation = sequencePresentation
         self.glyphTintColor = glyphTintColor
         self.renderHint = renderHint
     }

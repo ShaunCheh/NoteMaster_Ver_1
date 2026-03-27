@@ -9,6 +9,7 @@ struct StaffDisplayState: Equatable, Sendable {
     var configuration: StaffConfiguration
     var score: StaffScore?
     var notationDisplayOptions: StaffNotationDisplayOptions
+    var sequencePresentation: StaffSequencePresentation?
     // 组件边界描线属于平台展示状态，不进入五线谱 scene/config 语义。
     var showsComponentBoundsOverlay: Bool
 
@@ -20,11 +21,13 @@ struct StaffDisplayState: Equatable, Sendable {
         configuration: StaffConfiguration,
         score: StaffScore? = nil,
         notationDisplayOptions: StaffNotationDisplayOptions = .fullNotation,
+        sequencePresentation: StaffSequencePresentation? = nil,
         showsComponentBoundsOverlay: Bool = false
     ) {
         self.configuration = configuration
         self.score = score
         self.notationDisplayOptions = notationDisplayOptions
+        self.sequencePresentation = sequencePresentation
         self.showsComponentBoundsOverlay = showsComponentBoundsOverlay
     }
 
@@ -35,6 +38,7 @@ struct StaffDisplayState: Equatable, Sendable {
             clef: configuration.clef,
             score: resolvedScore,
             notationDisplayOptions: notationDisplayOptions,
+            sequencePresentation: sequencePresentation,
             renderHint: .staffClef(
                 boundsOverlayStyle: configuration.debugOptions.showsClefBounds
                 ? .clefDebug(lineWidth: configuration.debugOptions.clefBoundsLineWidth)
@@ -67,18 +71,28 @@ extension StaffDisplayState {
     }
 
     // quarter-note sequence 的谱面显示直接消费共享序列真相源，
-    // 避免 staff 继续依赖旧 prompt 适配层。
+    // 避免 staff 继续依赖旧 prompt 适配层；
+    // sequencePresentation 作为显式参数接入，后续阶段由 controller 传入当前游标和判题反馈。
     mutating func apply(
-        generatedSequence: GeneratedNoteSequence
+        generatedSequence: GeneratedNoteSequence,
+        sequencePresentation: StaffSequencePresentation? = nil
     ) {
         configuration.clef = generatedSequence.clef
         score = generatedSequence.score
+        self.sequencePresentation = sequencePresentation
     }
 
     // 兼容旧调用方；阶段 6 清理适配层后可继续收缩。
     mutating func apply(
         quarterNoteSequencePrompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt
     ) {
-        apply(generatedSequence: quarterNoteSequencePrompt.generatedSequence)
+        apply(
+            generatedSequence: quarterNoteSequencePrompt.generatedSequence,
+            sequencePresentation: nil
+        )
+    }
+
+    mutating func clearSequencePresentation() {
+        sequencePresentation = nil
     }
 }
