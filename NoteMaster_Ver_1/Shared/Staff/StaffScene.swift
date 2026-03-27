@@ -248,6 +248,55 @@ struct StaffSequencePresentation: Equatable, Sendable {
     var isCompleted: Bool {
         state == .completed
     }
+
+    // 控制器只需传递 session 进度和最近一次判题结果；
+    // 具体映射到 idle / wrong / correct / completed 由 shared 规则统一收口。
+    static func fromProgress(
+        totalCount: Int,
+        currentIndex: Int,
+        lastEvaluatedIndex: Int? = nil,
+        lastEvaluationResult: StaffSequenceEvaluationResult? = nil
+    ) -> Self? {
+        guard totalCount > 0 else {
+            assertionFailure(
+                "Staff sequence presentation requires a positive totalCount."
+            )
+            return nil
+        }
+
+        precondition(
+            currentIndex >= 0 && currentIndex <= totalCount,
+            "Staff sequence currentIndex must stay within 0...totalCount."
+        )
+        precondition(
+            (lastEvaluatedIndex == nil) == (lastEvaluationResult == nil),
+            "Staff sequence progress must provide both lastEvaluatedIndex and lastEvaluationResult together."
+        )
+
+        if currentIndex >= totalCount {
+            return .completed(
+                lastEvaluatedIndex: lastEvaluatedIndex,
+                lastEvaluationResult: lastEvaluationResult
+            )
+        }
+
+        guard let lastEvaluatedIndex, let lastEvaluationResult else {
+            return .idle(cursorIndex: currentIndex)
+        }
+
+        switch lastEvaluationResult {
+        case .correct:
+            return .correct(
+                cursorIndex: currentIndex,
+                evaluatedIndex: lastEvaluatedIndex
+            )
+        case .incorrect:
+            return .wrong(
+                cursorIndex: currentIndex,
+                evaluatedIndex: lastEvaluatedIndex
+            )
+        }
+    }
 }
 
 struct StaffGlyphBoundsOverlayStyle: Equatable, Sendable {

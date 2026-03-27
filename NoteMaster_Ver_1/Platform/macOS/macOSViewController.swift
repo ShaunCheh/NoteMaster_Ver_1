@@ -70,6 +70,7 @@ final class macOSViewController: NSViewController {
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
+    private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
 
     private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
         fretboardTrainerState.prompt
@@ -94,6 +95,27 @@ final class macOSViewController: NSViewController {
         }
 
         return generatedSequence.targetPromptContent()
+    }
+
+    private func currentQuarterNoteSequenceStaffPresentation(
+        for generatedSequence: GeneratedNoteSequence
+    ) -> StaffSequencePresentation? {
+        if let quarterNoteSequenceSession,
+           quarterNoteSequenceSession.generatedSequence == generatedSequence {
+            return StaffSequencePresentation.fromProgress(
+                totalCount: quarterNoteSequenceSession.totalCount,
+                currentIndex: quarterNoteSequenceSession.currentIndex,
+                lastEvaluatedIndex: quarterNoteSequenceLastEvaluation?.answeredIndex,
+                lastEvaluationResult: quarterNoteSequenceLastEvaluation.map {
+                    $0.isCorrect ? .correct : .incorrect
+                }
+            )
+        }
+
+        return StaffSequencePresentation.fromProgress(
+            totalCount: generatedSequence.noteCount,
+            currentIndex: 0
+        )
     }
 
     private var configuredQuarterNoteSequenceSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec {
@@ -671,6 +693,7 @@ final class macOSViewController: NSViewController {
 
         if quarterNoteSequenceSession?.generatedSequence != generatedSequence {
             quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
+            quarterNoteSequenceLastEvaluation = nil
         }
 
         guard var quarterNoteSequenceSession else {
@@ -685,6 +708,9 @@ final class macOSViewController: NSViewController {
             session: &quarterNoteSequenceSession
         )
         self.quarterNoteSequenceSession = quarterNoteSequenceSession
+        if case let .evaluated(evaluation) = answerResult {
+            quarterNoteSequenceLastEvaluation = evaluation
+        }
         applyQuarterNoteSequenceProjection(
             generatedSequence,
             reason: "answered",
@@ -707,6 +733,7 @@ final class macOSViewController: NSViewController {
     // 这里同时同步控制台日志与目标音组件显示内容。
     private func applyFretboardTrainerPrompt(reason: String) {
         quarterNoteSequenceSession = nil
+        quarterNoteSequenceLastEvaluation = nil
         let prompt = currentFretboardTrainerPrompt
         targetNotePromptView.apply(content: prompt.targetPromptContent)
         print(
@@ -743,6 +770,7 @@ final class macOSViewController: NSViewController {
         }
 
         quarterNoteSequenceSession = nil
+        quarterNoteSequenceLastEvaluation = nil
 
         if staffDisplayState != baseStaffDisplayState {
             staffDisplayState = baseStaffDisplayState
@@ -777,6 +805,7 @@ final class macOSViewController: NSViewController {
 
         if quarterNoteSequenceSession?.generatedSequence != generatedSequence {
             quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
+            quarterNoteSequenceLastEvaluation = nil
         }
 
         applyQuarterNoteSequenceProjection(generatedSequence, reason: reason)
@@ -792,7 +821,12 @@ final class macOSViewController: NSViewController {
         targetNotePromptView.apply(content: content)
 
         var nextStaffDisplayState = staffDisplayState
-        nextStaffDisplayState.apply(generatedSequence: generatedSequence)
+        nextStaffDisplayState.apply(
+            generatedSequence: generatedSequence,
+            sequencePresentation: currentQuarterNoteSequenceStaffPresentation(
+                for: generatedSequence
+            )
+        )
 
         if nextStaffDisplayState != staffDisplayState {
             staffDisplayState = nextStaffDisplayState
@@ -818,6 +852,7 @@ final class macOSViewController: NSViewController {
             quarterNoteSequenceSpec: configuredQuarterNoteSequenceSpec
         )
         quarterNoteSequenceSession = nil
+        quarterNoteSequenceLastEvaluation = nil
         synchronizeTrainerPresentationState(reason: reason)
     }
 
@@ -832,7 +867,10 @@ final class macOSViewController: NSViewController {
 
         if let currentGeneratedQuarterNoteSequence {
             stateContext.staffDisplayState.apply(
-                generatedSequence: currentGeneratedQuarterNoteSequence
+                generatedSequence: currentGeneratedQuarterNoteSequence,
+                sequencePresentation: currentQuarterNoteSequenceStaffPresentation(
+                    for: currentGeneratedQuarterNoteSequence
+                )
             )
         }
     }
@@ -896,7 +934,9 @@ final class macOSViewController: NSViewController {
 
         if nextTrainerDisplayState.isSequenceMode,
            nextRequestedStaffDisplayState != staffDisplayState {
-            baseStaffDisplayState = nextRequestedStaffDisplayState
+            var nextBaseStaffDisplayState = nextRequestedStaffDisplayState
+            nextBaseStaffDisplayState.clearSequencePresentation()
+            baseStaffDisplayState = nextBaseStaffDisplayState
         }
 
         if didChangeTrainer {
