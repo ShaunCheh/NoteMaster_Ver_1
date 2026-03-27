@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: phase3-controller-sequence-projection
     content: 在 iOS/macOS controller 中保存最近一次 sequence evaluation，并把 generatedSequence + currentIndex + lastEvaluation 一起投影到 prompt 与 staff
-    status: pending
+    status: completed
   - id: phase4-validation-regression
     content: 扩展 StaffValidation 与必要的 FretboardValidation 对齐断言，覆盖初始游标、错误作答、正确作答、完成态无游标等回归场景
-    status: pending
+    status: completed
   - id: phase5-reset-cleanup
     content: 统一处理重新生成序列、切换 spec、切换 exerciseMode、离开 staff 顶部内容等重置边界，防止旧红绿状态泄漏
     status: pending

@@ -112,6 +112,7 @@ private struct StaffValidationFixture {
     var bounds: CGRect
     var expectedLedgerLineCount: Int
     var expectedDisplayedNoteAccidentals: [StaffValidationExpectedNoteAccidental]
+    var sequencePresentation: StaffSequencePresentation?
 }
 
 private struct StaffValidationExpectedNoteAccidental: Equatable {
@@ -305,6 +306,69 @@ private extension StaffValidationRunner {
                 ]
             ),
             fixture(
+                name: "treble-sequence-initial-cursor-default-demo",
+                configuration: trebleConfiguration,
+                score: StaffScoreFixtures.defaultDemo(clef: .treble),
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 1, accidental: .sharp),
+                    noteAccidental(noteIndex: 3, accidental: .flat)
+                ],
+                sequencePresentation: .idle(cursorIndex: 0)
+            ),
+            fixture(
+                name: "treble-sequence-wrong-current-accidental-feedback",
+                configuration: trebleConfiguration,
+                score: StaffScoreFixtures.defaultDemo(clef: .treble),
+                notationDisplayOptions: .fullNotation,
+                expectedDisplayedNoteAccidentals: [
+                    noteAccidental(noteIndex: 1, accidental: .sharp),
+                    noteAccidental(noteIndex: 3, accidental: .flat)
+                ],
+                sequencePresentation: .wrong(
+                    cursorIndex: 1,
+                    evaluatedIndex: 1
+                )
+            ),
+            fixture(
+                name: "treble-sequence-correct-ledger-advance",
+                configuration: trebleConfiguration,
+                score: score(
+                    clef: .treble,
+                    measures: [[
+                        ("c4", .quarter),
+                        ("a5", .quarter),
+                        ("c6", .half)
+                    ]]
+                ),
+                notationDisplayOptions: .fullNotation,
+                extraVerticalSpaces: 8,
+                expectedLedgerLineCount: 4,
+                sequencePresentation: .correct(
+                    cursorIndex: 2,
+                    evaluatedIndex: 1
+                )
+            ),
+            fixture(
+                name: "treble-sequence-completed-no-cursor",
+                configuration: trebleConfiguration,
+                score: score(
+                    clef: .treble,
+                    measures: [[
+                        ("c4", .quarter),
+                        ("a5", .quarter),
+                        ("c6", .half)
+                    ]]
+                ),
+                notationDisplayOptions: .fullNotation,
+                extraVerticalSpaces: 8,
+                expectedLedgerLineCount: 4,
+                sequencePresentation: .completed(
+                    lastEvaluatedIndex: 2,
+                    lastEvaluationResult: .correct
+                )
+            ),
+            fixture(
                 name: "bass-ascending-reference-full-notation",
                 configuration: bassConfiguration,
                 score: score(
@@ -444,7 +508,8 @@ private extension StaffValidationRunner {
         notationDisplayOptions: StaffNotationDisplayOptions,
         extraVerticalSpaces: CGFloat = 0,
         expectedLedgerLineCount: Int = 0,
-        expectedDisplayedNoteAccidentals: [StaffValidationExpectedNoteAccidental] = []
+        expectedDisplayedNoteAccidentals: [StaffValidationExpectedNoteAccidental] = [],
+        sequencePresentation: StaffSequencePresentation? = nil
     ) -> StaffValidationFixture {
         StaffValidationFixture(
             name: name,
@@ -456,7 +521,8 @@ private extension StaffValidationRunner {
                 extraVerticalSpaces: extraVerticalSpaces
             ),
             expectedLedgerLineCount: expectedLedgerLineCount,
-            expectedDisplayedNoteAccidentals: expectedDisplayedNoteAccidentals
+            expectedDisplayedNoteAccidentals: expectedDisplayedNoteAccidentals,
+            sequencePresentation: sequencePresentation
         )
     }
 
@@ -619,7 +685,8 @@ private extension StaffValidationRunner {
         let scene = StaffSceneProvider(
             clef: fixture.configuration.clef,
             score: fixture.score,
-            notationDisplayOptions: fixture.notationDisplayOptions
+            notationDisplayOptions: fixture.notationDisplayOptions,
+            sequencePresentation: fixture.sequencePresentation
         ).makeScene(geometry: geometry)
         var issues: [StaffValidationIssue] = []
 
@@ -665,6 +732,12 @@ private extension StaffValidationRunner {
         )
         validateStrokeSemantics(
             scene: scene,
+            fixture: fixture,
+            record: record
+        )
+        validateSequencePresentation(
+            scene: scene,
+            geometry: geometry,
             fixture: fixture,
             record: record
         )
@@ -718,6 +791,12 @@ private extension StaffValidationRunner {
         let actualLedgerLineCount = scene.strokeItems.filter { $0.semantic == .ledgerLine }.count
         if actualLedgerLineCount != expectedLedgerLineCount {
             record("ledger line 数量错误，期望 \(expectedLedgerLineCount)，实际 \(actualLedgerLineCount)。")
+        }
+
+        let expectedCursorCount = fixture.sequencePresentation?.showsCursor == true ? 1 : 0
+        let actualCursorCount = scene.strokeItems.filter { $0.semantic == .sequenceCursor }.count
+        if actualCursorCount != expectedCursorCount {
+            record("sequence cursor 数量错误，期望 \(expectedCursorCount)，实际 \(actualCursorCount)。")
         }
     }
 
@@ -954,6 +1033,117 @@ private extension StaffValidationRunner {
         }
     }
 
+    static func validateSequencePresentation(
+        scene: StaffScene,
+        geometry: StaffGeometry,
+        fixture: StaffValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard let sequencePresentation = fixture.sequencePresentation else {
+            return
+        }
+
+        let noteheadGlyphs = scene.glyphs.filter(\.symbolID.isNotehead)
+        let noteheadFrames = noteheadGlyphs.compactMap { frame(of: $0) }
+        guard noteheadFrames.count == noteheadGlyphs.count,
+              noteheadFrames.count == fixture.score.notes.count else {
+            record("sequence fixture 的 notehead frame 映射不完整，无法校验游标与反馈颜色。")
+            return
+        }
+
+        if let highlightedIndex = sequencePresentation.lastEvaluatedIndex,
+           highlightedIndex >= noteheadGlyphs.count {
+            record("sequence presentation 的 lastEvaluatedIndex 超出 notehead 范围。")
+        }
+
+        let cursorStrokes = scene.strokeItems.filter { $0.semantic == .sequenceCursor }
+        if let cursorIndex = sequencePresentation.cursorIndex {
+            guard cursorIndex < noteheadFrames.count else {
+                record("sequence presentation 的 cursorIndex 超出 notehead 范围。")
+                return
+            }
+
+            if let cursorStroke = cursorStrokes.first {
+                let expectedX = noteheadFrames[cursorIndex].midX
+                if !approximatelyEqual(cursorStroke.start.x, expectedX)
+                    || !approximatelyEqual(cursorStroke.end.x, expectedX) {
+                    record("sequence cursor 未对齐到 notehead[\(cursorIndex)] 的中心 X。")
+                }
+
+                if !approximatelyEqual(cursorStroke.start.y, geometry.drawingRect.minY)
+                    || !approximatelyEqual(cursorStroke.end.y, geometry.drawingRect.maxY) {
+                    record("sequence cursor 的纵向范围未对齐 geometry.drawingRect。")
+                }
+
+                if cursorStroke.style.strokeColor != .sequenceCursorBlue {
+                    record("sequence cursor 颜色错误，期望 \(StaffSceneColor.sequenceCursorBlue)，实际 \(cursorStroke.style.strokeColor)。")
+                }
+            }
+        } else if !cursorStrokes.isEmpty {
+            record("完成态或无游标态不应生成 sequence cursor。")
+        }
+
+        for (noteIndex, noteheadGlyph) in noteheadGlyphs.enumerated() {
+            let expectedTintColor = expectedSequenceTintColor(
+                noteIndex: noteIndex,
+                presentation: sequencePresentation
+            )
+            if noteheadGlyph.tintColor != expectedTintColor {
+                record("notehead[\(noteIndex)] 的 sequence tintColor 错误，期望 \(expectedTintColor)，实际 \(noteheadGlyph.tintColor)。")
+            }
+        }
+
+        let accidentalGlyphs = scene.glyphs.filter(\.symbolID.isAccidental)
+        let keySignatureAccidentalCount = expectedKeySignatureAccidentalSymbols(
+            for: fixture
+        ).count
+        let keySignatureAccidentalGlyphs = Array(
+            accidentalGlyphs.prefix(keySignatureAccidentalCount)
+        )
+        for (index, glyph) in keySignatureAccidentalGlyphs.enumerated() {
+            if glyph.tintColor != .primaryInk {
+                record("key signature accidental[\(index)] 不应被 sequence 反馈着色。")
+            }
+        }
+
+        let noteAccidentalGlyphs = Array(
+            accidentalGlyphs.dropFirst(keySignatureAccidentalCount)
+        )
+        let expectedNoteAccidentals = expectedDisplayedNoteAccidentals(for: fixture)
+        for (index, glyph) in noteAccidentalGlyphs.enumerated() {
+            guard index < expectedNoteAccidentals.count else {
+                break
+            }
+
+            let noteIndex = expectedNoteAccidentals[index].noteIndex
+            let expectedTintColor = expectedSequenceTintColor(
+                noteIndex: noteIndex,
+                presentation: sequencePresentation
+            )
+            if glyph.tintColor != expectedTintColor {
+                record("note accidental[\(index)] 的 sequence tintColor 错误，期望 \(expectedTintColor)，实际 \(glyph.tintColor)。")
+            }
+        }
+
+        let feedbackStrokes = scene.strokeItems.filter {
+            $0.semantic == .stem || $0.semantic == .ledgerLine
+        }
+        for (index, stroke) in feedbackStrokes.enumerated() {
+            guard let noteIndex = noteIndex(for: stroke, noteheadFrames: noteheadFrames) else {
+                record("feedback stroke[\(index)] 无法映射到对应的 notehead。")
+                continue
+            }
+
+            let expectedTintColor = expectedSequenceTintColor(
+                noteIndex: noteIndex,
+                presentation: sequencePresentation
+            )
+            if stroke.style.strokeColor != expectedTintColor {
+                record("\(stroke.semantic)[\(index)] 的 sequence tintColor 错误，期望 \(expectedTintColor)，实际 \(stroke.style.strokeColor)。")
+            }
+        }
+    }
+
     static func manualChecklist(for platform: StaffValidationPlatform) -> [String] {
         var checklist = [
             "启动 App，确认默认五线谱已恢复完整记谱显示，且默认 demo 已切到命名调号输入示例：当前应能看到 `D大调` 对应的 key signature，同时保留 stem，以及需要时的 accidental / ledger line。",
@@ -963,6 +1153,7 @@ private extension StaffValidationRunner {
             "将共享 score 切到 `StaffScoreFixtures.aMajorAccidentalContextReference()`，确认 A major 下 `F# / C# / G#` 默认会被调号抑制；写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp；同小节写出的 `c natural / g natural` 到下一小节会再次显示 natural，证明 measure reset 生效。",
             "将共享 score 切到 `StaffScoreFixtures.bbMajorBassAccidentalContextReference()`，确认 Bass + Bb major 下 `bb3` 默认不显示 accidental，`b3` 显示 natural，跨小节后再次按调号默认值重置。",
             "显式把 `staffDisplayState.notationDisplayOptions` 切到 `.noteheadsOnly` 再切回 `.fullNotation`，确认 notehead 可见性稳定，且 accidental / stem / ledger line 能正确隐藏与恢复。",
+            "把 `TopContent` 切到 `Staff` 且 `Exercise Mode` 切到 `Sequence`：确认初始竖线游标准确对齐当前目标音；错误作答时当前音变红且游标不前进；正确作答时刚答中的音变绿且游标前进；完成整条序列后游标隐藏，但最后一次反馈颜色仍保留。",
             "调整窗口大小或设备方向，确认 key signature 区与 note 区不会重叠，note spacing 与 glyph 位置稳定更新。"
         ]
 
@@ -984,6 +1175,40 @@ private extension StaffValidationRunner {
         }
 
         return frame
+    }
+
+    static func expectedSequenceTintColor(
+        noteIndex: Int,
+        presentation: StaffSequencePresentation
+    ) -> StaffSceneColor {
+        guard presentation.lastEvaluatedIndex == noteIndex else {
+            return .primaryInk
+        }
+
+        switch presentation.lastEvaluationResult {
+        case .correct?:
+            return .sequenceCorrectGreen
+        case .incorrect?:
+            return .sequenceIncorrectRed
+        case nil:
+            return .primaryInk
+        }
+    }
+
+    static func noteIndex(
+        for stroke: StaffStrokeItem,
+        noteheadFrames: [CGRect]
+    ) -> Int? {
+        let strokeMidX = (stroke.start.x + stroke.end.x) / 2
+        if let containingIndex = noteheadFrames.firstIndex(where: {
+            strokeMidX >= $0.minX - tolerance && strokeMidX <= $0.maxX + tolerance
+        }) {
+            return containingIndex
+        }
+
+        return noteheadFrames.enumerated().min {
+            abs($0.element.midX - strokeMidX) < abs($1.element.midX - strokeMidX)
+        }?.offset
     }
 
     static func noteheadSymbolID(

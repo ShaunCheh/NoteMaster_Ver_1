@@ -862,6 +862,16 @@ private extension FretboardValidationRunner {
         ) {
             record("quarter-note trainer 新建 session 的 targetPromptContent 未对齐 shared sequence/currentIndex。")
         }
+        if let initialStaffPresentation = StaffSequencePresentation.fromProgress(
+            totalCount: naturalSession.totalCount,
+            currentIndex: naturalSession.currentIndex
+        ) {
+            if initialStaffPresentation != .idle(cursorIndex: naturalSession.currentIndex) {
+                record("quarter-note trainer 新建 session 的 staff sequence presentation 未映射为 idle(cursorIndex: currentIndex)。")
+            }
+        } else {
+            record("quarter-note trainer 新建 session 的 staff sequence presentation 不应为 nil。")
+        }
 
         guard let firstExpectedPitchClass = naturalPrompt.generatedSequence.answerPitchClasses.first else {
             record("quarter-note trainer natural prompt 缺少首个 expectedPitchClass。")
@@ -899,6 +909,21 @@ private extension FretboardValidationRunner {
             }
             if evaluation.isSequenceCompleted {
                 record("quarter-note trainer 错误作答后不应把序列标记为完成。")
+            }
+            if let incorrectStaffPresentation = StaffSequencePresentation.fromProgress(
+                totalCount: incorrectSession.totalCount,
+                currentIndex: incorrectSession.currentIndex,
+                lastEvaluatedIndex: evaluation.answeredIndex,
+                lastEvaluationResult: .incorrect
+            ) {
+                if incorrectStaffPresentation != .wrong(
+                    cursorIndex: incorrectSession.currentIndex,
+                    evaluatedIndex: evaluation.answeredIndex
+                ) {
+                    record("quarter-note trainer 错误作答后的 staff sequence presentation 未与 session/evaluation 对齐。")
+                }
+            } else {
+                record("quarter-note trainer 错误作答后的 staff sequence presentation 不应为 nil。")
             }
         default:
             record("quarter-note trainer 错误作答未返回 evaluated 结果。")
@@ -941,6 +966,31 @@ private extension FretboardValidationRunner {
                 }
                 if evaluation.isSequenceCompleted != shouldComplete {
                     record("quarter-note trainer 的完成态判断与最后一题边界不一致。")
+                }
+                if let correctStaffPresentation = StaffSequencePresentation.fromProgress(
+                    totalCount: completedSession.totalCount,
+                    currentIndex: evaluation.nextIndex,
+                    lastEvaluatedIndex: evaluation.answeredIndex,
+                    lastEvaluationResult: .correct
+                ) {
+                    let expectedStaffPresentation: StaffSequencePresentation
+                    if shouldComplete {
+                        expectedStaffPresentation = .completed(
+                            lastEvaluatedIndex: evaluation.answeredIndex,
+                            lastEvaluationResult: .correct
+                        )
+                    } else {
+                        expectedStaffPresentation = .correct(
+                            cursorIndex: evaluation.nextIndex,
+                            evaluatedIndex: evaluation.answeredIndex
+                        )
+                    }
+
+                    if correctStaffPresentation != expectedStaffPresentation {
+                        record("quarter-note trainer 正确作答后的 staff sequence presentation 未与 session/evaluation 对齐。")
+                    }
+                } else {
+                    record("quarter-note trainer 正确作答后的 staff sequence presentation 不应为 nil。")
                 }
             default:
                 record("quarter-note trainer 正确作答未返回 evaluated 结果。")
