@@ -28,6 +28,14 @@ enum PitchClass: Int, CaseIterable, Hashable, Sendable {
         }
     }
 
+    var isNatural: Bool {
+        !isAccidental
+    }
+
+    static var naturalCasesInOrder: [PitchClass] {
+        allCases.filter(\.isNatural)
+    }
+
     func displayText(using spelling: PitchSpelling = .sharp) -> String {
         switch (self, spelling) {
         case (.c, _):

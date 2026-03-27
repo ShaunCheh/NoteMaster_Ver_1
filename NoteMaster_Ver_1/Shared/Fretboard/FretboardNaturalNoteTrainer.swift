@@ -46,10 +46,6 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
     }
 
-    private static let naturalPitchClasses: [PitchClass] = [
-        .c, .d, .e, .f, .g, .a, .b
-    ]
-
     private(set) var targetPitchClass: PitchClass
 
     var prompt: Prompt {
@@ -58,7 +54,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     init(targetPitchClass: PitchClass) {
         precondition(
-            Self.naturalPitchClasses.contains(targetPitchClass),
+            targetPitchClass.isNatural,
             "Target pitch class must be a natural note."
         )
         self.targetPitchClass = targetPitchClass
@@ -145,11 +141,11 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         excluding excludedPitchClass: PitchClass? = nil,
         using generator: inout R
     ) -> PitchClass {
-        let candidates = naturalPitchClasses.filter { pitchClass in
+        let candidates = PitchClass.naturalCasesInOrder.filter { pitchClass in
             pitchClass != excludedPitchClass
         }
         let resolvedCandidates = candidates.isEmpty
-            ? naturalPitchClasses
+            ? PitchClass.naturalCasesInOrder
             : candidates
 
         guard let targetPitchClass = resolvedCandidates.randomElement(using: &generator) else {
