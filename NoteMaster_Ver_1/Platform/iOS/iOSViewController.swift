@@ -32,7 +32,7 @@ final class iOSViewController: UIViewController {
         }
     }
 
-    private var staffDisplayState = Self.initialStaffDisplayState {
+    private var staffDisplayState = iOSViewController.initialStaffDisplayState {
         didSet {
             guard isViewLoaded else {
                 return
@@ -64,7 +64,7 @@ final class iOSViewController: UIViewController {
             applySettingsPanelState()
         }
     }
-    private var baseStaffDisplayState = Self.initialStaffDisplayState
+    private var baseStaffDisplayState = iOSViewController.initialStaffDisplayState
 
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
