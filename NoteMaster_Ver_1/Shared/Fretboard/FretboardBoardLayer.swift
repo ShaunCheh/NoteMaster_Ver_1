@@ -9,12 +9,19 @@ import CoreGraphics
 import QuartzCore
 
 final class FretboardBoardLayer: CALayer {
+    #if DEBUG && os(macOS)
+    private var lastMacOSVerticalDrawDiagnosticSignature: String?
+    #endif
+
     var configuration: FretboardConfiguration = .init() {
         didSet {
             guard oldValue != configuration else {
                 return
             }
 
+            #if DEBUG && os(macOS)
+            lastMacOSVerticalDrawDiagnosticSignature = nil
+            #endif
             setNeedsDisplay()
         }
     }
@@ -25,6 +32,9 @@ final class FretboardBoardLayer: CALayer {
                 return
             }
 
+            #if DEBUG && os(macOS)
+            lastMacOSVerticalDrawDiagnosticSignature = nil
+            #endif
             setNeedsDisplay()
         }
     }
@@ -56,6 +66,7 @@ final class FretboardBoardLayer: CALayer {
             return
         }
 
+        logMacOSVerticalDrawDiagnosticIfNeeded(context: context)
         drawDisplayBackground(in: context)
         drawFretboardBody(in: context)
         drawMarkers(in: context)
@@ -69,6 +80,48 @@ final class FretboardBoardLayer: CALayer {
         isOpaque = false
         drawsAsynchronously = false
         needsDisplayOnBoundsChange = true
+    }
+
+    private func logMacOSVerticalDrawDiagnosticIfNeeded(context: CGContext) {
+        #if DEBUG && os(macOS)
+        guard configuration.displayMode == .vertical else {
+            return
+        }
+
+        let openStringCellMidY = scene.cellFrame(stringIndex: 0, fret: 0)?.midY ?? .nan
+        let maxFretCellMidY = scene.cellFrame(
+            stringIndex: 0,
+            fret: configuration.maxFret
+        )?.midY ?? .nan
+        let ctm = context.ctm
+        let signature = [
+            bounds.debugDescription,
+            scene.drawingRect.debugDescription,
+            "\(isGeometryFlipped)",
+            "\(ctm.a)",
+            "\(ctm.b)",
+            "\(ctm.c)",
+            "\(ctm.d)",
+            "\(ctm.tx)",
+            "\(ctm.ty)",
+            "\(openStringCellMidY)",
+            "\(maxFretCellMidY)"
+        ].joined(separator: "|")
+        guard signature != lastMacOSVerticalDrawDiagnosticSignature else {
+            return
+        }
+
+        lastMacOSVerticalDrawDiagnosticSignature = signature
+        let contextOrientation = ctm.d < 0
+            ? "CTM已翻转为top-left"
+            : "CTM仍是bottom-left"
+        let likelyCause = ctm.d > 0 && openStringCellMidY < maxFretCellMidY
+            ? "scene 按 top-left 语义把低品放在更小的 y，但 macOS draw context 没翻转，所以视觉会变成下空弦上高品"
+            : "需要继续结合 view/layer 日志确认"
+        print(
+            "[VerticalFretboard][macOS][draw] layer.isGeometryFlipped=\(isGeometryFlipped) bounds=\(bounds.debugDescription) drawingRect=\(scene.drawingRect.debugDescription) ctm=(a:\(ctm.a), b:\(ctm.b), c:\(ctm.c), d:\(ctm.d), tx:\(ctm.tx), ty:\(ctm.ty)) openStringMidY=\(openStringCellMidY) maxFretMidY=\(maxFretCellMidY) context=\(contextOrientation) inference=\(likelyCause)"
+        )
+        #endif
     }
 
     private func drawDisplayBackground(in context: CGContext) {

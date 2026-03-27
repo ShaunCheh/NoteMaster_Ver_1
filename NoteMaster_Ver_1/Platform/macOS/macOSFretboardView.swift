@@ -10,6 +10,7 @@ import AppKit
 
 final class macOSFretboardView: NSView {
     private var lastMeasuredPrimaryDimension: CGFloat?
+    private var lastVerticalCoordinateDiagnosticSignature: String?
 
     var configuration: FretboardConfiguration {
         didSet {
@@ -98,11 +99,13 @@ final class macOSFretboardView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateContentsScale()
+        logVerticalCoordinateDiagnostic(reason: "viewDidMoveToWindow")
     }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         invalidateIntrinsicSizeForCurrentPrimaryDimensionIfNeeded()
+        logVerticalCoordinateDiagnostic(reason: "setFrameSize")
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -133,11 +136,13 @@ final class macOSFretboardView: NSView {
 
     private func applyConfiguration() {
         lastMeasuredPrimaryDimension = nil
+        lastVerticalCoordinateDiagnosticSignature = nil
         fretboardLayer.configuration = configuration
         fretboardLayer.contentProvider = contentProvider
         updateContentsScale()
         updateContentPriorities()
         invalidateIntrinsicContentSize()
+        logVerticalCoordinateDiagnostic(reason: "applyConfiguration")
     }
 
     private func updateContentsScale() {
@@ -211,7 +216,63 @@ final class macOSFretboardView: NSView {
         let location = convert(event.locationInWindow, from: nil)
         let geometry = FretboardGeometry(configuration: configuration, bounds: bounds)
         let hitResult = geometry.hitTest(location, phase: phase)
+        logVerticalHitDiagnostic(hitResult)
         onRawEvent?(hitResult)
+    }
+
+    private func logVerticalCoordinateDiagnostic(reason: String) {
+        #if DEBUG
+        guard configuration.displayMode == .vertical else {
+            return
+        }
+
+        let geometry = FretboardGeometry(configuration: configuration, bounds: bounds)
+        let scene = geometry.scene
+        let openStringCellMidY = scene.cellFrame(stringIndex: 0, fret: 0)?.midY ?? .nan
+        let maxFretCellMidY = scene.cellFrame(
+            stringIndex: 0,
+            fret: configuration.maxFret
+        )?.midY ?? .nan
+        let signature = [
+            reason,
+            bounds.debugDescription,
+            scene.drawingRect.debugDescription,
+            scene.openStringRect.debugDescription,
+            scene.nutRect.debugDescription,
+            "\(isFlipped)",
+            "\(fretboardLayer.isGeometryFlipped)",
+            "\(openStringCellMidY)",
+            "\(maxFretCellMidY)"
+        ].joined(separator: "|")
+        guard signature != lastVerticalCoordinateDiagnosticSignature else {
+            return
+        }
+
+        lastVerticalCoordinateDiagnosticSignature = signature
+        let sceneSemantic = openStringCellMidY < maxFretCellMidY
+            ? "sceneY递增=品位递增(语义是上空弦下高品)"
+            : "sceneY递减=品位递增"
+        print(
+            "[VerticalFretboard][macOS][view:\(reason)] view.isFlipped=\(isFlipped) layer.isGeometryFlipped=\(fretboardLayer.isGeometryFlipped) bounds=\(bounds.debugDescription) drawingRect=\(scene.drawingRect.debugDescription) openStringRect=\(scene.openStringRect.debugDescription) nutRect=\(scene.nutRect.debugDescription) fretboardRect=\(scene.fretboardRect.debugDescription) openStringMidY=\(openStringCellMidY) maxFretMidY=\(maxFretCellMidY) semantic=\(sceneSemantic) note=shared validation 期望 vertical 为上空弦下高品"
+        )
+        #endif
+    }
+
+    private func logVerticalHitDiagnostic(_ hitResult: FretboardHitResult) {
+        #if DEBUG
+        guard configuration.displayMode == .vertical else {
+            return
+        }
+
+        guard hitResult.phase != .moved else {
+            return
+        }
+
+        let hitSummary = hitResult.debugSummary(platform: "macOS")
+        print(
+            "[VerticalFretboard][macOS][hit] \(hitSummary) view.isFlipped=\(isFlipped) layer.isGeometryFlipped=\(fretboardLayer.isGeometryFlipped)"
+        )
+        #endif
     }
 }
 #endif
