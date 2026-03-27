@@ -10,17 +10,13 @@ import CoreGraphics
 
 enum SettingsPanelSnapshotBuilder {
     static func makeModel(
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState,
-        topContentDisplayState: TopContentDisplayState
+        from stateContext: SettingsPanelStateContext
     ) -> SettingsPanelModel {
         SettingsPanelModel(
             sections: SettingsSectionID.allCases.compactMap {
                 makeSection(
                     id: $0,
-                    fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState,
-                    topContentDisplayState: topContentDisplayState
+                    stateContext: stateContext
                 )
             }
         )
@@ -28,16 +24,12 @@ enum SettingsPanelSnapshotBuilder {
 
     private static func makeSection(
         id: SettingsSectionID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState,
-        topContentDisplayState: TopContentDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> SettingsSection? {
         let rows = id.rowIDs.compactMap {
             makeRow(
                 id: $0,
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState,
-                topContentDisplayState: topContentDisplayState
+                stateContext: stateContext
             )
         }
 
@@ -54,25 +46,20 @@ enum SettingsPanelSnapshotBuilder {
 
     private static func makeRow(
         id: SettingsRowID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState,
-        topContentDisplayState: TopContentDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> SettingsRow? {
         switch id {
         case let .choice(choiceRowID):
             return .choice(
                 makeChoiceRow(
                     id: choiceRowID,
-                    fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState,
-                    topContentDisplayState: topContentDisplayState
+                    stateContext: stateContext
                 )
             )
         case let .slider(sliderID):
             guard shouldInclude(
                 sliderID: sliderID,
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
+                stateContext: stateContext
             ) else {
                 return nil
             }
@@ -80,16 +67,14 @@ enum SettingsPanelSnapshotBuilder {
             return .slider(
                 makeSliderRow(
                     id: sliderID,
-                    fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState
+                    stateContext: stateContext
                 )
             )
         case let .toggle(toggleID):
             return .toggle(
                 makeToggleRow(
                     id: toggleID,
-                    fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState
+                    stateContext: stateContext
                 )
             )
         }
@@ -97,9 +82,7 @@ enum SettingsPanelSnapshotBuilder {
 
     private static func makeChoiceRow(
         id: SettingsChoiceRowID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState,
-        topContentDisplayState: TopContentDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> SettingsChoiceRow {
         SettingsChoiceRow(
             id: id,
@@ -110,9 +93,7 @@ enum SettingsPanelSnapshotBuilder {
             choices: id.actionIDs.map {
                 makeChoiceItem(
                     id: $0,
-                    fretboardDisplayState: fretboardDisplayState,
-                    staffDisplayState: staffDisplayState,
-                    topContentDisplayState: topContentDisplayState
+                    stateContext: stateContext
                 )
             }
         )
@@ -120,37 +101,23 @@ enum SettingsPanelSnapshotBuilder {
 
     private static func makeChoiceItem(
         id: SettingsActionID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState,
-        topContentDisplayState: TopContentDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> SettingsChoiceItem {
         SettingsChoiceItem(
             id: id,
             title: id.title,
             accessibilityLabel: id.accessibilityLabel,
-            isSelected: id.isSelected(
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState,
-                topContentDisplayState: topContentDisplayState
-            ),
-            isEnabled: id.isEnabled(
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState,
-                topContentDisplayState: topContentDisplayState
-            )
+            isSelected: id.isSelected(in: stateContext),
+            isEnabled: id.isEnabled(in: stateContext)
         )
     }
 
     private static func makeSliderRow(
         id: SettingsSliderID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> SettingsSliderRow {
         let range = id.range
-        let value = id.resolvedValue(
-            fretboardDisplayState: fretboardDisplayState,
-            staffDisplayState: staffDisplayState
-        )
+        let value = id.resolvedValue(in: stateContext)
         let clampedValue = min(max(value, range.lowerBound), range.upperBound)
 
         return SettingsSliderRow(
@@ -160,41 +127,30 @@ enum SettingsPanelSnapshotBuilder {
             value: clampedValue,
             range: range,
             displayValue: id.displayValue(for: clampedValue),
-            isEnabled: id.isEnabled(
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
-            )
+            isEnabled: id.isEnabled(in: stateContext)
         )
     }
 
     private static func makeToggleRow(
         id: SettingsToggleID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> SettingsToggleRow {
         SettingsToggleRow(
             id: id,
             title: id.title,
             accessibilityLabel: id.accessibilityLabel,
-            isOn: id.resolvedValue(
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
-            ),
-            isEnabled: id.isEnabled(
-                fretboardDisplayState: fretboardDisplayState,
-                staffDisplayState: staffDisplayState
-            )
+            isOn: id.resolvedValue(in: stateContext),
+            isEnabled: id.isEnabled(in: stateContext)
         )
     }
 
     private static func shouldInclude(
         sliderID: SettingsSliderID,
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState _: StaffDisplayState
+        stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch sliderID {
         case .verticalHostHeightRatio:
-            return fretboardDisplayState.displayMode == .vertical
+            return stateContext.fretboardDisplayState.displayMode == .vertical
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
             return true
         }

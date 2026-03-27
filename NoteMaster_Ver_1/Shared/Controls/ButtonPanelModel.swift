@@ -89,17 +89,21 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
     // 共享层统一定义按钮是否处于选中态，平台层只消费结果。
     func isSelected(in displayState: FretboardDisplayState) -> Bool {
         settingsActionID.isSelected(
-            fretboardDisplayState: displayState,
-            staffDisplayState: .default,
-            topContentDisplayState: .default
+            in: SettingsPanelStateContext(
+                fretboardDisplayState: displayState,
+                staffDisplayState: .default,
+                pageDisplayState: .default
+            )
         )
     }
 
     func isEnabled(in displayState: FretboardDisplayState) -> Bool {
         settingsActionID.isEnabled(
-            fretboardDisplayState: displayState,
-            staffDisplayState: .default,
-            topContentDisplayState: .default
+            in: SettingsPanelStateContext(
+                fretboardDisplayState: displayState,
+                staffDisplayState: .default,
+                pageDisplayState: .default
+            )
         )
     }
 

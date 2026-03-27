@@ -39,15 +39,15 @@ final class macOSViewController: NSViewController {
             applyStaffDisplayState()
         }
     }
-    // 顶部内容模式独立于 staff / fretboard display state，
-    // 并通过统一的 applyTopContentDisplayState() 串到页面布局层。
-    private var topContentDisplayState = TopContentDisplayState.default {
+    // 页面编排状态独立于 staff / fretboard display state，
+    // 阶段 1 先由 applyPageDisplayState() 承接顶部区域切换。
+    private var pageDisplayState = PageDisplayState.default {
         didSet {
             guard isViewLoaded else {
                 return
             }
 
-            applyTopContentDisplayState()
+            applyPageDisplayState()
         }
     }
 
@@ -56,6 +56,14 @@ final class macOSViewController: NSViewController {
 
     private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
         fretboardTrainerState.prompt
+    }
+
+    private var settingsPanelStateContext: SettingsPanelStateContext {
+        SettingsPanelStateContext(
+            fretboardDisplayState: displayState,
+            staffDisplayState: staffDisplayState,
+            pageDisplayState: pageDisplayState
+        )
     }
 
     private lazy var settingsButton: NSButton = {
@@ -84,9 +92,7 @@ final class macOSViewController: NSViewController {
     private lazy var settingsContainerView: macOSSettingsContainerView = {
         let settingsContainerView = macOSSettingsContainerView(
             model: SettingsPanelSnapshotBuilder.makeModel(
-                fretboardDisplayState: displayState,
-                staffDisplayState: staffDisplayState,
-                topContentDisplayState: topContentDisplayState
+                from: settingsPanelStateContext
             )
         )
         settingsContainerView.onEvent = { [weak self] event in
@@ -311,7 +317,7 @@ final class macOSViewController: NSViewController {
     private func applyDisplayState() {
         applyFretboardDisplayState()
         applyStaffDisplayState()
-        applyTopContentDisplayState()
+        applyPageDisplayState()
     }
 
     private func applyFretboardDisplayState() {
@@ -335,10 +341,10 @@ final class macOSViewController: NSViewController {
         updateLayoutIfNeeded()
     }
 
-    // 页面级顶部内容模式只在控制器组装层生效；
-    // shared mode 决定显示哪个子视图，具体视图内容仍分别由 staff / trainer prompt 驱动。
-    private func applyTopContentDisplayState() {
-        let showsStaff = topContentDisplayState.mode == .staff
+    // 阶段 1 的页面状态目前只接入顶部内容区域；
+    // main content 模式会在后续阶段接入新的 host 视图。
+    private func applyPageDisplayState() {
+        let showsStaff = pageDisplayState.topContentMode == .staff
         let activeConstraints = showsStaff
             ? topContentStaffConstraints
             : topContentTargetPromptConstraints
@@ -357,9 +363,7 @@ final class macOSViewController: NSViewController {
 
     private func applySettingsPanelState() {
         settingsContainerView.model = SettingsPanelSnapshotBuilder.makeModel(
-            fretboardDisplayState: displayState,
-            staffDisplayState: staffDisplayState,
-            topContentDisplayState: topContentDisplayState
+            from: settingsPanelStateContext
         )
     }
 
@@ -493,25 +497,23 @@ final class macOSViewController: NSViewController {
     }
 
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
-        var nextDisplayState = displayState
-        var nextStaffDisplayState = staffDisplayState
-        var nextTopContentDisplayState = topContentDisplayState
-        event.apply(
-            to: &nextDisplayState,
-            and: &nextStaffDisplayState,
-            topContentDisplayState: &nextTopContentDisplayState
-        )
+        var nextStateContext = settingsPanelStateContext
+        event.apply(to: &nextStateContext)
+
+        let nextDisplayState = nextStateContext.fretboardDisplayState
+        let nextStaffDisplayState = nextStateContext.staffDisplayState
+        let nextPageDisplayState = nextStateContext.pageDisplayState
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
-        let didChangeTopContent = nextTopContentDisplayState != topContentDisplayState
+        let didChangePage = nextPageDisplayState != pageDisplayState
 
-        guard didChangeFretboard || didChangeStaff || didChangeTopContent else {
+        guard didChangeFretboard || didChangeStaff || didChangePage else {
             return
         }
 
-        if didChangeTopContent {
-            topContentDisplayState = nextTopContentDisplayState
+        if didChangePage {
+            pageDisplayState = nextPageDisplayState
         }
 
         if didChangeFretboard {

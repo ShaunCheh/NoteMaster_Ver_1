@@ -311,50 +311,46 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     }
 
     func isSelected(
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState,
-        topContentDisplayState: TopContentDisplayState
+        in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
         case .setTopContentStaff:
-            return topContentDisplayState.mode == .staff
+            return stateContext.pageDisplayState.topContentMode == .staff
         case .setTopContentTargetPrompt:
-            return topContentDisplayState.mode == .targetPrompt
+            return stateContext.pageDisplayState.topContentMode == .targetPrompt
         case .setInstrumentGuitar6:
-            return fretboardDisplayState.configuration.instrument == .guitar6
+            return stateContext.fretboardDisplayState.configuration.instrument == .guitar6
         case .setInstrumentBass4:
-            return fretboardDisplayState.configuration.instrument == .bass4
+            return stateContext.fretboardDisplayState.configuration.instrument == .bass4
         case .setInstrumentBass5:
-            return fretboardDisplayState.configuration.instrument == .bass5
+            return stateContext.fretboardDisplayState.configuration.instrument == .bass5
         case .setDisplayModeHorizontal:
-            return fretboardDisplayState.displayMode == .horizontal
+            return stateContext.fretboardDisplayState.displayMode == .horizontal
         case .setDisplayModeVertical:
-            return fretboardDisplayState.displayMode == .vertical
+            return stateContext.fretboardDisplayState.displayMode == .vertical
         case .setVisibilityAll:
-            return fretboardDisplayState.visibility == .all
+            return stateContext.fretboardDisplayState.visibility == .all
         case .setVisibilityNaturalOnly:
-            return fretboardDisplayState.visibility == .naturalOnly
+            return stateContext.fretboardDisplayState.visibility == .naturalOnly
         case .setVisibilityAccidentalOnly:
-            return fretboardDisplayState.visibility == .accidentalOnly
+            return stateContext.fretboardDisplayState.visibility == .accidentalOnly
         case .setVisibilityNone:
-            return fretboardDisplayState.visibility == .none
+            return stateContext.fretboardDisplayState.visibility == .none
         case .setSpellingSharp:
-            return fretboardDisplayState.spelling == .sharp
+            return stateContext.fretboardDisplayState.spelling == .sharp
         case .setSpellingFlat:
-            return fretboardDisplayState.spelling == .flat
+            return stateContext.fretboardDisplayState.spelling == .flat
         case .toggleShowsOctave:
-            return fretboardDisplayState.showsOctave
+            return stateContext.fretboardDisplayState.showsOctave
         case .setClefTreble:
-            return staffDisplayState.configuration.clef == .treble
+            return stateContext.staffDisplayState.configuration.clef == .treble
         case .setClefBass:
-            return staffDisplayState.configuration.clef == .bass
+            return stateContext.staffDisplayState.configuration.clef == .bass
         }
     }
 
     func isEnabled(
-        fretboardDisplayState _: FretboardDisplayState,
-        staffDisplayState _: StaffDisplayState,
-        topContentDisplayState _: TopContentDisplayState
+        in _: SettingsPanelStateContext
     ) -> Bool {
         switch self {
         case .setTopContentStaff,
@@ -435,12 +431,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         }
     }
 
-    func apply(to displayState: inout TopContentDisplayState) {
+    func apply(to displayState: inout PageDisplayState) {
         switch self {
         case .setTopContentStaff:
-            displayState.setMode(.staff)
+            displayState.setTopContentMode(.staff)
         case .setTopContentTargetPrompt:
-            displayState.setMode(.targetPrompt)
+            displayState.setTopContentMode(.targetPrompt)
         case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -457,6 +453,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setClefBass:
             return
         }
+    }
+
+    func apply(to stateContext: inout SettingsPanelStateContext) {
+        apply(to: &stateContext.fretboardDisplayState)
+        apply(to: &stateContext.staffDisplayState)
+        apply(to: &stateContext.pageDisplayState)
     }
 }
 
@@ -502,19 +504,17 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
     }
 
     func resolvedValue(
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
         case .showsComponentBounds:
-            return fretboardDisplayState.showsComponentBoundsOverlay
-                || staffDisplayState.showsComponentBoundsOverlay
+            return stateContext.fretboardDisplayState.showsComponentBoundsOverlay
+                || stateContext.staffDisplayState.showsComponentBoundsOverlay
         }
     }
 
     func isEnabled(
-        fretboardDisplayState _: FretboardDisplayState,
-        staffDisplayState _: StaffDisplayState
+        in _: SettingsPanelStateContext
     ) -> Bool {
         switch self {
         case .showsComponentBounds:
@@ -534,6 +534,14 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
         }
+    }
+
+    func apply(
+        value: Bool,
+        to stateContext: inout SettingsPanelStateContext
+    ) {
+        apply(value: value, to: &stateContext.fretboardDisplayState)
+        apply(value: value, to: &stateContext.staffDisplayState)
     }
 }
 
@@ -600,34 +608,32 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
     }
 
     func resolvedValue(
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState: StaffDisplayState
+        in stateContext: SettingsPanelStateContext
     ) -> CGFloat {
         switch self {
         case .clefScale:
-            return staffDisplayState.configuration.layoutMetrics.clefScale
+            return stateContext.staffDisplayState.configuration.layoutMetrics.clefScale
         case .clefVerticalTrim:
-            return staffDisplayState.configuration.clefVerticalTrimRatio(
-                for: staffDisplayState.configuration.clef
+            return stateContext.staffDisplayState.configuration.clefVerticalTrimRatio(
+                for: stateContext.staffDisplayState.configuration.clef
             )
         case .clefAnchorYOffset:
-            return staffDisplayState.configuration.clefAnchorLogicalDownwardShiftRatio(
-                for: staffDisplayState.configuration.clef
+            return stateContext.staffDisplayState.configuration.clefAnchorLogicalDownwardShiftRatio(
+                for: stateContext.staffDisplayState.configuration.clef
             )
         case .verticalHostHeightRatio:
-            return fretboardDisplayState.verticalHostHeightRatio
+            return stateContext.fretboardDisplayState.verticalHostHeightRatio
         }
     }
 
     func isEnabled(
-        fretboardDisplayState: FretboardDisplayState,
-        staffDisplayState _: StaffDisplayState
+        in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
             return true
         case .verticalHostHeightRatio:
-            return fretboardDisplayState.displayMode == .vertical
+            return stateContext.fretboardDisplayState.displayMode == .vertical
         }
     }
 
@@ -679,6 +685,14 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .verticalHostHeightRatio:
             return
         }
+    }
+
+    func apply(
+        value: CGFloat,
+        to stateContext: inout SettingsPanelStateContext
+    ) {
+        apply(value: value, to: &stateContext.fretboardDisplayState)
+        apply(value: value, to: &stateContext.staffDisplayState)
     }
 }
 
@@ -761,21 +775,15 @@ enum SettingsPanelEvent: Equatable, Sendable {
     case setToggleValue(SettingsToggleID, Bool)
 
     func apply(
-        to fretboardDisplayState: inout FretboardDisplayState,
-        and staffDisplayState: inout StaffDisplayState,
-        topContentDisplayState: inout TopContentDisplayState
+        to stateContext: inout SettingsPanelStateContext
     ) {
         switch self {
         case let .triggerAction(actionID):
-            actionID.apply(to: &fretboardDisplayState)
-            actionID.apply(to: &staffDisplayState)
-            actionID.apply(to: &topContentDisplayState)
+            actionID.apply(to: &stateContext)
         case let .setSliderValue(sliderID, value):
-            sliderID.apply(value: value, to: &fretboardDisplayState)
-            sliderID.apply(value: value, to: &staffDisplayState)
+            sliderID.apply(value: value, to: &stateContext)
         case let .setToggleValue(toggleID, value):
-            toggleID.apply(value: value, to: &fretboardDisplayState)
-            toggleID.apply(value: value, to: &staffDisplayState)
+            toggleID.apply(value: value, to: &stateContext)
         }
     }
 }
