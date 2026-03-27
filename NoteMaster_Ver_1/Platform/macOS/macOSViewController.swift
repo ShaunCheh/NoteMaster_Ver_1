@@ -50,6 +50,15 @@ final class macOSViewController: NSViewController {
             applyPageDisplayState()
         }
     }
+    private var trainerDisplayState = TrainerDisplayState.default {
+        didSet {
+            guard isViewLoaded else {
+                return
+            }
+
+            applySettingsPanelState()
+        }
+    }
 
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
@@ -83,7 +92,8 @@ final class macOSViewController: NSViewController {
         SettingsPanelStateContext(
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState,
-            pageDisplayState: pageDisplayState
+            pageDisplayState: pageDisplayState,
+            trainerDisplayState: trainerDisplayState
         )
     }
 
@@ -727,13 +737,19 @@ final class macOSViewController: NSViewController {
         let nextDisplayState = nextStateContext.fretboardDisplayState
         let nextStaffDisplayState = nextStateContext.staffDisplayState
         let nextPageDisplayState = nextStateContext.pageDisplayState
+        let nextTrainerDisplayState = nextStateContext.trainerDisplayState
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
         let didChangePage = nextPageDisplayState != pageDisplayState
+        let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
 
-        guard didChangeFretboard || didChangeStaff || didChangePage else {
+        guard didChangeFretboard || didChangeStaff || didChangePage || didChangeTrainer else {
             return
+        }
+
+        if didChangeTrainer {
+            trainerDisplayState = nextTrainerDisplayState
         }
 
         if didChangePage {

@@ -9,10 +9,19 @@ struct SettingsPanelStateContext: Equatable, Sendable {
     var fretboardDisplayState: FretboardDisplayState
     var staffDisplayState: StaffDisplayState
     var pageDisplayState: PageDisplayState
+    var trainerDisplayState: TrainerDisplayState
 
-    static let `default` = SettingsPanelStateContext(
-        fretboardDisplayState: .default,
-        staffDisplayState: .default,
-        pageDisplayState: .default
-    )
+    static let `default` = SettingsPanelStateContext()
+
+    init(
+        fretboardDisplayState: FretboardDisplayState = .default,
+        staffDisplayState: StaffDisplayState = .default,
+        pageDisplayState: PageDisplayState = .default,
+        trainerDisplayState: TrainerDisplayState = .default
+    ) {
+        self.fretboardDisplayState = fretboardDisplayState
+        self.staffDisplayState = staffDisplayState
+        self.pageDisplayState = pageDisplayState
+        self.trainerDisplayState = trainerDisplayState
+    }
 }

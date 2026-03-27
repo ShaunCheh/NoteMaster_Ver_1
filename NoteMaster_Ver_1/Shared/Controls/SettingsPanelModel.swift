@@ -26,6 +26,7 @@ enum SettingsRowID: Equatable, Hashable, Sendable {
 
 enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     case page
+    case trainer
     case fretboard
     case staff
     case layout
@@ -35,6 +36,8 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .page:
             return "Page"
+        case .trainer:
+            return "Trainer"
         case .fretboard:
             return "Fretboard"
         case .staff:
@@ -52,6 +55,10 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .choice(.topContent),
                 .choice(.mainContent)
+            ]
+        case .trainer:
+            return [
+                .choice(.exerciseMode)
             ]
         case .fretboard:
             return [
@@ -83,6 +90,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
 enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     case topContent
     case mainContent
+    case exerciseMode
     case instrument
     case displayMode
     case labels
@@ -94,6 +102,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .topContent, .mainContent:
             return .page
+        case .exerciseMode:
+            return .trainer
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .fretboard
         case .clef:
@@ -107,6 +117,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Top Content"
         case .mainContent:
             return "Main Content"
+        case .exerciseMode:
+            return "Exercise Mode"
         case .instrument:
             return "Instrument"
         case .displayMode:
@@ -128,6 +140,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Select top content"
         case .mainContent:
             return "Select main content"
+        case .exerciseMode:
+            return "Select exercise mode"
         case .instrument:
             return "Select instrument"
         case .displayMode:
@@ -147,6 +161,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .topContent,
              .mainContent,
+             .exerciseMode,
              .instrument,
              .displayMode,
              .labels,
@@ -160,7 +175,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var presentationStyle: SettingsPresentationStyle {
         switch self {
-        case .topContent, .mainContent, .clef:
+        case .topContent, .mainContent, .exerciseMode, .clef:
             return .segmented
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .chips
@@ -178,6 +193,11 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .setMainContentFretboard,
                 .setMainContentNaturalNotes
+            ]
+        case .exerciseMode:
+            return [
+                .setExerciseModeSingle,
+                .setExerciseModeSequence
             ]
         case .instrument:
             return [
@@ -220,6 +240,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setTopContentTargetPrompt
     case setMainContentFretboard
     case setMainContentNaturalNotes
+    case setExerciseModeSingle
+    case setExerciseModeSequence
     case setInstrumentGuitar6
     case setInstrumentBass4
     case setInstrumentBass5
@@ -243,6 +265,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setMainContentFretboard,
              .setMainContentNaturalNotes:
             return .mainContent
+        case .setExerciseModeSingle,
+             .setExerciseModeSequence:
+            return .exerciseMode
         case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5:
@@ -276,6 +301,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Fretboard"
         case .setMainContentNaturalNotes:
             return "Natural Notes"
+        case .setExerciseModeSingle:
+            return "Single"
+        case .setExerciseModeSequence:
+            return "Sequence"
         case .setInstrumentGuitar6:
             return "Guitar 6"
         case .setInstrumentBass4:
@@ -317,6 +346,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Show fretboard in the main content area"
         case .setMainContentNaturalNotes:
             return "Show natural note buttons in the main content area"
+        case .setExerciseModeSingle:
+            return "Train a single target note"
+        case .setExerciseModeSequence:
+            return "Train a generated note sequence"
         case .setInstrumentGuitar6:
             return "Use 6-string guitar standard tuning"
         case .setInstrumentBass4:
@@ -360,6 +393,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.pageDisplayState.mainContentMode == .fretboard
         case .setMainContentNaturalNotes:
             return stateContext.pageDisplayState.mainContentMode == .naturalNoteStrip
+        case .setExerciseModeSingle:
+            return stateContext.trainerDisplayState.exerciseMode == .single
+        case .setExerciseModeSequence:
+            return stateContext.trainerDisplayState.exerciseMode == .sequence
         case .setInstrumentGuitar6:
             return stateContext.fretboardDisplayState.configuration.instrument == .guitar6
         case .setInstrumentBass4:
@@ -399,6 +436,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setTopContentTargetPrompt,
              .setMainContentFretboard,
              .setMainContentNaturalNotes,
+             .setExerciseModeSingle,
+             .setExerciseModeSequence,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -422,7 +461,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setTopContentStaff,
              .setTopContentTargetPrompt,
              .setMainContentFretboard,
-             .setMainContentNaturalNotes:
+             .setMainContentNaturalNotes,
+             .setExerciseModeSingle,
+             .setExerciseModeSequence:
             return
         case .setInstrumentGuitar6:
             displayState.configuration.tuning = .standard(for: .guitar6)
@@ -463,6 +504,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setTopContentTargetPrompt,
              .setMainContentFretboard,
              .setMainContentNaturalNotes,
+             .setExerciseModeSingle,
+             .setExerciseModeSequence,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -489,7 +532,37 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.setMainContentMode(.fretboard)
         case .setMainContentNaturalNotes:
             displayState.setMainContentMode(.naturalNoteStrip)
-        case .setInstrumentGuitar6,
+        case .setExerciseModeSingle,
+             .setExerciseModeSequence,
+             .setInstrumentGuitar6,
+             .setInstrumentBass4,
+             .setInstrumentBass5,
+             .setDisplayModeHorizontal,
+             .setDisplayModeVertical,
+             .setVisibilityAll,
+             .setVisibilityNaturalOnly,
+             .setVisibilityAccidentalOnly,
+             .setVisibilityNone,
+             .setSpellingSharp,
+             .setSpellingFlat,
+             .toggleShowsOctave,
+             .setClefTreble,
+             .setClefBass:
+            return
+        }
+    }
+
+    func apply(to displayState: inout TrainerDisplayState) {
+        switch self {
+        case .setExerciseModeSingle:
+            displayState.setExerciseMode(.single)
+        case .setExerciseModeSequence:
+            displayState.setExerciseMode(.sequence)
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt,
+             .setMainContentFretboard,
+             .setMainContentNaturalNotes,
+             .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
@@ -511,6 +584,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         apply(to: &stateContext.fretboardDisplayState)
         apply(to: &stateContext.staffDisplayState)
         apply(to: &stateContext.pageDisplayState)
+        apply(to: &stateContext.trainerDisplayState)
     }
 }
 
