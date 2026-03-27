@@ -40,7 +40,7 @@ final class macOSViewController: NSViewController {
         }
     }
     // 页面编排状态独立于 staff / fretboard display state，
-    // 阶段 1 先由 applyPageDisplayState() 承接顶部区域切换。
+    // 阶段 4 由 applyPageDisplayState() 统一承接顶部和主内容区域切换。
     private var pageDisplayState = PageDisplayState.default {
         didSet {
             guard isViewLoaded else {
@@ -56,6 +56,10 @@ final class macOSViewController: NSViewController {
 
     private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
         fretboardTrainerState.prompt
+    }
+
+    private var isShowingFretboardMainContent: Bool {
+        pageDisplayState.mainContentMode == .fretboard
     }
 
     private var settingsPanelStateContext: SettingsPanelStateContext {
@@ -107,6 +111,7 @@ final class macOSViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let contentView = NSView()
     private let topContentHostView = NSView()
+    private let mainContentHostView = NSView()
     private let fretboardHostView = NSView()
     private let fretboardViewportScrollView = NSScrollView()
     private let fretboardScrollContentView = NSView()
@@ -118,6 +123,8 @@ final class macOSViewController: NSViewController {
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
     private var topContentStaffConstraints: [NSLayoutConstraint] = []
     private var topContentTargetPromptConstraints: [NSLayoutConstraint] = []
+    private var mainContentFretboardConstraints: [NSLayoutConstraint] = []
+    private var mainContentNaturalNoteStripConstraints: [NSLayoutConstraint] = []
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
@@ -140,6 +147,12 @@ final class macOSViewController: NSViewController {
         )
         targetNotePromptView.isHidden = true
         return targetNotePromptView
+    }()
+
+    private lazy var naturalNoteStripView: macOSNaturalNoteStripView = {
+        let naturalNoteStripView = macOSNaturalNoteStripView()
+        naturalNoteStripView.isHidden = true
+        return naturalNoteStripView
     }()
 
     override func loadView() {
@@ -167,8 +180,10 @@ final class macOSViewController: NSViewController {
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         topContentHostView.translatesAutoresizingMaskIntoConstraints = false
+        mainContentHostView.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
+        naturalNoteStripView.translatesAutoresizingMaskIntoConstraints = false
         fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
         fretboardViewportScrollView.translatesAutoresizingMaskIntoConstraints = false
         fretboardScrollContentView.translatesAutoresizingMaskIntoConstraints = false
@@ -189,7 +204,9 @@ final class macOSViewController: NSViewController {
         contentView.addSubview(topContentHostView)
         topContentHostView.addSubview(staffView)
         topContentHostView.addSubview(targetNotePromptView)
-        contentView.addSubview(fretboardHostView)
+        contentView.addSubview(mainContentHostView)
+        mainContentHostView.addSubview(fretboardHostView)
+        mainContentHostView.addSubview(naturalNoteStripView)
         fretboardHostView.addSubview(fretboardViewportScrollView)
         fretboardScrollContentView.addSubview(fretboardView)
         view.addSubview(settingsButton)
@@ -208,6 +225,18 @@ final class macOSViewController: NSViewController {
             targetNotePromptView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
             targetNotePromptView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
             targetNotePromptView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor)
+        ]
+        mainContentFretboardConstraints = [
+            fretboardHostView.leadingAnchor.constraint(equalTo: mainContentHostView.leadingAnchor),
+            fretboardHostView.trailingAnchor.constraint(equalTo: mainContentHostView.trailingAnchor),
+            fretboardHostView.topAnchor.constraint(equalTo: mainContentHostView.topAnchor),
+            fretboardHostView.bottomAnchor.constraint(equalTo: mainContentHostView.bottomAnchor)
+        ]
+        mainContentNaturalNoteStripConstraints = [
+            naturalNoteStripView.leadingAnchor.constraint(equalTo: mainContentHostView.leadingAnchor),
+            naturalNoteStripView.trailingAnchor.constraint(equalTo: mainContentHostView.trailingAnchor),
+            naturalNoteStripView.topAnchor.constraint(equalTo: mainContentHostView.topAnchor),
+            naturalNoteStripView.bottomAnchor.constraint(equalTo: mainContentHostView.bottomAnchor)
         ]
         horizontalFretboardDocumentWidthConstraint = fretboardScrollContentView.widthAnchor.constraint(
             equalTo: fretboardViewportScrollView.contentView.widthAnchor
@@ -246,13 +275,13 @@ final class macOSViewController: NSViewController {
             ),
             topContentHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             topContentHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            fretboardHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            fretboardHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            fretboardHostView.topAnchor.constraint(
+            mainContentHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            mainContentHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            mainContentHostView.topAnchor.constraint(
                 equalTo: topContentHostView.bottomAnchor,
                 constant: Layout.verticalSpacing
             ),
-            fretboardHostView.bottomAnchor.constraint(
+            mainContentHostView.bottomAnchor.constraint(
                 equalTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
             ),
@@ -293,6 +322,17 @@ final class macOSViewController: NSViewController {
     }
 
     private func updateFretboardLayoutModeConstraints() {
+        guard isShowingFretboardMainContent else {
+            verticalFretboardHostHeightConstraint?.isActive = false
+            horizontalFretboardDocumentWidthConstraint?.isActive = false
+            horizontalFretboardContentWidthConstraint?.isActive = false
+            verticalFretboardDocumentWidthConstraint?.isActive = false
+            verticalFretboardContentWidthConstraint?.isActive = false
+            fretboardViewportScrollView.hasHorizontalScroller = false
+            scrollFretboardViewport(toX: 0)
+            return
+        }
+
         let isVertical = displayState.displayMode == .vertical
         verticalFretboardHostHeightConstraint?.isActive = isVertical
         horizontalFretboardDocumentWidthConstraint?.isActive = !isVertical
@@ -308,6 +348,12 @@ final class macOSViewController: NSViewController {
 
     private func rebuildVerticalFretboardHostHeightConstraint() {
         verticalFretboardHostHeightConstraint?.isActive = false
+        verticalFretboardHostHeightConstraint = nil
+
+        guard isShowingFretboardMainContent else {
+            return
+        }
+
         verticalFretboardHostHeightConstraint = fretboardHostView.heightAnchor.constraint(
             equalTo: view.safeAreaLayoutGuide.heightAnchor,
             multiplier: displayState.verticalHostHeightRatio
@@ -327,6 +373,11 @@ final class macOSViewController: NSViewController {
         rebuildVerticalFretboardHostHeightConstraint()
         applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
+
+        guard isShowingFretboardMainContent else {
+            return
+        }
+
         updateLayoutIfNeeded()
         syncVerticalFretboardContentSizeConstraints()
         updateLayoutIfNeeded()
@@ -341,9 +392,22 @@ final class macOSViewController: NSViewController {
         updateLayoutIfNeeded()
     }
 
-    // 阶段 1 的页面状态目前只接入顶部内容区域；
-    // main content 模式会在后续阶段接入新的 host 视图。
     private func applyPageDisplayState() {
+        targetNotePromptView.apply(prompt: currentFretboardTrainerPrompt)
+        applyTopContentMode()
+        applyMainContentMode()
+        applySettingsPanelState()
+        updateLayoutIfNeeded()
+
+        if isShowingFretboardMainContent {
+            syncVerticalFretboardContentSizeConstraints()
+            updateLayoutIfNeeded()
+        }
+
+        updateFretboardViewportPresentation()
+    }
+
+    private func applyTopContentMode() {
         let showsStaff = pageDisplayState.topContentMode == .staff
         let activeConstraints = showsStaff
             ? topContentStaffConstraints
@@ -352,13 +416,27 @@ final class macOSViewController: NSViewController {
             ? topContentTargetPromptConstraints
             : topContentStaffConstraints
 
-        targetNotePromptView.apply(prompt: currentFretboardTrainerPrompt)
         staffView.isHidden = !showsStaff
         targetNotePromptView.isHidden = showsStaff
         NSLayoutConstraint.deactivate(inactiveConstraints)
         NSLayoutConstraint.activate(activeConstraints)
-        applySettingsPanelState()
-        updateLayoutIfNeeded()
+    }
+
+    private func applyMainContentMode() {
+        let showsFretboard = isShowingFretboardMainContent
+        let activeConstraints = showsFretboard
+            ? mainContentFretboardConstraints
+            : mainContentNaturalNoteStripConstraints
+        let inactiveConstraints = showsFretboard
+            ? mainContentNaturalNoteStripConstraints
+            : mainContentFretboardConstraints
+
+        fretboardHostView.isHidden = !showsFretboard
+        naturalNoteStripView.isHidden = showsFretboard
+        NSLayoutConstraint.deactivate(inactiveConstraints)
+        NSLayoutConstraint.activate(activeConstraints)
+        rebuildVerticalFretboardHostHeightConstraint()
+        updateFretboardLayoutModeConstraints()
     }
 
     private func applySettingsPanelState() {
@@ -374,6 +452,7 @@ final class macOSViewController: NSViewController {
 
     private func syncVerticalFretboardContentSizeConstraints() {
         guard
+            isShowingFretboardMainContent,
             displayState.displayMode == .vertical,
             let verticalFretboardDocumentWidthConstraint,
             let verticalFretboardContentWidthConstraint
@@ -398,6 +477,12 @@ final class macOSViewController: NSViewController {
     }
 
     private func updateFretboardViewportPresentation() {
+        guard isShowingFretboardMainContent else {
+            fretboardViewportScrollView.hasHorizontalScroller = false
+            scrollFretboardViewport(toX: 0)
+            return
+        }
+
         let isVertical = displayState.displayMode == .vertical
         guard isVertical else {
             fretboardViewportScrollView.hasHorizontalScroller = false
