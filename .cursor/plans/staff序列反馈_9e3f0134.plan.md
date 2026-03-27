@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase5-reset-cleanup
     content: 统一处理重新生成序列、切换 spec、切换 exerciseMode、离开 staff 顶部内容等重置边界，防止旧红绿状态泄漏
-    status: pending
+    status: completed
 isProject: false
 ---
 

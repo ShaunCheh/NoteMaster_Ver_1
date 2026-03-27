@@ -53,6 +53,10 @@ final class iOSViewController: UIViewController {
             }
 
             applyPageDisplayState()
+            handleQuarterNoteSequencePageDisplayStateTransition(
+                from: oldValue,
+                to: pageDisplayState
+            )
         }
     }
     private var trainerDisplayState = TrainerDisplayState.default {
@@ -100,13 +104,16 @@ final class iOSViewController: UIViewController {
     private func currentQuarterNoteSequenceStaffPresentation(
         for generatedSequence: GeneratedNoteSequence
     ) -> StaffSequencePresentation? {
+        let staffVisibleLastEvaluation = isShowingStaffTopContent
+            ? quarterNoteSequenceLastEvaluation
+            : nil
         if let quarterNoteSequenceSession,
            quarterNoteSequenceSession.generatedSequence == generatedSequence {
             return StaffSequencePresentation.fromProgress(
                 totalCount: quarterNoteSequenceSession.totalCount,
                 currentIndex: quarterNoteSequenceSession.currentIndex,
-                lastEvaluatedIndex: quarterNoteSequenceLastEvaluation?.answeredIndex,
-                lastEvaluationResult: quarterNoteSequenceLastEvaluation.map {
+                lastEvaluatedIndex: staffVisibleLastEvaluation?.answeredIndex,
+                lastEvaluationResult: staffVisibleLastEvaluation.map {
                     $0.isCorrect ? .correct : .incorrect
                 }
             )
@@ -115,6 +122,59 @@ final class iOSViewController: UIViewController {
         return StaffSequencePresentation.fromProgress(
             totalCount: generatedSequence.noteCount,
             currentIndex: 0
+        )
+    }
+
+    private func clearQuarterNoteSequenceFeedbackState() {
+        quarterNoteSequenceLastEvaluation = nil
+    }
+
+    private func resetQuarterNoteSequenceInteractionState() {
+        quarterNoteSequenceSession = nil
+        clearQuarterNoteSequenceFeedbackState()
+    }
+
+    private func updateQuarterNoteSequenceFeedbackState(
+        with answerResult: FretboardNaturalNoteTrainerState.QuarterNoteSequenceAnswerResult
+    ) {
+        guard isShowingStaffTopContent else {
+            clearQuarterNoteSequenceFeedbackState()
+            return
+        }
+
+        if case let .evaluated(evaluation) = answerResult {
+            quarterNoteSequenceLastEvaluation = evaluation
+        }
+    }
+
+    private func sanitizedSequenceFreeStaffDisplayState(
+        _ state: StaffDisplayState
+    ) -> StaffDisplayState {
+        var state = state
+        state.clearSequencePresentation()
+        return state
+    }
+
+    private func handleQuarterNoteSequencePageDisplayStateTransition(
+        from oldValue: PageDisplayState,
+        to newValue: PageDisplayState
+    ) {
+        guard trainerDisplayState.isSequenceMode,
+              oldValue.topContentMode == .staff,
+              newValue.topContentMode != .staff,
+              quarterNoteSequenceLastEvaluation != nil else {
+            return
+        }
+
+        clearQuarterNoteSequenceFeedbackState()
+        guard let generatedSequence = currentGeneratedQuarterNoteSequence else {
+            return
+        }
+
+        applyQuarterNoteSequenceProjection(
+            generatedSequence,
+            reason: "topContentHidden",
+            showsLog: false
         )
     }
 
@@ -132,6 +192,10 @@ final class iOSViewController: UIViewController {
 
     private var isShowingFretboardMainContent: Bool {
         pageDisplayState.mainContentMode == .fretboard
+    }
+
+    private var isShowingStaffTopContent: Bool {
+        pageDisplayState.topContentMode == .staff
     }
 
     private var settingsPanelStateContext: SettingsPanelStateContext {
@@ -713,7 +777,7 @@ final class iOSViewController: UIViewController {
 
         if quarterNoteSequenceSession?.generatedSequence != generatedSequence {
             quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
-            quarterNoteSequenceLastEvaluation = nil
+            clearQuarterNoteSequenceFeedbackState()
         }
 
         guard var quarterNoteSequenceSession else {
@@ -728,9 +792,7 @@ final class iOSViewController: UIViewController {
             session: &quarterNoteSequenceSession
         )
         self.quarterNoteSequenceSession = quarterNoteSequenceSession
-        if case let .evaluated(evaluation) = answerResult {
-            quarterNoteSequenceLastEvaluation = evaluation
-        }
+        updateQuarterNoteSequenceFeedbackState(with: answerResult)
         applyQuarterNoteSequenceProjection(
             generatedSequence,
             reason: "answered",
@@ -752,8 +814,7 @@ final class iOSViewController: UIViewController {
     // trainer prompt 的平台组装入口仍然收口在控制器：
     // 这里同时同步控制台日志与目标音组件显示内容。
     private func applyFretboardTrainerPrompt(reason: String) {
-        quarterNoteSequenceSession = nil
-        quarterNoteSequenceLastEvaluation = nil
+        resetQuarterNoteSequenceInteractionState()
         let prompt = currentFretboardTrainerPrompt
         targetNotePromptView.apply(content: prompt.targetPromptContent)
         print(
@@ -789,9 +850,6 @@ final class iOSViewController: UIViewController {
             fretboardTrainerState = FretboardNaturalNoteTrainerState()
         }
 
-        quarterNoteSequenceSession = nil
-        quarterNoteSequenceLastEvaluation = nil
-
         if staffDisplayState != baseStaffDisplayState {
             staffDisplayState = baseStaffDisplayState
         }
@@ -825,7 +883,7 @@ final class iOSViewController: UIViewController {
 
         if quarterNoteSequenceSession?.generatedSequence != generatedSequence {
             quarterNoteSequenceSession = fretboardTrainerState.makeQuarterNoteSequenceSession()
-            quarterNoteSequenceLastEvaluation = nil
+            clearQuarterNoteSequenceFeedbackState()
         }
 
         applyQuarterNoteSequenceProjection(generatedSequence, reason: reason)
@@ -871,8 +929,7 @@ final class iOSViewController: UIViewController {
         fretboardTrainerState = FretboardNaturalNoteTrainerState(
             quarterNoteSequenceSpec: configuredQuarterNoteSequenceSpec
         )
-        quarterNoteSequenceSession = nil
-        quarterNoteSequenceLastEvaluation = nil
+        resetQuarterNoteSequenceInteractionState()
         synchronizeTrainerPresentationState(reason: reason)
     }
 
@@ -959,9 +1016,9 @@ final class iOSViewController: UIViewController {
 
         if nextTrainerDisplayState.isSequenceMode,
            nextRequestedStaffDisplayState != staffDisplayState {
-            var nextBaseStaffDisplayState = nextRequestedStaffDisplayState
-            nextBaseStaffDisplayState.clearSequencePresentation()
-            baseStaffDisplayState = nextBaseStaffDisplayState
+            baseStaffDisplayState = sanitizedSequenceFreeStaffDisplayState(
+                nextRequestedStaffDisplayState
+            )
         }
 
         if didChangeTrainer {

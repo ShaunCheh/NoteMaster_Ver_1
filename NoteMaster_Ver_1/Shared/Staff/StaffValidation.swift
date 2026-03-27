@@ -1153,7 +1153,7 @@ private extension StaffValidationRunner {
             "将共享 score 切到 `StaffScoreFixtures.aMajorAccidentalContextReference()`，确认 A major 下 `F# / C# / G#` 默认会被调号抑制；写出 `f natural` 后同小节再次 `f#` 会重新显示 sharp；同小节写出的 `c natural / g natural` 到下一小节会再次显示 natural，证明 measure reset 生效。",
             "将共享 score 切到 `StaffScoreFixtures.bbMajorBassAccidentalContextReference()`，确认 Bass + Bb major 下 `bb3` 默认不显示 accidental，`b3` 显示 natural，跨小节后再次按调号默认值重置。",
             "显式把 `staffDisplayState.notationDisplayOptions` 切到 `.noteheadsOnly` 再切回 `.fullNotation`，确认 notehead 可见性稳定，且 accidental / stem / ledger line 能正确隐藏与恢复。",
-            "把 `TopContent` 切到 `Staff` 且 `Exercise Mode` 切到 `Sequence`：确认初始竖线游标准确对齐当前目标音；错误作答时当前音变红且游标不前进；正确作答时刚答中的音变绿且游标前进；完成整条序列后游标隐藏，但最后一次反馈颜色仍保留。",
+            "把 `TopContent` 切到 `Staff` 且 `Exercise Mode` 切到 `Sequence`：确认初始竖线游标准确对齐当前目标音；错误作答时当前音变红且游标不前进；正确作答时刚答中的音变绿且游标前进；完成整条序列后游标隐藏，但最后一次反馈颜色仍保留。随后切到 `Target Prompt` 再切回 `Staff`，确认旧红/绿反馈不会泄漏回来，只保留当前进度对应的中性游标或完成态。",
             "调整窗口大小或设备方向，确认 key signature 区与 note 区不会重叠，note spacing 与 glyph 位置稳定更新。"
         ]
 
