@@ -58,6 +58,22 @@ final class iOSViewController: UIViewController {
         fretboardTrainerState.prompt
     }
 
+    private var currentQuarterNoteSequencePrompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt? {
+        guard case .quarterNoteSequence = fretboardTrainerState.mode else {
+            return nil
+        }
+
+        return fretboardTrainerState.quarterNoteSequencePrompt
+    }
+
+    private var isQuarterNoteSequenceMode: Bool {
+        guard case .quarterNoteSequence = fretboardTrainerState.mode else {
+            return false
+        }
+
+        return true
+    }
+
     private var isShowingFretboardMainContent: Bool {
         pageDisplayState.mainContentMode == .fretboard
     }
@@ -391,7 +407,9 @@ final class iOSViewController: UIViewController {
     }
 
     private func applyPageDisplayState() {
-        targetNotePromptView.apply(prompt: currentFretboardTrainerPrompt)
+        if !isQuarterNoteSequenceMode {
+            targetNotePromptView.apply(prompt: currentFretboardTrainerPrompt)
+        }
         applyTopContentMode()
         applyMainContentMode()
         applySettingsPanelState()
@@ -535,6 +553,15 @@ final class iOSViewController: UIViewController {
     }
 
     private func handleFretboardTrainerHitResult(_ hitResult: FretboardHitResult) {
+        switch fretboardTrainerState.mode {
+        case .singleNaturalTarget:
+            handleSingleNaturalTargetHitResult(hitResult)
+        case .quarterNoteSequence:
+            handleQuarterNoteSequenceHitResult(hitResult)
+        }
+    }
+
+    private func handleSingleNaturalTargetHitResult(_ hitResult: FretboardHitResult) {
         switch fretboardTrainerState.handle(
             hitResult: hitResult,
             configuration: displayState.configuration
@@ -557,6 +584,30 @@ final class iOSViewController: UIViewController {
         }
     }
 
+    private func handleQuarterNoteSequenceHitResult(_ hitResult: FretboardHitResult) {
+        guard hitResult.phase == .ended else {
+            return
+        }
+
+        guard let prompt = currentQuarterNoteSequencePrompt else {
+            print(
+                "[QuarterNoteSequence][iOS] result=ignored reason=missingPrompt"
+            )
+            return
+        }
+
+        let locationSuffix: String
+        if let cell = hitResult.cell {
+            locationSuffix = " string=\(cell.stringIndex) fret=\(cell.fret)"
+        } else {
+            locationSuffix = " missingHitCell=true"
+        }
+
+        print(
+            "[QuarterNoteSequence][iOS] clef=\(prompt.spec.clef.title) noteCount=\(prompt.spec.noteCount) includesAccidentals=\(prompt.spec.includesAccidentals) result=ignored reason=pendingAnswerFlow\(locationSuffix)"
+        )
+    }
+
     // trainer prompt 的平台组装入口仍然收口在控制器：
     // 这里同时同步控制台日志与目标音组件显示内容。
     private func applyFretboardTrainerPrompt(reason: String) {
@@ -565,6 +616,57 @@ final class iOSViewController: UIViewController {
         print(
             "[FretboardTrainer][iOS] target=\(prompt.displayText) state=\(reason)"
         )
+    }
+
+    // 内部入口：先生成 quarter-note prompt，再把它投影到现有五线谱显示状态。
+    // 后续阶段若从 settings 或调试入口切入，可直接复用这一条 controller 接线。
+    func startQuarterNoteSequenceExercise(
+        with spec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec
+    ) {
+        fretboardTrainerState = FretboardNaturalNoteTrainerState(
+            quarterNoteSequenceSpec: spec
+        )
+        let prompt = fretboardTrainerState.generateQuarterNoteSequencePrompt()
+        applyQuarterNoteSequencePromptToStaff(prompt, reason: "generated")
+    }
+
+    private func applyQuarterNoteSequencePromptToStaff(
+        _ prompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt,
+        reason: String
+    ) {
+        var nextPageDisplayState = pageDisplayState
+        nextPageDisplayState.topContentMode = .staff
+
+        var nextStaffDisplayState = staffDisplayState
+        nextStaffDisplayState.apply(quarterNoteSequencePrompt: prompt)
+
+        if nextPageDisplayState != pageDisplayState {
+            pageDisplayState = nextPageDisplayState
+        }
+
+        if nextStaffDisplayState != staffDisplayState {
+            staffDisplayState = nextStaffDisplayState
+        }
+
+        print(
+            "[QuarterNoteSequence][iOS] clef=\(prompt.spec.clef.title) noteCount=\(prompt.spec.noteCount) includesAccidentals=\(prompt.spec.includesAccidentals) state=\(reason)"
+        )
+    }
+
+    private func normalizeSettingsPanelStateContextForTrainerMode(
+        _ stateContext: inout SettingsPanelStateContext
+    ) {
+        guard isQuarterNoteSequenceMode else {
+            return
+        }
+
+        stateContext.pageDisplayState.topContentMode = .staff
+
+        if let currentQuarterNoteSequencePrompt {
+            stateContext.staffDisplayState.apply(
+                quarterNoteSequencePrompt: currentQuarterNoteSequencePrompt
+            )
+        }
     }
 
     private func setSettingsPresented(_ presented: Bool) {
@@ -607,6 +709,7 @@ final class iOSViewController: UIViewController {
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
         var nextStateContext = settingsPanelStateContext
         event.apply(to: &nextStateContext)
+        normalizeSettingsPanelStateContextForTrainerMode(&nextStateContext)
 
         let nextDisplayState = nextStateContext.fretboardDisplayState
         let nextStaffDisplayState = nextStateContext.staffDisplayState

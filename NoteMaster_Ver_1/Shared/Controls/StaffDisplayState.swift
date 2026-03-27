@@ -65,4 +65,13 @@ extension StaffDisplayState {
     mutating func apply(_ event: StaffControlEvent) {
         event.apply(to: &self)
     }
+
+    // quarter-note sequence 的谱面仍然落到统一的 StaffDisplayState，
+    // 控制器只需要通过这个适配点同步 clef 与 score。
+    mutating func apply(
+        quarterNoteSequencePrompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt
+    ) {
+        configuration.clef = quarterNoteSequencePrompt.spec.clef
+        score = quarterNoteSequencePrompt.score
+    }
 }
