@@ -62,6 +62,7 @@ final class iOSViewController: UIViewController {
             }
 
             applySettingsPanelState()
+            applySequenceRegenerateButtonState()
         }
     }
     private var baseStaffDisplayState = iOSViewController.initialStaffDisplayState
@@ -161,6 +162,36 @@ final class iOSViewController: UIViewController {
         return settingsContainerView
     }()
 
+    private lazy var sequenceRegenerateButton: UIButton = {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.filled()
+        configuration.buttonSize = .small
+        configuration.cornerStyle = .capsule
+        configuration.image = UIImage(systemName: "arrow.clockwise")
+        configuration.baseBackgroundColor = .systemBlue
+        configuration.baseForegroundColor = .white
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 8,
+            leading: 8,
+            bottom: 8,
+            trailing: 8
+        )
+        button.configuration = configuration
+        button.accessibilityIdentifier = "top-content-sequence-regenerate-button"
+        button.accessibilityLabel = "Generate new random sequence"
+        button.isHidden = true
+        button.addTarget(
+            self,
+            action: #selector(handleSequenceRegenerateButtonTap),
+            for: .touchUpInside
+        )
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.12
+        button.layer.shadowRadius = 10
+        button.layer.shadowOffset = CGSize(width: 0, height: 4)
+        return button
+    }()
+
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let topContentHostView = UIView()
@@ -225,6 +256,7 @@ final class iOSViewController: UIViewController {
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         topContentHostView.translatesAutoresizingMaskIntoConstraints = false
         mainContentHostView.translatesAutoresizingMaskIntoConstraints = false
+        sequenceRegenerateButton.translatesAutoresizingMaskIntoConstraints = false
         staffView.translatesAutoresizingMaskIntoConstraints = false
         targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
         naturalNoteStripView.translatesAutoresizingMaskIntoConstraints = false
@@ -254,6 +286,7 @@ final class iOSViewController: UIViewController {
         contentView.addSubview(topContentHostView)
         topContentHostView.addSubview(staffView)
         topContentHostView.addSubview(targetNotePromptView)
+        topContentHostView.addSubview(sequenceRegenerateButton)
         contentView.addSubview(mainContentHostView)
         mainContentHostView.addSubview(fretboardHostView)
         mainContentHostView.addSubview(naturalNoteStripView)
@@ -314,6 +347,20 @@ final class iOSViewController: UIViewController {
             ),
             topContentHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             topContentHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            sequenceRegenerateButton.topAnchor.constraint(
+                equalTo: topContentHostView.topAnchor,
+                constant: Layout.topContentFloatingButtonInset
+            ),
+            sequenceRegenerateButton.trailingAnchor.constraint(
+                equalTo: topContentHostView.trailingAnchor,
+                constant: -Layout.topContentFloatingButtonInset
+            ),
+            sequenceRegenerateButton.widthAnchor.constraint(
+                equalToConstant: Layout.sequenceRegenerateButtonSize
+            ),
+            sequenceRegenerateButton.heightAnchor.constraint(
+                equalToConstant: Layout.sequenceRegenerateButtonSize
+            ),
             mainContentHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             mainContentHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             mainContentHostView.topAnchor.constraint(
@@ -411,6 +458,7 @@ final class iOSViewController: UIViewController {
         applyFretboardDisplayState()
         applyStaffDisplayState()
         applyPageDisplayState()
+        applySequenceRegenerateButtonState()
         synchronizeTrainerPresentationState(reason: "initial")
     }
 
@@ -777,6 +825,22 @@ final class iOSViewController: UIViewController {
         }
     }
 
+    private func applySequenceRegenerateButtonState() {
+        sequenceRegenerateButton.isHidden = !trainerDisplayState.isSequenceMode
+    }
+
+    private func regenerateQuarterNoteSequence(reason: String) {
+        guard trainerDisplayState.isSequenceMode else {
+            return
+        }
+
+        fretboardTrainerState = FretboardNaturalNoteTrainerState(
+            quarterNoteSequenceSpec: configuredQuarterNoteSequenceSpec
+        )
+        quarterNoteSequenceSession = nil
+        synchronizeTrainerPresentationState(reason: reason)
+    }
+
     private func normalizeSettingsPanelStateContextForTrainerMode(
         _ stateContext: inout SettingsPanelStateContext
     ) {
@@ -830,6 +894,11 @@ final class iOSViewController: UIViewController {
         setSettingsPresented(!isSettingsPresented)
     }
 
+    @objc
+    private func handleSequenceRegenerateButtonTap() {
+        regenerateQuarterNoteSequence(reason: "manualRegenerated")
+    }
+
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
         var nextStateContext = settingsPanelStateContext
         event.apply(to: &nextStateContext)
@@ -881,9 +950,11 @@ private enum Layout {
     static let horizontalInset: CGFloat = 16
     static let topInset: CGFloat = 16
     static let contentTopInset: CGFloat = 68
+    static let topContentFloatingButtonInset: CGFloat = 12
     static let verticalSpacing: CGFloat = 20
     static let bottomInset: CGFloat = 16
     static let settingsButtonSize: CGFloat = 40
+    static let sequenceRegenerateButtonSize: CGFloat = 36
     static let contentSizeTolerance: CGFloat = 0.5
 }
 #endif
