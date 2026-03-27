@@ -259,6 +259,10 @@ private extension FretboardValidationRunner {
             fixture: fixture,
             record: record
         )
+        validateQuarterNoteSequenceTrainer(
+            fixture: fixture,
+            record: record
+        )
 
         return issues
     }
@@ -793,6 +797,158 @@ private extension FretboardValidationRunner {
             }
         default:
             record("trainer 对正确命中未返回 evaluated 结果。")
+        }
+    }
+
+    static func validateQuarterNoteSequenceTrainer(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard fixture.name == "horizontal-guitar6-reference" else {
+            return
+        }
+
+        let naturalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
+            clef: .treble,
+            noteCount: 7,
+            includesAccidentals: false
+        )
+        var naturalTrainer = FretboardNaturalNoteTrainerState(
+            quarterNoteSequenceSpec: naturalSpec
+        )
+        let naturalPrompt = naturalTrainer.generateQuarterNoteSequencePrompt()
+        validateQuarterNoteSequencePrompt(
+            naturalPrompt,
+            expectedSpec: naturalSpec,
+            requiresNaturalOnly: true,
+            requiresAccidentalEvidence: false,
+            record: record
+        )
+        guard case let .quarterNoteSequence(resolvedNaturalSpec) = naturalTrainer.mode else {
+            record("quarter-note trainer 初始化后 mode 应为 .quarterNoteSequence。")
+            return
+        }
+        if resolvedNaturalSpec != naturalSpec {
+            record("quarter-note trainer 的 natural spec 与初始化参数不一致。")
+        }
+        if naturalTrainer.quarterNoteSequencePrompt != naturalPrompt {
+            record("quarter-note trainer 未保存最近一次生成的 natural prompt。")
+        }
+
+        let naturalSession = naturalTrainer.makeQuarterNoteSequenceSession()
+        if naturalSession.prompt != naturalPrompt {
+            record("quarter-note trainer 生成的 session prompt 与最近一次 prompt 不一致。")
+        }
+        if naturalSession.currentIndex != 0 {
+            record("quarter-note trainer 新建 session 的 currentIndex 应为 0。")
+        }
+
+        let accidentalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
+            clef: .bass,
+            noteCount: 128,
+            includesAccidentals: true
+        )
+        var accidentalTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        let accidentalPrompt = accidentalTrainer.generateQuarterNoteSequencePrompt(
+            for: accidentalSpec
+        )
+        validateQuarterNoteSequencePrompt(
+            accidentalPrompt,
+            expectedSpec: accidentalSpec,
+            requiresNaturalOnly: false,
+            requiresAccidentalEvidence: true,
+            record: record
+        )
+        guard case let .quarterNoteSequence(resolvedAccidentalSpec) = accidentalTrainer.mode else {
+            record("quarter-note trainer 通过 generate(for:) 后 mode 应切换为 .quarterNoteSequence。")
+            return
+        }
+        if resolvedAccidentalSpec != accidentalSpec {
+            record("quarter-note trainer 的 accidental spec 与 generate(for:) 参数不一致。")
+        }
+        if accidentalTrainer.quarterNoteSequencePrompt != accidentalPrompt {
+            record("quarter-note trainer 未保存最近一次生成的 accidental prompt。")
+        }
+    }
+
+    static func validateQuarterNoteSequencePrompt(
+        _ prompt: FretboardNaturalNoteTrainerState.QuarterNoteSequencePrompt,
+        expectedSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec,
+        requiresNaturalOnly: Bool,
+        requiresAccidentalEvidence: Bool,
+        record: (String) -> Void
+    ) {
+        if prompt.spec != expectedSpec {
+            record("quarter-note trainer 生成的 prompt.spec 与期望 spec 不一致。")
+        }
+
+        if prompt.score.clef != expectedSpec.clef {
+            record("quarter-note trainer 生成的 score clef 与 spec 不一致。")
+        }
+
+        if prompt.score.keySignature != .natural {
+            record("quarter-note trainer 生成的 score key signature 应保持 natural。")
+        }
+
+        if prompt.notes.count != expectedSpec.noteCount {
+            record("quarter-note trainer 生成的 note 数量错误，期望 \(expectedSpec.noteCount)，实际 \(prompt.notes.count)。")
+        }
+
+        if prompt.expectedPitchClasses.count != prompt.notes.count {
+            record("quarter-note trainer 的 expectedPitchClasses 数量与 score.notes 不一致。")
+        }
+
+        if prompt.notes.contains(where: { $0.duration != .quarter }) {
+            record("quarter-note trainer 生成了非四分音符时值。")
+        }
+
+        let expectedMeasureCount = (expectedSpec.noteCount + 3) / 4
+        if prompt.score.measures.count != expectedMeasureCount {
+            record(
+                "quarter-note trainer 生成的 measure 数量错误，期望 \(expectedMeasureCount)，实际 \(prompt.score.measures.count)。"
+            )
+        }
+
+        if prompt.score.measures.dropLast().contains(where: { $0.notes.count != 4 }) {
+            record("quarter-note trainer 的非末尾 measure 未保持 4 个四分音。")
+        }
+
+        if let lastMeasure = prompt.score.measures.last {
+            let expectedLastMeasureCount = expectedSpec.noteCount % 4 == 0
+                ? 4
+                : expectedSpec.noteCount % 4
+            if lastMeasure.notes.count != expectedLastMeasureCount {
+                record(
+                    "quarter-note trainer 的末尾 measure 数量错误，期望 \(expectedLastMeasureCount)，实际 \(lastMeasure.notes.count)。"
+                )
+            }
+        }
+
+        let scorePitchClasses = prompt.notes.map(\.notePitch.pitchClass)
+        if scorePitchClasses != prompt.expectedPitchClasses {
+            record("quarter-note trainer 的 expectedPitchClasses 与 score.notes 派生结果不一致。")
+        }
+
+        if requiresNaturalOnly {
+            if prompt.expectedPitchClasses.contains(where: \.isAccidental) {
+                record("quarter-note trainer 在 natural-only 模式下生成了非自然音 pitchClass。")
+            }
+            if prompt.notes.contains(where: { $0.pitch.accidental != .natural }) {
+                record("quarter-note trainer 在 natural-only 模式下生成了带临时记号的 StaffPitch。")
+            }
+        } else {
+            if prompt.notes.contains(where: { $0.pitch.accidental == .flat }) {
+                record("quarter-note trainer 在 includesAccidentals=true 模式下生成了 flat 拼写。")
+            }
+            if prompt.notes.contains(where: {
+                $0.pitch.accidental != .natural && $0.pitch.accidental != .sharp
+            }) {
+                record("quarter-note trainer 在 includesAccidentals=true 模式下生成了非自然/升号的 accidental。")
+            }
+        }
+
+        if requiresAccidentalEvidence && !prompt.notes.contains(where: { $0.pitch.accidental == .sharp }) {
+            record("quarter-note trainer 在 includesAccidentals=true 模式下未生成任何升号音，无法证明候选池允许半音。")
         }
     }
 
