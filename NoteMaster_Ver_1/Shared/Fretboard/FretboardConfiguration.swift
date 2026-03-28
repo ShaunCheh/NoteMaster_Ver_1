@@ -353,6 +353,28 @@ struct FretboardConfiguration: Equatable, Sendable {
         notePitch(for: cell)?.pitchClass
     }
 
+    // single coverage 训练需要基于当前配置范围收集某个音名的全部可点击位置；
+    // 枚举顺序固定为 stringIndex 升序、fret 升序，便于 validation 与后续投影保持稳定。
+    func cells(for pitchClass: PitchClass) -> [FretboardCell] {
+        var cells: [FretboardCell] = []
+        cells.reserveCapacity(stringCount * displayPositionCount)
+
+        for stringIndex in 0..<stringCount {
+            for fret in fretRange {
+                let cell = FretboardCell(
+                    stringIndex: stringIndex,
+                    fret: fret
+                )
+                guard notePitch(for: cell)?.pitchClass == pitchClass else {
+                    continue
+                }
+                cells.append(cell)
+            }
+        }
+
+        return cells
+    }
+
     // 竖向局部横滚阶段的共享尺寸真相：页面决定可见高度，shared 几何反推出整把指板内容宽度。
     func verticalContentLayout(
         forViewportHeight viewportHeight: CGFloat

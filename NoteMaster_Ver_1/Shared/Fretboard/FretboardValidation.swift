@@ -255,6 +255,10 @@ private extension FretboardValidationRunner {
             fixture: fixture,
             record: record
         )
+        validatePitchClassCellEnumeration(
+            fixture: fixture,
+            record: record
+        )
         validateNaturalNoteTrainer(
             fixture: fixture,
             record: record
@@ -686,6 +690,58 @@ private extension FretboardValidationRunner {
             fret: configuration.maxFret + 1
         ) != nil {
             record("越界 fret(\(configuration.maxFret + 1)) 仍然解析出了 NotePitch。")
+        }
+    }
+
+    static func validatePitchClassCellEnumeration(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        let configuration = fixture.configuration
+        let allCells = (0..<configuration.stringCount).flatMap { stringIndex in
+            configuration.fretRange.map { fret in
+                FretboardCell(
+                    stringIndex: stringIndex,
+                    fret: fret
+                )
+            }
+        }
+
+        for pitchClass in PitchClass.allCases {
+            let enumeratedCells = configuration.cells(for: pitchClass)
+            let expectedCells = allCells.filter {
+                configuration.pitchClass(for: $0) == pitchClass
+            }
+
+            if enumeratedCells != expectedCells {
+                record(
+                    "configuration.cells(for: \(pitchClass.displayText())) 未与逐格 pitchClass 解析结果保持一致。"
+                )
+            }
+
+            if Set(enumeratedCells).count != enumeratedCells.count {
+                record(
+                    "configuration.cells(for: \(pitchClass.displayText())) 返回了重复 cell。"
+                )
+            }
+
+            if enumeratedCells.contains(where: {
+                configuration.pitchClass(for: $0) != pitchClass
+            }) {
+                record(
+                    "configuration.cells(for: \(pitchClass.displayText())) 包含了错误的 pitchClass cell。"
+                )
+            }
+        }
+
+        let totalEnumeratedCellCount = PitchClass.allCases.reduce(0) { partialResult, pitchClass in
+            partialResult + configuration.cells(for: pitchClass).count
+        }
+        let expectedTotalCellCount = configuration.stringCount * configuration.displayPositionCount
+        if totalEnumeratedCellCount != expectedTotalCellCount {
+            record(
+                "按 pitchClass 汇总的 cell 总数错误，期望 \(expectedTotalCellCount)，实际 \(totalEnumeratedCellCount)。"
+            )
         }
     }
 
