@@ -18,12 +18,26 @@ struct TargetPromptSequenceDisplayItem: Equatable, Sendable {
 
 enum TargetPromptContent: Equatable, Sendable {
     case single(text: String)
+    case singleCoverage(text: String, visitedCount: Int, totalCount: Int)
     case sequence(tokens: [String], currentIndex: Int)
 
     var accessibilityLabel: String {
         switch self {
         case let .single(text):
             return "Current target note \(text)"
+        case let .singleCoverage(text, visitedCount, totalCount):
+            Self.validateSingleCoverage(
+                visitedCount: visitedCount,
+                totalCount: totalCount
+            )
+            guard totalCount > 0 else {
+                return "Current target note \(text), no target positions available in current range"
+            }
+            if visitedCount < totalCount {
+                return "Current target note \(text), \(visitedCount) of \(totalCount) positions completed"
+            } else {
+                return "Current target note \(text), coverage completed, \(totalCount) positions total"
+            }
         case let .sequence(tokens, currentIndex):
             Self.validateSequence(tokens: tokens, currentIndex: currentIndex)
             if currentIndex < tokens.count {
@@ -36,7 +50,7 @@ enum TargetPromptContent: Equatable, Sendable {
 
     var sequenceDisplayItems: [TargetPromptSequenceDisplayItem] {
         switch self {
-        case .single:
+        case .single, .singleCoverage:
             return []
         case let .sequence(tokens, currentIndex):
             Self.validateSequence(tokens: tokens, currentIndex: currentIndex)
@@ -57,6 +71,17 @@ enum TargetPromptContent: Equatable, Sendable {
         }
     }
 
+    var singleCoverageProgressText: String? {
+        guard case let .singleCoverage(_, visitedCount, totalCount) = self else {
+            return nil
+        }
+        Self.validateSingleCoverage(
+            visitedCount: visitedCount,
+            totalCount: totalCount
+        )
+        return "\(visitedCount)/\(totalCount)"
+    }
+
     private static func validateSequence(
         tokens: [String],
         currentIndex: Int
@@ -68,6 +93,24 @@ enum TargetPromptContent: Equatable, Sendable {
         precondition(
             currentIndex >= 0 && currentIndex <= tokens.count,
             "Target prompt sequence current index must stay within the token range."
+        )
+    }
+
+    private static func validateSingleCoverage(
+        visitedCount: Int,
+        totalCount: Int
+    ) {
+        precondition(
+            totalCount >= 0,
+            "Target prompt single coverage total count must not be negative."
+        )
+        precondition(
+            visitedCount >= 0,
+            "Target prompt single coverage visited count must not be negative."
+        )
+        precondition(
+            visitedCount <= totalCount,
+            "Target prompt single coverage visited count must not exceed total count."
         )
     }
 }
@@ -87,6 +130,18 @@ extension GeneratedNoteSequence {
 extension FretboardNaturalNoteTrainerState.Prompt {
     var targetPromptContent: TargetPromptContent {
         .single(text: displayText)
+    }
+}
+
+extension FretboardNaturalNoteTrainerState.SingleCoverageSession {
+    func targetPromptContent(
+        spelling: PitchSpelling = .sharp
+    ) -> TargetPromptContent {
+        .singleCoverage(
+            text: targetPitchClass.displayText(using: spelling),
+            visitedCount: visitedCount,
+            totalCount: totalCount
+        )
     }
 }
 

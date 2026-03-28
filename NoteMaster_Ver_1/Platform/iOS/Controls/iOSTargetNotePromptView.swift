@@ -10,7 +10,9 @@ final class iOSTargetNotePromptView: UIView {
     }
 
     private var currentContent: TargetPromptContent?
+    private let singleContentStackView = UIStackView()
     private let noteLabel = UILabel()
+    private let progressLabel = UILabel()
     private let sequenceScrollView = UIScrollView()
     private let sequenceContentView = UIView()
     private let sequenceStackView = UIStackView()
@@ -79,6 +81,25 @@ final class iOSTargetNotePromptView: UIView {
         noteLabel.lineBreakMode = .byClipping
         noteLabel.isAccessibilityElement = false
 
+        progressLabel.translatesAutoresizingMaskIntoConstraints = false
+        progressLabel.font = .systemFont(
+            ofSize: Style.coverageProgressFontSize,
+            weight: .semibold
+        )
+        progressLabel.textColor = .secondaryLabel
+        progressLabel.textAlignment = .center
+        progressLabel.adjustsFontForContentSizeCategory = true
+        progressLabel.lineBreakMode = .byClipping
+        progressLabel.isAccessibilityElement = false
+
+        singleContentStackView.axis = .vertical
+        singleContentStackView.alignment = .fill
+        singleContentStackView.distribution = .fill
+        singleContentStackView.spacing = Style.singleContentSpacing
+        singleContentStackView.translatesAutoresizingMaskIntoConstraints = false
+        singleContentStackView.addArrangedSubview(noteLabel)
+        singleContentStackView.addArrangedSubview(progressLabel)
+
         sequenceScrollView.translatesAutoresizingMaskIntoConstraints = false
         sequenceScrollView.alwaysBounceVertical = false
         sequenceScrollView.showsHorizontalScrollIndicator = false
@@ -94,22 +115,22 @@ final class iOSTargetNotePromptView: UIView {
         sequenceStackView.spacing = Style.sequenceItemSpacing
         sequenceStackView.translatesAutoresizingMaskIntoConstraints = false
 
-        addSubview(noteLabel)
+        addSubview(singleContentStackView)
         addSubview(sequenceScrollView)
         sequenceScrollView.addSubview(sequenceContentView)
         sequenceContentView.addSubview(sequenceStackView)
 
         NSLayoutConstraint.activate([
-            noteLabel.leadingAnchor.constraint(
+            singleContentStackView.leadingAnchor.constraint(
                 equalTo: layoutMarginsGuide.leadingAnchor
             ),
-            noteLabel.trailingAnchor.constraint(
+            singleContentStackView.trailingAnchor.constraint(
                 equalTo: layoutMarginsGuide.trailingAnchor
             ),
-            noteLabel.topAnchor.constraint(
+            singleContentStackView.topAnchor.constraint(
                 equalTo: layoutMarginsGuide.topAnchor
             ),
-            noteLabel.bottomAnchor.constraint(
+            singleContentStackView.bottomAnchor.constraint(
                 equalTo: layoutMarginsGuide.bottomAnchor
             ),
             sequenceScrollView.leadingAnchor.constraint(
@@ -166,11 +187,17 @@ final class iOSTargetNotePromptView: UIView {
 
         switch currentContent {
         case let .single(text):
-            noteLabel.text = text
-            noteLabel.isHidden = false
-            sequenceScrollView.isHidden = true
+            applySingleContent(
+                noteText: text,
+                progressText: nil
+            )
+        case let .singleCoverage(text, _, _):
+            applySingleContent(
+                noteText: text,
+                progressText: currentContent.singleCoverageProgressText
+            )
         case let .sequence(_, currentIndex):
-            noteLabel.isHidden = true
+            singleContentStackView.isHidden = true
             sequenceScrollView.isHidden = false
             rebuildSequenceItems(
                 from: currentContent.sequenceDisplayItems
@@ -180,11 +207,24 @@ final class iOSTargetNotePromptView: UIView {
     }
 
     private func applyPlaceholder() {
-        noteLabel.text = Style.placeholderText
-        noteLabel.isHidden = false
+        applySingleContent(
+            noteText: Style.placeholderText,
+            progressText: nil
+        )
         sequenceScrollView.isHidden = true
         accessibilityLabel = "Current target note unavailable"
         rebuildSequenceItems(from: [])
+    }
+
+    private func applySingleContent(
+        noteText: String,
+        progressText: String?
+    ) {
+        noteLabel.text = noteText
+        progressLabel.text = progressText
+        progressLabel.isHidden = progressText == nil
+        singleContentStackView.isHidden = false
+        sequenceScrollView.isHidden = true
     }
 
     private func rebuildSequenceItems(
@@ -366,6 +406,8 @@ private enum Style {
         trailing: 16
     )
     static let noteFontSize: CGFloat = 52
+    static let coverageProgressFontSize: CGFloat = 18
+    static let singleContentSpacing: CGFloat = 6
     static let sequenceNoteFontSize: CGFloat = 26
     static let cornerRadius: CGFloat = 22
     static let borderWidth: CGFloat = 1
