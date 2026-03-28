@@ -801,6 +801,8 @@ final class macOSViewController: NSViewController {
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
             handleSingleNaturalTargetHitResult(hitResult)
+        case .positionPrompt:
+            return
         case .quarterNoteSequence:
             handleQuarterNoteSequenceHitResult(hitResult)
         }
@@ -969,6 +971,8 @@ final class macOSViewController: NSViewController {
         let requiresNewSequence: Bool
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
+            requiresNewSequence = true
+        case .positionPrompt:
             requiresNewSequence = true
         case let .quarterNoteSequence(currentSpec):
             requiresNewSequence = currentSpec != configuredQuarterNoteSequenceSpec

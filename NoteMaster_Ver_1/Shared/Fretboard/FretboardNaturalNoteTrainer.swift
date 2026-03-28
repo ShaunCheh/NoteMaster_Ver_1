@@ -8,6 +8,7 @@
 struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     enum ExerciseMode: Equatable, Sendable {
         case singleNaturalTarget
+        case positionPrompt
         case quarterNoteSequence(QuarterNoteSequenceSpec)
     }
 
@@ -163,6 +164,53 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     enum SingleCoverageAnswerResult: Equatable, Sendable {
         case ignored(SingleCoverageIgnoreReason)
         case evaluated(SingleCoverageEvaluation)
+    }
+
+    struct PositionPromptSession: Equatable, Sendable {
+        var promptCell: FretboardCell
+        var promptPitchClass: PitchClass
+
+        init(
+            promptCell: FretboardCell,
+            promptPitchClass: PitchClass
+        ) {
+            precondition(
+                promptPitchClass.isNatural,
+                "Position prompt session pitch class must be a natural note."
+            )
+            self.promptCell = promptCell
+            self.promptPitchClass = promptPitchClass
+        }
+    }
+
+    struct PositionPromptEvaluation: Equatable, Sendable {
+        var promptCell: FretboardCell
+        var expectedPitchClass: PitchClass
+        var answeredPitchClass: PitchClass
+        var nextPromptCell: FretboardCell
+        var nextPromptPitchClass: PitchClass
+
+        var isCorrect: Bool {
+            answeredPitchClass == expectedPitchClass
+        }
+
+        var didAdvancePrompt: Bool {
+            isCorrect
+        }
+
+        var didChangePromptCell: Bool {
+            nextPromptCell != promptCell
+        }
+
+        func debugSummary() -> String {
+            let resultText = isCorrect ? "correct" : "wrong"
+            let nextCellText = "string=\(nextPromptCell.stringIndex) fret=\(nextPromptCell.fret)"
+            return "[PositionPrompt] prompt=\(expectedPitchClass.displayText()) string=\(promptCell.stringIndex) fret=\(promptCell.fret) answered=\(answeredPitchClass.displayText()) result=\(resultText) next=\(nextPromptPitchClass.displayText()) \(nextCellText)"
+        }
+    }
+
+    enum PositionPromptAnswerResult: Equatable, Sendable {
+        case evaluated(PositionPromptEvaluation)
     }
 
     struct QuarterNoteSequenceSpec: Equatable, Sendable {
@@ -380,6 +428,14 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         generatedQuarterNoteSequence = nil
     }
 
+    init(positionPromptMode: Void) {
+        mode = .positionPrompt
+        // 位置题模式当前不消费 legacy target 文本；
+        // 这里保留一个稳定自然音占位值，避免旧接口在迁移完成前失去初始化基线。
+        targetPitchClass = .c
+        generatedQuarterNoteSequence = nil
+    }
+
     init() {
         var generator = SystemRandomNumberGenerator()
         self.init(randomUsing: &generator)
@@ -455,6 +511,28 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return SingleCoverageSession(
             targetPitchClass: targetPitchClass,
             requiredCells: Set(configuration.cells(for: targetPitchClass))
+        )
+    }
+
+    func makePositionPromptSession(
+        configuration: FretboardConfiguration
+    ) -> PositionPromptSession {
+        var generator = SystemRandomNumberGenerator()
+        return makePositionPromptSession(
+            configuration: configuration,
+            using: &generator
+        )
+    }
+
+    func makePositionPromptSession<R: RandomNumberGenerator>(
+        configuration: FretboardConfiguration,
+        using generator: inout R
+    ) -> PositionPromptSession {
+        requirePositionPromptMode()
+        return Self.makePositionPromptSession(
+            configuration: configuration,
+            excluding: nil,
+            using: &generator
         )
     }
 
@@ -570,6 +648,59 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
+    mutating func handlePositionPromptAnswer(
+        _ pitchClass: PitchClass,
+        configuration: FretboardConfiguration,
+        session: inout PositionPromptSession
+    ) -> PositionPromptAnswerResult {
+        var generator = SystemRandomNumberGenerator()
+        return handlePositionPromptAnswer(
+            pitchClass,
+            configuration: configuration,
+            session: &session,
+            using: &generator
+        )
+    }
+
+    mutating func handlePositionPromptAnswer<R: RandomNumberGenerator>(
+        _ pitchClass: PitchClass,
+        configuration: FretboardConfiguration,
+        session: inout PositionPromptSession,
+        using generator: inout R
+    ) -> PositionPromptAnswerResult {
+        requirePositionPromptMode()
+        validatePositionPromptSession(
+            session,
+            configuration: configuration
+        )
+
+        let promptCell = session.promptCell
+        let expectedPitchClass = session.promptPitchClass
+        let isCorrect = pitchClass == expectedPitchClass
+
+        let nextSession: PositionPromptSession
+        if isCorrect {
+            nextSession = Self.makePositionPromptSession(
+                configuration: configuration,
+                excluding: promptCell,
+                using: &generator
+            )
+            session = nextSession
+        } else {
+            nextSession = session
+        }
+
+        return .evaluated(
+            PositionPromptEvaluation(
+                promptCell: promptCell,
+                expectedPitchClass: expectedPitchClass,
+                answeredPitchClass: pitchClass,
+                nextPromptCell: nextSession.promptCell,
+                nextPromptPitchClass: nextSession.promptPitchClass
+            )
+        )
+    }
+
     mutating func advanceToNextTarget() -> PitchClass {
         var generator = SystemRandomNumberGenerator()
         return advanceToNextTarget(using: &generator)
@@ -656,12 +787,79 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return targetPitchClass
     }
 
+    private static func makePositionPromptSession<R: RandomNumberGenerator>(
+        configuration: FretboardConfiguration,
+        excluding excludedCell: FretboardCell?,
+        using generator: inout R
+    ) -> PositionPromptSession {
+        let candidates = positionPromptCandidateCells(in: configuration)
+        let filteredCandidates = candidates.filter { cell in
+            cell != excludedCell
+        }
+        let resolvedCandidates = filteredCandidates.isEmpty
+            ? candidates
+            : filteredCandidates
+
+        guard let promptCell = resolvedCandidates.randomElement(using: &generator) else {
+            preconditionFailure(
+                "Position prompt candidates should never be empty."
+            )
+        }
+        guard let promptPitchClass = configuration.pitchClass(for: promptCell) else {
+            preconditionFailure(
+                "Position prompt candidate cell must resolve to a pitch class."
+            )
+        }
+        precondition(
+            promptPitchClass.isNatural,
+            "Position prompt candidate pitch class must be natural."
+        )
+
+        return PositionPromptSession(
+            promptCell: promptCell,
+            promptPitchClass: promptPitchClass
+        )
+    }
+
+    private static func positionPromptCandidateCells(
+        in configuration: FretboardConfiguration
+    ) -> [FretboardCell] {
+        var cells: [FretboardCell] = []
+        cells.reserveCapacity(configuration.stringCount * configuration.displayPositionCount)
+
+        for stringIndex in 0..<configuration.stringCount {
+            for fret in configuration.fretRange {
+                let cell = FretboardCell(
+                    stringIndex: stringIndex,
+                    fret: fret
+                )
+                guard let pitchClass = configuration.pitchClass(for: cell),
+                      pitchClass.isNatural else {
+                    continue
+                }
+                cells.append(cell)
+            }
+        }
+
+        return cells
+    }
+
     private func requireSingleNaturalTargetMode(
         _ function: StaticString = #function
     ) {
         guard case .singleNaturalTarget = mode else {
             preconditionFailure(
                 "\(function) requires .singleNaturalTarget mode."
+            )
+        }
+    }
+
+    private func requirePositionPromptMode(
+        _ function: StaticString = #function
+    ) {
+        guard case .positionPrompt = mode else {
+            preconditionFailure(
+                "\(function) requires .positionPrompt mode."
             )
         }
     }
@@ -685,6 +883,26 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         precondition(
             session.visitedCells.isSubset(of: session.requiredCells),
             "\(function) single coverage session visited cells must stay within the required cells."
+        )
+    }
+
+    private func validatePositionPromptSession(
+        _ session: PositionPromptSession,
+        configuration: FretboardConfiguration,
+        _ function: StaticString = #function
+    ) {
+        precondition(
+            session.promptPitchClass.isNatural,
+            "\(function) position prompt session pitch class must stay natural."
+        )
+        guard let resolvedPromptPitchClass = configuration.pitchClass(for: session.promptCell) else {
+            preconditionFailure(
+                "\(function) position prompt session cell must resolve to a pitch class."
+            )
+        }
+        precondition(
+            resolvedPromptPitchClass == session.promptPitchClass,
+            "\(function) position prompt session pitch class must match the current configuration."
         )
     }
 

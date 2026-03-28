@@ -100,6 +100,12 @@ private struct FretboardValidationFixture {
     var bounds: CGRect
 }
 
+private struct ZeroRandomNumberGenerator: RandomNumberGenerator {
+    mutating func next() -> UInt64 {
+        0
+    }
+}
+
 private extension FretboardValidationRunner {
     static let tolerance: CGFloat = 0.001
     static let horizontalFixtureWidth: CGFloat = 860
@@ -264,6 +270,10 @@ private extension FretboardValidationRunner {
             record: record
         )
         validateSingleCoverageTrainer(
+            fixture: fixture,
+            record: record
+        )
+        validatePositionPromptTrainer(
             fixture: fixture,
             record: record
         )
@@ -1228,6 +1238,159 @@ private extension FretboardValidationRunner {
         }
     }
 
+    static func validatePositionPromptTrainer(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard fixture.name == "horizontal-guitar6-reference" else {
+            return
+        }
+
+        let configuration = fixture.configuration
+        let candidateCells = positionPromptCandidateCells(
+            configuration: configuration
+        )
+        guard candidateCells.count >= 2 else {
+            record("position prompt trainer 缺少至少两个自然音位置，无法验证换题语义。")
+            return
+        }
+
+        let firstCandidateCell = candidateCells[0]
+        let secondCandidateCell = candidateCells[1]
+        guard let firstCandidatePitchClass = configuration.pitchClass(for: firstCandidateCell) else {
+            record("position prompt trainer 首个候选 cell 无法解析 PitchClass。")
+            return
+        }
+        guard let secondCandidatePitchClass = configuration.pitchClass(for: secondCandidateCell) else {
+            record("position prompt trainer 第二个候选 cell 无法解析 PitchClass。")
+            return
+        }
+
+        if !firstCandidatePitchClass.isNatural || !secondCandidatePitchClass.isNatural {
+            record("position prompt trainer 的候选基准 cell 应为自然音。")
+        }
+
+        var initialGenerator = ZeroRandomNumberGenerator()
+        let initialTrainer = FretboardNaturalNoteTrainerState(
+            positionPromptMode: ()
+        )
+        let initialSession = initialTrainer.makePositionPromptSession(
+            configuration: configuration,
+            using: &initialGenerator
+        )
+        if initialSession.promptCell != firstCandidateCell {
+            record("position prompt trainer 新建 session 的 promptCell 未对齐首个自然音候选。")
+        }
+        if initialSession.promptPitchClass != firstCandidatePitchClass {
+            record("position prompt trainer 新建 session 的 promptPitchClass 与配置解析结果不一致。")
+        }
+        if !initialSession.promptPitchClass.isNatural {
+            record("position prompt trainer 新建 session 的 promptPitchClass 应为自然音。")
+        }
+
+        guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
+            $0 != firstCandidatePitchClass
+        }) else {
+            record("position prompt trainer 无法构造不同于首题答案的自然音错误按钮。")
+            return
+        }
+
+        var wrongGenerator = ZeroRandomNumberGenerator()
+        var wrongTrainer = FretboardNaturalNoteTrainerState(
+            positionPromptMode: ()
+        )
+        var wrongSession = wrongTrainer.makePositionPromptSession(
+            configuration: configuration,
+            using: &wrongGenerator
+        )
+        let wrongSessionSnapshot = wrongSession
+        switch wrongTrainer.handlePositionPromptAnswer(
+            wrongAnswer,
+            configuration: configuration,
+            session: &wrongSession,
+            using: &wrongGenerator
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.promptCell != firstCandidateCell {
+                record("position prompt trainer 错误作答时 promptCell 未对齐当前题目。")
+            }
+            if evaluation.expectedPitchClass != firstCandidatePitchClass {
+                record("position prompt trainer 错误作答时 expectedPitchClass 与当前题目不一致。")
+            }
+            if evaluation.answeredPitchClass != wrongAnswer {
+                record("position prompt trainer 错误作答时 answeredPitchClass 未保留按钮输入。")
+            }
+            if evaluation.isCorrect {
+                record("position prompt trainer 把错误按钮输入误判成了正确。")
+            }
+            if evaluation.didAdvancePrompt {
+                record("position prompt trainer 错误作答后不应推进题目。")
+            }
+            if evaluation.didChangePromptCell {
+                record("position prompt trainer 错误作答后不应切换 promptCell。")
+            }
+            if evaluation.nextPromptCell != firstCandidateCell {
+                record("position prompt trainer 错误作答后 nextPromptCell 不应改变。")
+            }
+            if evaluation.nextPromptPitchClass != firstCandidatePitchClass {
+                record("position prompt trainer 错误作答后 nextPromptPitchClass 不应改变。")
+            }
+        }
+        if wrongSession != wrongSessionSnapshot {
+            record("position prompt trainer 错误作答后 session 不应变化。")
+        }
+
+        var correctGenerator = ZeroRandomNumberGenerator()
+        var correctTrainer = FretboardNaturalNoteTrainerState(
+            positionPromptMode: ()
+        )
+        var correctSession = correctTrainer.makePositionPromptSession(
+            configuration: configuration,
+            using: &correctGenerator
+        )
+        switch correctTrainer.handlePositionPromptAnswer(
+            correctSession.promptPitchClass,
+            configuration: configuration,
+            session: &correctSession,
+            using: &correctGenerator
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.promptCell != firstCandidateCell {
+                record("position prompt trainer 正确作答时 promptCell 未对齐首题。")
+            }
+            if evaluation.expectedPitchClass != firstCandidatePitchClass {
+                record("position prompt trainer 正确作答时 expectedPitchClass 与配置解析结果不一致。")
+            }
+            if evaluation.answeredPitchClass != firstCandidatePitchClass {
+                record("position prompt trainer 正确作答时 answeredPitchClass 未保留按钮输入。")
+            }
+            if !evaluation.isCorrect {
+                record("position prompt trainer 未把正确按钮输入判定为 correct。")
+            }
+            if !evaluation.didAdvancePrompt {
+                record("position prompt trainer 正确作答后应推进到下一题。")
+            }
+            if !evaluation.didChangePromptCell {
+                record("position prompt trainer 在存在多个候选位置时，正确作答后应切换到新的 promptCell。")
+            }
+            if evaluation.nextPromptCell != secondCandidateCell {
+                record("position prompt trainer 正确作答后 nextPromptCell 未切换到排除当前题后的首个候选。")
+            }
+            if evaluation.nextPromptPitchClass != secondCandidatePitchClass {
+                record("position prompt trainer 正确作答后 nextPromptPitchClass 与新题不一致。")
+            }
+            if !evaluation.nextPromptPitchClass.isNatural {
+                record("position prompt trainer 正确作答后切换到了非自然音题目。")
+            }
+        }
+        if correctSession.promptCell != secondCandidateCell {
+            record("position prompt trainer 正确作答后 session.promptCell 未推进到新题。")
+        }
+        if correctSession.promptPitchClass != secondCandidatePitchClass {
+            record("position prompt trainer 正确作答后 session.promptPitchClass 未与新题同步。")
+        }
+    }
+
     static func validateQuarterNoteSequenceTrainer(
         fixture: FretboardValidationFixture,
         record: (String) -> Void
@@ -1563,6 +1726,29 @@ private extension FretboardValidationRunner {
         if requiresAccidentalEvidence && !prompt.notes.contains(where: { $0.pitch.accidental == .sharp }) {
             record("quarter-note trainer 在 includesAccidentals=true 模式下未生成任何升号音，无法证明候选池允许半音。")
         }
+    }
+
+    static func positionPromptCandidateCells(
+        configuration: FretboardConfiguration
+    ) -> [FretboardCell] {
+        var cells: [FretboardCell] = []
+        cells.reserveCapacity(configuration.stringCount * configuration.displayPositionCount)
+
+        for stringIndex in 0..<configuration.stringCount {
+            for fret in configuration.fretRange {
+                let cell = FretboardCell(
+                    stringIndex: stringIndex,
+                    fret: fret
+                )
+                guard let pitchClass = configuration.pitchClass(for: cell),
+                      pitchClass.isNatural else {
+                    continue
+                }
+                cells.append(cell)
+            }
+        }
+
+        return cells
     }
 
     static func manualChecklist(for platform: FretboardValidationPlatform) -> [String] {
