@@ -3,6 +3,11 @@ import AppKit
 
 final class macOSNaturalNoteStripView: NSView {
     var onPitchClassTap: ((PitchClass) -> Void)?
+    var areButtonsEnabled = true {
+        didSet {
+            updateButtonEnabledState()
+        }
+    }
 
     override var intrinsicContentSize: NSSize {
         layoutSubtreeIfNeeded()
@@ -50,6 +55,7 @@ final class macOSNaturalNoteStripView: NSView {
 
         addSubview(stackView)
         buttons.forEach { stackView.addArrangedSubview($0) }
+        updateButtonEnabledState()
 
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(
@@ -87,12 +93,22 @@ final class macOSNaturalNoteStripView: NSView {
 
         onPitchClassTap?(pitchClass)
     }
+
+    private func updateButtonEnabledState() {
+        buttons.forEach { $0.isEnabled = areButtonsEnabled }
+    }
 }
 
 private final class NaturalNoteButton: NSButton {
     var pitchClass: PitchClass?
 
     private var isPressed = false
+
+    override var isEnabled: Bool {
+        didSet {
+            applyCurrentAppearance()
+        }
+    }
 
     override var intrinsicContentSize: NSSize {
         let size = super.intrinsicContentSize
