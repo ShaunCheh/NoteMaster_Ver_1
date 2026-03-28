@@ -81,6 +81,13 @@ struct FretboardScene: Equatable, Sendable {
         }?.frame
     }
 
+    func cellFrame(for cell: FretboardCell) -> CGRect? {
+        cellFrame(
+            stringIndex: cell.stringIndex,
+            fret: cell.fret
+        )
+    }
+
     func fretSpanRect(at fret: Int) -> CGRect? {
         let frames = cellFrames
             .filter { $0.fret == fret }

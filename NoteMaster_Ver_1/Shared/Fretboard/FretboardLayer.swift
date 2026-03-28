@@ -57,6 +57,17 @@ final class FretboardLayer: CALayer {
         }
     }
 
+    var feedbackOverlayState: FretboardFeedbackOverlayState = .empty {
+        didSet {
+            guard oldValue != feedbackOverlayState else {
+                return
+            }
+
+            synchronizeFeedbackOverlayState()
+            feedbackLayer.setNeedsDisplay()
+        }
+    }
+
     var contextNormalizationMode: FretboardContextNormalizationMode = .none {
         didSet {
             guard oldValue != contextNormalizationMode else {
@@ -78,6 +89,7 @@ final class FretboardLayer: CALayer {
     }
 
     private let boardLayer = FretboardBoardLayer()
+    private let feedbackLayer = FretboardFeedbackLayer()
     private let labelsLayer = FretboardLabelsLayer()
 
     override init() {
@@ -92,6 +104,7 @@ final class FretboardLayer: CALayer {
         if let otherLayer = layer as? FretboardLayer {
             configuration = otherLayer.configuration
             contentProvider = otherLayer.contentProvider
+            feedbackOverlayState = otherLayer.feedbackOverlayState
             contextNormalizationMode = otherLayer.contextNormalizationMode
         }
 
@@ -118,6 +131,7 @@ final class FretboardLayer: CALayer {
         isOpaque = false
         drawsAsynchronously = false
         addSublayer(boardLayer)
+        addSublayer(feedbackLayer)
         addSublayer(labelsLayer)
     }
 
@@ -128,21 +142,33 @@ final class FretboardLayer: CALayer {
 
         performWithoutImplicitAnimations {
             boardLayer.frame = bounds
+            feedbackLayer.frame = bounds
             labelsLayer.frame = bounds
             boardLayer.configuration = configuration
             labelsLayer.configuration = configuration
             boardLayer.scene = scene
+            feedbackLayer.scene = scene
             labelsLayer.scene = scene
             boardLayer.contentsScale = contentsScale
+            feedbackLayer.contentsScale = contentsScale
             labelsLayer.contentsScale = contentsScale
             boardLayer.contextNormalizationMode = contextNormalizationMode
+            feedbackLayer.contextNormalizationMode = contextNormalizationMode
             labelsLayer.contextNormalizationMode = contextNormalizationMode
             labelsLayer.contentProvider = contentProvider
+            feedbackLayer.feedbackOverlayState = feedbackOverlayState
+        }
+    }
+
+    private func synchronizeFeedbackOverlayState() {
+        performWithoutImplicitAnimations {
+            feedbackLayer.feedbackOverlayState = feedbackOverlayState
         }
     }
 
     private func invalidateSublayerDisplay() {
         boardLayer.setNeedsDisplay()
+        feedbackLayer.setNeedsDisplay()
         labelsLayer.setNeedsDisplay()
     }
 
@@ -152,6 +178,7 @@ final class FretboardLayer: CALayer {
 
         if displayImmediately {
             boardLayer.displayIfNeeded()
+            feedbackLayer.displayIfNeeded()
             labelsLayer.displayIfNeeded()
         }
     }

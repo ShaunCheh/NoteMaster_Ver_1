@@ -18,6 +18,10 @@ enum FretboardPalette {
     static let noteBadgeFill = makeColor(0.98, 0.97, 0.94, 0.98)
     static let noteBadgeStroke = makeColor(0.23, 0.18, 0.14, 0.36)
     static let noteBadgeText = makeColor(0.16, 0.12, 0.09)
+    static let feedbackCorrectFill = makeColor(0.18, 0.70, 0.36, 0.28)
+    static let feedbackCorrectStroke = makeColor(0.12, 0.58, 0.28, 0.82)
+    static let feedbackWrongFill = makeColor(0.86, 0.24, 0.24, 0.26)
+    static let feedbackWrongStroke = makeColor(0.78, 0.14, 0.14, 0.84)
 
     private static func makeColor(
         _ red: CGFloat,
