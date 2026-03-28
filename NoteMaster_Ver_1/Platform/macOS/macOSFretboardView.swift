@@ -27,6 +27,16 @@ final class macOSFretboardView: NSView {
         }
     }
 
+    var feedbackOverlayState: FretboardFeedbackOverlayState = .empty {
+        didSet {
+            guard oldValue != feedbackOverlayState else {
+                return
+            }
+
+            fretboardLayer.feedbackOverlayState = feedbackOverlayState
+        }
+    }
+
     var showsComponentBoundsOverlay = false {
         didSet {
             guard oldValue != showsComponentBoundsOverlay else {
@@ -136,6 +146,7 @@ final class macOSFretboardView: NSView {
         fretboardLayer.configuration = configuration
         fretboardLayer.contextNormalizationMode = resolvedContextNormalizationMode
         fretboardLayer.contentProvider = contentProvider
+        fretboardLayer.feedbackOverlayState = feedbackOverlayState
         updateContentsScale()
         updateContentPriorities()
         invalidateIntrinsicContentSize()

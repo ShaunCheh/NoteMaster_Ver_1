@@ -27,6 +27,16 @@ final class iOSFretboardView: UIView {
         }
     }
 
+    var feedbackOverlayState: FretboardFeedbackOverlayState = .empty {
+        didSet {
+            guard oldValue != feedbackOverlayState else {
+                return
+            }
+
+            fretboardLayer.feedbackOverlayState = feedbackOverlayState
+        }
+    }
+
     var showsComponentBoundsOverlay = false {
         didSet {
             guard oldValue != showsComponentBoundsOverlay else {
@@ -149,6 +159,7 @@ final class iOSFretboardView: UIView {
         lastMeasuredPrimaryDimension = nil
         fretboardLayer.configuration = configuration
         fretboardLayer.contentProvider = contentProvider
+        fretboardLayer.feedbackOverlayState = feedbackOverlayState
         updateContentsScale()
         updateContentPriorities()
         invalidateIntrinsicContentSize()

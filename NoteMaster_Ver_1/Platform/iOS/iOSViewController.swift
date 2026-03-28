@@ -73,6 +73,8 @@ final class iOSViewController: UIViewController {
 
     private var isSettingsPresented = false
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
+    private var singleCoverageSession: FretboardNaturalNoteTrainerState.SingleCoverageSession?
+    private var singleCoverageLastEvaluation: FretboardNaturalNoteTrainerState.SingleCoverageEvaluation?
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
 
@@ -99,6 +101,54 @@ final class iOSViewController: UIViewController {
         }
 
         return generatedSequence.targetPromptContent()
+    }
+
+    private var currentSingleCoverageRequiredCells: Set<FretboardCell> {
+        guard case .singleNaturalTarget = fretboardTrainerState.mode else {
+            return []
+        }
+
+        return Set(
+            displayState.configuration.cells(
+                for: fretboardTrainerState.targetPitchClass
+            )
+        )
+    }
+
+    private var currentSingleCoverageTargetPromptContent: TargetPromptContent {
+        guard let singleCoverageSession,
+              singleCoverageSessionMatchesCurrentTrainer(singleCoverageSession) else {
+            return .single(
+                text: fretboardTrainerState.targetPitchClass.displayText(
+                    using: displayState.spelling
+                )
+            )
+        }
+
+        return singleCoverageSession.targetPromptContent(
+            spelling: displayState.spelling
+        )
+    }
+
+    private var currentFretboardFeedbackOverlayState: FretboardFeedbackOverlayState {
+        guard case .singleNaturalTarget = fretboardTrainerState.mode,
+              let singleCoverageSession,
+              singleCoverageSessionMatchesCurrentTrainer(singleCoverageSession) else {
+            return .empty
+        }
+
+        let wrongCell: FretboardCell?
+        if let singleCoverageLastEvaluation,
+           singleCoverageLastEvaluation.hitKind == .wrong {
+            wrongCell = singleCoverageLastEvaluation.selectedCell
+        } else {
+            wrongCell = nil
+        }
+
+        return FretboardFeedbackOverlayState(
+            correctCells: singleCoverageSession.visitedCells,
+            wrongCell: wrongCell
+        )
     }
 
     private func currentQuarterNoteSequenceStaffPresentation(
@@ -129,9 +179,49 @@ final class iOSViewController: UIViewController {
         quarterNoteSequenceLastEvaluation = nil
     }
 
+    private func clearSingleCoverageFeedbackState() {
+        singleCoverageLastEvaluation = nil
+    }
+
+    private func resetSingleCoverageInteractionState() {
+        singleCoverageSession = nil
+        clearSingleCoverageFeedbackState()
+    }
+
     private func resetQuarterNoteSequenceInteractionState() {
         quarterNoteSequenceSession = nil
         clearQuarterNoteSequenceFeedbackState()
+    }
+
+    private func singleCoverageSessionMatchesCurrentTrainer(
+        _ session: FretboardNaturalNoteTrainerState.SingleCoverageSession
+    ) -> Bool {
+        session.targetPitchClass == fretboardTrainerState.targetPitchClass
+            && session.requiredCells == currentSingleCoverageRequiredCells
+    }
+
+    private func ensureSingleCoverageSession() {
+        guard case .singleNaturalTarget = fretboardTrainerState.mode else {
+            return
+        }
+
+        if let singleCoverageSession,
+           singleCoverageSessionMatchesCurrentTrainer(singleCoverageSession) {
+            return
+        }
+
+        singleCoverageSession = fretboardTrainerState.makeSingleCoverageSession(
+            configuration: displayState.configuration
+        )
+        clearSingleCoverageFeedbackState()
+    }
+
+    private func updateSingleCoverageFeedbackState(
+        with answerResult: FretboardNaturalNoteTrainerState.SingleCoverageAnswerResult
+    ) {
+        if case let .evaluated(evaluation) = answerResult {
+            singleCoverageLastEvaluation = evaluation
+        }
     }
 
     private func updateQuarterNoteSequenceFeedbackState(
@@ -551,10 +641,20 @@ final class iOSViewController: UIViewController {
     private func applyFretboardDisplayState() {
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
+        fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
         fretboardView.showsComponentBoundsOverlay = displayState.showsComponentBoundsOverlay
         rebuildVerticalFretboardHostHeightConstraint()
         applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
+
+        if case .singleNaturalTarget = fretboardTrainerState.mode {
+            applySingleCoverageProjection(
+                reason: "fretboardDisplayChanged",
+                showsLog: false
+            )
+        } else {
+            applyCurrentFretboardFeedbackOverlayState()
+        }
 
         guard isShowingFretboardMainContent else {
             return
@@ -727,25 +827,47 @@ final class iOSViewController: UIViewController {
     }
 
     private func handleSingleNaturalTargetHitResult(_ hitResult: FretboardHitResult) {
-        switch fretboardTrainerState.handle(
-            hitResult: hitResult,
-            configuration: displayState.configuration
-        ) {
+        ensureSingleCoverageSession()
+        guard var singleCoverageSession else {
+            print("[SingleCoverage][iOS] result=ignored reason=missingSession")
+            return
+        }
+
+        let answerResult = fretboardTrainerState.handleSingleCoverageHit(
+            hitResult,
+            configuration: displayState.configuration,
+            session: &singleCoverageSession
+        )
+
+        switch answerResult {
         case .ignored(.nonEndedPhase):
             return
         case .ignored(.missingHitCell):
             print(
-                "[FretboardTrainer][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
+                "[SingleCoverage][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
             )
         case let .ignored(.unresolvedHitPitch(cell)):
             print(
-                "[FretboardTrainer][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
+                "[SingleCoverage][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
+            )
+        case .ignored(.completedSession):
+            print(
+                "[SingleCoverage][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=completedSession"
             )
         case let .evaluated(evaluation):
-            print("[iOS] \(evaluation.debugSummary())")
+            self.singleCoverageSession = singleCoverageSession
+            updateSingleCoverageFeedbackState(with: answerResult)
             if evaluation.didAdvanceTarget {
-                applyFretboardTrainerPrompt(reason: "advanced")
+                self.singleCoverageSession = fretboardTrainerState.makeSingleCoverageSession(
+                    configuration: displayState.configuration
+                )
+                clearSingleCoverageFeedbackState()
             }
+            applySingleCoverageProjection(
+                reason: evaluation.didAdvanceTarget ? "advanced" : "answered",
+                showsLog: false
+            )
+            print("[iOS] \(evaluation.debugSummary())")
         }
     }
 
@@ -815,11 +937,7 @@ final class iOSViewController: UIViewController {
     // 这里同时同步控制台日志与目标音组件显示内容。
     private func applyFretboardTrainerPrompt(reason: String) {
         resetQuarterNoteSequenceInteractionState()
-        let prompt = currentFretboardTrainerPrompt
-        targetNotePromptView.apply(content: prompt.targetPromptContent)
-        print(
-            "[FretboardTrainer][iOS] target=\(prompt.displayText) state=\(reason)"
-        )
+        applySingleCoverageProjection(reason: reason)
     }
 
     // 外部入口改为直接走统一 trainerDisplayState 管线，
@@ -848,6 +966,7 @@ final class iOSViewController: UIViewController {
     private func synchronizeSingleTrainerPresentation(reason: String) {
         if isQuarterNoteSequenceMode {
             fretboardTrainerState = FretboardNaturalNoteTrainerState()
+            resetSingleCoverageInteractionState()
         }
 
         if staffDisplayState != baseStaffDisplayState {
@@ -858,6 +977,7 @@ final class iOSViewController: UIViewController {
     }
 
     private func synchronizeQuarterNoteSequencePresentation(reason: String) {
+        resetSingleCoverageInteractionState()
         if pageDisplayState.mainContentMode != .fretboard {
             pageDisplayState.setMainContentMode(.fretboard)
         }
@@ -894,6 +1014,7 @@ final class iOSViewController: UIViewController {
         reason: String,
         showsLog: Bool = true
     ) {
+        applyCurrentFretboardFeedbackOverlayState()
         let content = currentQuarterNoteSequenceTargetPromptContent
             ?? generatedSequence.targetPromptContent()
         targetNotePromptView.apply(content: content)
@@ -915,6 +1036,34 @@ final class iOSViewController: UIViewController {
                 "[QuarterNoteSequence][iOS] clef=\(generatedSequence.clef.title) noteCount=\(generatedSequence.noteCount) includesAccidentals=\(configuredQuarterNoteSequenceSpec.includesAccidentals) state=\(reason)"
             )
         }
+    }
+
+    private func applyCurrentFretboardFeedbackOverlayState() {
+        fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
+    }
+
+    private func applySingleCoverageProjection(
+        reason: String,
+        showsLog: Bool = true
+    ) {
+        ensureSingleCoverageSession()
+        targetNotePromptView.apply(content: currentSingleCoverageTargetPromptContent)
+        applyCurrentFretboardFeedbackOverlayState()
+
+        guard showsLog else {
+            return
+        }
+
+        let progressText: String
+        if let singleCoverageSession {
+            progressText = "\(singleCoverageSession.visitedCount)/\(singleCoverageSession.totalCount)"
+        } else {
+            progressText = "0/0"
+        }
+
+        print(
+            "[SingleCoverage][iOS] target=\(currentFretboardTrainerPrompt.displayText) progress=\(progressText) state=\(reason)"
+        )
     }
 
     private func applySequenceRegenerateButtonState() {
