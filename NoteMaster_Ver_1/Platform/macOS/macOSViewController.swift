@@ -280,12 +280,28 @@ final class macOSViewController: NSViewController {
         return true
     }
 
+    private var isShowingFretboard: Bool {
+        pageDisplayState.showsFretboard
+    }
+
+    private var isShowingFretboardTopContent: Bool {
+        pageDisplayState.showsFretboardInTopContent
+    }
+
     private var isShowingFretboardMainContent: Bool {
-        pageDisplayState.mainContentMode == .fretboard
+        pageDisplayState.showsFretboardInMainContent
     }
 
     private var isShowingStaffTopContent: Bool {
         pageDisplayState.topContentMode == .staff
+    }
+
+    private var isShowingTargetPromptTopContent: Bool {
+        pageDisplayState.topContentMode == .targetPrompt
+    }
+
+    private var isShowingNaturalNoteStripMainContent: Bool {
+        pageDisplayState.mainContentMode == .naturalNoteStrip
     }
 
     private var settingsPanelStateContext: SettingsPanelStateContext {
@@ -378,8 +394,10 @@ final class macOSViewController: NSViewController {
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
     private var topContentStaffConstraints: [NSLayoutConstraint] = []
     private var topContentTargetPromptConstraints: [NSLayoutConstraint] = []
+    private var topContentFretboardConstraints: [NSLayoutConstraint] = []
     private var mainContentFretboardConstraints: [NSLayoutConstraint] = []
     private var mainContentNaturalNoteStripConstraints: [NSLayoutConstraint] = []
+    private var activeFretboardHostConstraints: [NSLayoutConstraint] = []
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
@@ -481,6 +499,12 @@ final class macOSViewController: NSViewController {
             targetNotePromptView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
             targetNotePromptView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
             targetNotePromptView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor)
+        ]
+        topContentFretboardConstraints = [
+            fretboardHostView.leadingAnchor.constraint(equalTo: topContentHostView.leadingAnchor),
+            fretboardHostView.trailingAnchor.constraint(equalTo: topContentHostView.trailingAnchor),
+            fretboardHostView.topAnchor.constraint(equalTo: topContentHostView.topAnchor),
+            fretboardHostView.bottomAnchor.constraint(equalTo: topContentHostView.bottomAnchor)
         ]
         mainContentFretboardConstraints = [
             fretboardHostView.leadingAnchor.constraint(equalTo: mainContentHostView.leadingAnchor),
@@ -592,7 +616,7 @@ final class macOSViewController: NSViewController {
     }
 
     private func updateFretboardLayoutModeConstraints() {
-        guard isShowingFretboardMainContent else {
+        guard isShowingFretboard else {
             verticalFretboardHostHeightConstraint?.isActive = false
             horizontalFretboardDocumentWidthConstraint?.isActive = false
             horizontalFretboardContentWidthConstraint?.isActive = false
@@ -620,7 +644,7 @@ final class macOSViewController: NSViewController {
         verticalFretboardHostHeightConstraint?.isActive = false
         verticalFretboardHostHeightConstraint = nil
 
-        guard isShowingFretboardMainContent else {
+        guard isShowingFretboard else {
             return
         }
 
@@ -656,7 +680,7 @@ final class macOSViewController: NSViewController {
             applyCurrentFretboardFeedbackOverlayState()
         }
 
-        guard isShowingFretboardMainContent else {
+        guard isShowingFretboard else {
             return
         }
 
@@ -675,12 +699,13 @@ final class macOSViewController: NSViewController {
     }
 
     private func applyPageDisplayState() {
+        applyFretboardHostPlacement()
         applyTopContentMode()
         applyMainContentMode()
         applySettingsPanelState()
         updateLayoutIfNeeded()
 
-        if isShowingFretboardMainContent {
+        if isShowingFretboard {
             syncVerticalFretboardContentSizeConstraints()
             updateLayoutIfNeeded()
         }
@@ -688,34 +713,59 @@ final class macOSViewController: NSViewController {
         updateFretboardViewportPresentation()
     }
 
-    private func applyTopContentMode() {
-        let showsStaff = pageDisplayState.topContentMode == .staff
-        let activeConstraints = showsStaff
-            ? topContentStaffConstraints
-            : topContentTargetPromptConstraints
-        let inactiveConstraints = showsStaff
-            ? topContentTargetPromptConstraints
-            : topContentStaffConstraints
+    private func applyFretboardHostPlacement() {
+        let desiredSuperview = isShowingFretboardTopContent
+            ? topContentHostView
+            : mainContentHostView
+        if fretboardHostView.superview !== desiredSuperview {
+            NSLayoutConstraint.deactivate(activeFretboardHostConstraints)
+            activeFretboardHostConstraints = []
+            fretboardHostView.removeFromSuperview()
+            desiredSuperview.addSubview(fretboardHostView)
+            fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
+        }
 
-        staffView.isHidden = !showsStaff
-        targetNotePromptView.isHidden = showsStaff
-        NSLayoutConstraint.deactivate(inactiveConstraints)
-        NSLayoutConstraint.activate(activeConstraints)
+        let desiredConstraints: [NSLayoutConstraint]
+        if isShowingFretboardTopContent {
+            desiredConstraints = topContentFretboardConstraints
+        } else if isShowingFretboardMainContent {
+            desiredConstraints = mainContentFretboardConstraints
+        } else {
+            desiredConstraints = []
+        }
+
+        NSLayoutConstraint.deactivate(activeFretboardHostConstraints)
+        if !desiredConstraints.isEmpty {
+            NSLayoutConstraint.activate(desiredConstraints)
+        }
+        activeFretboardHostConstraints = desiredConstraints
+        fretboardHostView.isHidden = !isShowingFretboard
+    }
+
+    private func applyTopContentMode() {
+        let activeConstraints: [NSLayoutConstraint]
+        if isShowingStaffTopContent {
+            activeConstraints = topContentStaffConstraints
+        } else if isShowingTargetPromptTopContent {
+            activeConstraints = topContentTargetPromptConstraints
+        } else {
+            activeConstraints = []
+        }
+
+        staffView.isHidden = !isShowingStaffTopContent
+        targetNotePromptView.isHidden = !isShowingTargetPromptTopContent
+        NSLayoutConstraint.deactivate(topContentStaffConstraints + topContentTargetPromptConstraints)
+        if !activeConstraints.isEmpty {
+            NSLayoutConstraint.activate(activeConstraints)
+        }
     }
 
     private func applyMainContentMode() {
-        let showsFretboard = isShowingFretboardMainContent
-        let activeConstraints = showsFretboard
-            ? mainContentFretboardConstraints
-            : mainContentNaturalNoteStripConstraints
-        let inactiveConstraints = showsFretboard
-            ? mainContentNaturalNoteStripConstraints
-            : mainContentFretboardConstraints
-
-        fretboardHostView.isHidden = !showsFretboard
-        naturalNoteStripView.isHidden = showsFretboard
-        NSLayoutConstraint.deactivate(inactiveConstraints)
-        NSLayoutConstraint.activate(activeConstraints)
+        naturalNoteStripView.isHidden = !isShowingNaturalNoteStripMainContent
+        NSLayoutConstraint.deactivate(mainContentNaturalNoteStripConstraints)
+        if isShowingNaturalNoteStripMainContent {
+            NSLayoutConstraint.activate(mainContentNaturalNoteStripConstraints)
+        }
         rebuildVerticalFretboardHostHeightConstraint()
         updateFretboardLayoutModeConstraints()
     }
@@ -733,7 +783,7 @@ final class macOSViewController: NSViewController {
 
     private func syncVerticalFretboardContentSizeConstraints() {
         guard
-            isShowingFretboardMainContent,
+            isShowingFretboard,
             displayState.displayMode == .vertical,
             let verticalFretboardDocumentWidthConstraint,
             let verticalFretboardContentWidthConstraint
@@ -758,7 +808,7 @@ final class macOSViewController: NSViewController {
     }
 
     private func updateFretboardViewportPresentation() {
-        guard isShowingFretboardMainContent else {
+        guard isShowingFretboard else {
             fretboardViewportScrollView.hasHorizontalScroller = false
             scrollFretboardViewport(toX: 0)
             return
@@ -943,16 +993,21 @@ final class macOSViewController: NSViewController {
         case .sequence:
             synchronizeQuarterNoteSequencePresentation(reason: reason)
         case .positionPrompt:
-            // Phase 1 先只打通状态面；布局与按钮判题在后续阶段接入前，
-            // 暂时沿用 single 投影，避免新模式被选中后落入未定义 UI 状态。
-            synchronizeSingleTrainerPresentation(reason: reason)
+            synchronizePositionPromptPresentation(reason: reason)
         }
     }
 
     private func synchronizeSingleTrainerPresentation(reason: String) {
-        if isQuarterNoteSequenceMode {
+        switch fretboardTrainerState.mode {
+        case .singleNaturalTarget:
+            break
+        case .positionPrompt, .quarterNoteSequence:
             fretboardTrainerState = FretboardNaturalNoteTrainerState()
             resetSingleCoverageInteractionState()
+        }
+
+        if pageDisplayState == .positionPrompt {
+            pageDisplayState.setMainContentMode(.fretboard)
         }
 
         if staffDisplayState != baseStaffDisplayState {
@@ -960,6 +1015,33 @@ final class macOSViewController: NSViewController {
         }
 
         applyFretboardTrainerPrompt(reason: reason)
+    }
+
+    private func synchronizePositionPromptPresentation(reason: String) {
+        resetSingleCoverageInteractionState()
+        resetQuarterNoteSequenceInteractionState()
+
+        if pageDisplayState != .positionPrompt {
+            pageDisplayState = .positionPrompt
+        }
+
+        if staffDisplayState != baseStaffDisplayState {
+            staffDisplayState = baseStaffDisplayState
+        }
+
+        if case .positionPrompt = fretboardTrainerState.mode {
+            // 阶段 4 先只建立 mode 与页面组合的不变量；
+            // 具体 session 与按钮作答接线放到后续平台集成阶段。
+        } else {
+            fretboardTrainerState = FretboardNaturalNoteTrainerState(
+                positionPromptMode: ()
+            )
+        }
+
+        applyCurrentFretboardFeedbackOverlayState()
+        print(
+            "[PositionPrompt][macOS] page=topFretboard/mainNaturalNotes state=\(reason)"
+        )
     }
 
     private func synchronizeQuarterNoteSequencePresentation(reason: String) {
@@ -1073,19 +1155,24 @@ final class macOSViewController: NSViewController {
     private func normalizeSettingsPanelStateContextForTrainerMode(
         _ stateContext: inout SettingsPanelStateContext
     ) {
-        guard stateContext.trainerDisplayState.isSequenceMode else {
-            return
-        }
+        switch stateContext.trainerDisplayState.exerciseMode {
+        case .single:
+            if stateContext.pageDisplayState == .positionPrompt {
+                stateContext.pageDisplayState.setMainContentMode(.fretboard)
+            }
+        case .sequence:
+            stateContext.pageDisplayState.setMainContentMode(.fretboard)
 
-        stateContext.pageDisplayState.mainContentMode = .fretboard
-
-        if let currentGeneratedQuarterNoteSequence {
-            stateContext.staffDisplayState.apply(
-                generatedSequence: currentGeneratedQuarterNoteSequence,
-                sequencePresentation: currentQuarterNoteSequenceStaffPresentation(
-                    for: currentGeneratedQuarterNoteSequence
+            if let currentGeneratedQuarterNoteSequence {
+                stateContext.staffDisplayState.apply(
+                    generatedSequence: currentGeneratedQuarterNoteSequence,
+                    sequencePresentation: currentQuarterNoteSequenceStaffPresentation(
+                        for: currentGeneratedQuarterNoteSequence
+                    )
                 )
-            )
+            }
+        case .positionPrompt:
+            stateContext.pageDisplayState = .positionPrompt
         }
     }
 
