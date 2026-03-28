@@ -75,6 +75,10 @@ final class iOSViewController: UIViewController {
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
     private var singleCoverageSession: FretboardNaturalNoteTrainerState.SingleCoverageSession?
     private var singleCoverageLastEvaluation: FretboardNaturalNoteTrainerState.SingleCoverageEvaluation?
+    private var positionPromptSession: FretboardNaturalNoteTrainerState.PositionPromptSession?
+    private var positionPromptLastEvaluation: FretboardNaturalNoteTrainerState.PositionPromptEvaluation?
+    private var positionPromptOverlayPhase: FretboardFeedbackOverlayState.PositionPromptPhase?
+    private var pendingPositionPromptTransitionWorkItem: DispatchWorkItem?
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
 
@@ -130,25 +134,45 @@ final class iOSViewController: UIViewController {
         )
     }
 
+    private var currentPositionPromptOverlayPhase: FretboardFeedbackOverlayState.PositionPromptPhase {
+        positionPromptOverlayPhase ?? .neutralWhite
+    }
+
     private var currentFretboardFeedbackOverlayState: FretboardFeedbackOverlayState {
-        guard case .singleNaturalTarget = fretboardTrainerState.mode,
-              let singleCoverageSession,
-              singleCoverageSessionMatchesCurrentTrainer(singleCoverageSession) else {
+        switch fretboardTrainerState.mode {
+        case .singleNaturalTarget:
+            guard let singleCoverageSession,
+                  singleCoverageSessionMatchesCurrentTrainer(singleCoverageSession) else {
+                return .empty
+            }
+
+            let wrongCell: FretboardCell?
+            if let singleCoverageLastEvaluation,
+               singleCoverageLastEvaluation.hitKind == .wrong {
+                wrongCell = singleCoverageLastEvaluation.selectedCell
+            } else {
+                wrongCell = nil
+            }
+
+            return .singleCoverage(
+                correctCells: singleCoverageSession.visitedCells,
+                wrongCell: wrongCell
+            )
+        case .positionPrompt:
+            guard let positionPromptSession,
+                  positionPromptSessionMatchesCurrentTrainer(positionPromptSession) else {
+                return .empty
+            }
+
+            return .positionPrompt(
+                promptCell: currentPositionPromptOverlayCell(
+                    for: positionPromptSession
+                ),
+                phase: currentPositionPromptOverlayPhase
+            )
+        case .quarterNoteSequence:
             return .empty
         }
-
-        let wrongCell: FretboardCell?
-        if let singleCoverageLastEvaluation,
-           singleCoverageLastEvaluation.hitKind == .wrong {
-            wrongCell = singleCoverageLastEvaluation.selectedCell
-        } else {
-            wrongCell = nil
-        }
-
-        return .singleCoverage(
-            correctCells: singleCoverageSession.visitedCells,
-            wrongCell: wrongCell
-        )
     }
 
     private func currentQuarterNoteSequenceStaffPresentation(
@@ -183,6 +207,23 @@ final class iOSViewController: UIViewController {
         singleCoverageLastEvaluation = nil
     }
 
+    private func cancelPendingPositionPromptTransition() {
+        pendingPositionPromptTransitionWorkItem?.cancel()
+        pendingPositionPromptTransitionWorkItem = nil
+    }
+
+    private func clearPositionPromptFeedbackState() {
+        positionPromptLastEvaluation = nil
+    }
+
+    private func resetPositionPromptInteractionState() {
+        cancelPendingPositionPromptTransition()
+        positionPromptSession = nil
+        clearPositionPromptFeedbackState()
+        positionPromptOverlayPhase = nil
+        updateNaturalNoteStripInteractionState()
+    }
+
     private func resetSingleCoverageInteractionState() {
         singleCoverageSession = nil
         clearSingleCoverageFeedbackState()
@@ -214,6 +255,58 @@ final class iOSViewController: UIViewController {
             configuration: displayState.configuration
         )
         clearSingleCoverageFeedbackState()
+    }
+
+    private func positionPromptSessionMatchesCurrentTrainer(
+        _ session: FretboardNaturalNoteTrainerState.PositionPromptSession
+    ) -> Bool {
+        guard case .positionPrompt = fretboardTrainerState.mode,
+              let resolvedPitchClass = displayState.configuration.pitchClass(
+                for: session.promptCell
+              ) else {
+            return false
+        }
+
+        return resolvedPitchClass == session.promptPitchClass
+            && resolvedPitchClass.isNatural
+    }
+
+    private func ensurePositionPromptSession() {
+        guard case .positionPrompt = fretboardTrainerState.mode else {
+            return
+        }
+
+        if let positionPromptSession,
+           positionPromptSessionMatchesCurrentTrainer(positionPromptSession) {
+            if positionPromptOverlayPhase == nil {
+                positionPromptOverlayPhase = .neutralWhite
+            }
+            return
+        }
+
+        cancelPendingPositionPromptTransition()
+        var generator = SystemRandomNumberGenerator()
+        positionPromptSession = fretboardTrainerState.makePositionPromptSession(
+            configuration: displayState.configuration,
+            using: &generator
+        )
+        clearPositionPromptFeedbackState()
+        positionPromptOverlayPhase = .neutralWhite
+    }
+
+    private func currentPositionPromptOverlayCell(
+        for session: FretboardNaturalNoteTrainerState.PositionPromptSession
+    ) -> FretboardCell {
+        guard let positionPromptLastEvaluation else {
+            return session.promptCell
+        }
+
+        switch currentPositionPromptOverlayPhase {
+        case .neutralWhite:
+            return session.promptCell
+        case .wrongFlash, .correctHold:
+            return positionPromptLastEvaluation.promptCell
+        }
     }
 
     private func updateSingleCoverageFeedbackState(
@@ -426,6 +519,9 @@ final class iOSViewController: UIViewController {
 
     private lazy var naturalNoteStripView: iOSNaturalNoteStripView = {
         let naturalNoteStripView = iOSNaturalNoteStripView()
+        naturalNoteStripView.onPitchClassTap = { [weak self] pitchClass in
+            self?.handleNaturalNoteStripPitchClassTap(pitchClass)
+        }
         naturalNoteStripView.isHidden = true
         return naturalNoteStripView
     }()
@@ -671,13 +767,20 @@ final class iOSViewController: UIViewController {
         applySettingsPanelState()
         updateFretboardLayoutModeConstraints()
 
-        if case .singleNaturalTarget = fretboardTrainerState.mode {
+        switch fretboardTrainerState.mode {
+        case .singleNaturalTarget:
             applySingleCoverageProjection(
                 reason: "fretboardDisplayChanged",
                 showsLog: false
             )
-        } else {
+        case .positionPrompt:
+            applyPositionPromptProjection(
+                reason: "fretboardDisplayChanged",
+                showsLog: false
+            )
+        case .quarterNoteSequence:
             applyCurrentFretboardFeedbackOverlayState()
+            updateNaturalNoteStripInteractionState()
         }
 
         guard isShowingFretboard else {
@@ -878,6 +981,85 @@ final class iOSViewController: UIViewController {
         }
     }
 
+    private func handleNaturalNoteStripPitchClassTap(_ pitchClass: PitchClass) {
+        switch fretboardTrainerState.mode {
+        case .positionPrompt:
+            handlePositionPromptAnswer(pitchClass)
+        case .singleNaturalTarget, .quarterNoteSequence:
+            return
+        }
+    }
+
+    private func handlePositionPromptAnswer(_ pitchClass: PitchClass) {
+        guard case .positionPrompt = fretboardTrainerState.mode else {
+            return
+        }
+
+        guard currentPositionPromptOverlayPhase == .neutralWhite else {
+            print(
+                "[PositionPrompt][iOS] result=ignored reason=feedbackInProgress phase=\(positionPromptDebugName(for: currentPositionPromptOverlayPhase))"
+            )
+            return
+        }
+
+        ensurePositionPromptSession()
+        guard var positionPromptSession,
+              positionPromptSessionMatchesCurrentTrainer(positionPromptSession) else {
+            print("[PositionPrompt][iOS] result=ignored reason=missingSession")
+            return
+        }
+
+        let answerResult = fretboardTrainerState.handlePositionPromptAnswer(
+            pitchClass,
+            configuration: displayState.configuration,
+            session: &positionPromptSession
+        )
+        self.positionPromptSession = positionPromptSession
+
+        switch answerResult {
+        case let .evaluated(evaluation):
+            positionPromptLastEvaluation = evaluation
+            if evaluation.isCorrect {
+                positionPromptOverlayPhase = .correctHold
+                applyPositionPromptProjection(
+                    reason: "correctHold",
+                    showsLog: false
+                )
+                schedulePositionPromptTransition(
+                    after: PositionPromptTiming.correctHoldDuration
+                ) { controller in
+                    guard case .positionPrompt = controller.fretboardTrainerState.mode else {
+                        return
+                    }
+                    controller.clearPositionPromptFeedbackState()
+                    controller.positionPromptOverlayPhase = .neutralWhite
+                    controller.applyPositionPromptProjection(reason: "advanced")
+                }
+            } else {
+                positionPromptOverlayPhase = .wrongFlash
+                applyPositionPromptProjection(
+                    reason: "wrongFlash",
+                    showsLog: false
+                )
+                schedulePositionPromptTransition(
+                    after: PositionPromptTiming.wrongFlashDuration
+                ) { controller in
+                    guard case .positionPrompt = controller.fretboardTrainerState.mode else {
+                        return
+                    }
+                    controller.clearPositionPromptFeedbackState()
+                    controller.positionPromptOverlayPhase = .neutralWhite
+                    controller.applyPositionPromptProjection(
+                        reason: "wrongFlashExpired",
+                        showsLog: false
+                    )
+                }
+            }
+
+            print("[iOS] \(evaluation.debugSummary())")
+        }
+    }
+
     private func handleSingleNaturalTargetHitResult(_ hitResult: FretboardHitResult) {
         ensureSingleCoverageSession()
         guard var singleCoverageSession else {
@@ -1018,6 +1200,10 @@ final class iOSViewController: UIViewController {
     }
 
     private func synchronizeSingleTrainerPresentation(reason: String) {
+        if case .positionPrompt = fretboardTrainerState.mode {
+            resetPositionPromptInteractionState()
+        }
+
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
             break
@@ -1050,22 +1236,24 @@ final class iOSViewController: UIViewController {
         }
 
         if case .positionPrompt = fretboardTrainerState.mode {
-            // 保持后续阶段即将接入的位置题 session 生命周期连续；
-            // 阶段 4 这里只先切通 mode 与页面不变量。
+            // 已在位置题模式内时尽量保留当前 session；
+            // 只有在 configuration 失效时才会在 projection 中重建。
         } else {
+            resetPositionPromptInteractionState()
             fretboardTrainerState = FretboardNaturalNoteTrainerState(
                 positionPromptMode: ()
             )
         }
 
-        applyCurrentFretboardFeedbackOverlayState()
-        print(
-            "[PositionPrompt][iOS] page=topFretboard/mainNaturalNotes state=\(reason)"
+        applyPositionPromptProjection(
+            reason: reason,
+            showsLog: true
         )
     }
 
     private func synchronizeQuarterNoteSequencePresentation(reason: String) {
         resetSingleCoverageInteractionState()
+        resetPositionPromptInteractionState()
         if pageDisplayState.mainContentMode != .fretboard {
             pageDisplayState.setMainContentMode(.fretboard)
         }
@@ -1105,6 +1293,7 @@ final class iOSViewController: UIViewController {
         showsLog: Bool = true
     ) {
         applyCurrentFretboardFeedbackOverlayState()
+        updateNaturalNoteStripInteractionState()
         let content = currentQuarterNoteSequenceTargetPromptContent
             ?? generatedSequence.targetPromptContent()
         targetNotePromptView.apply(content: content)
@@ -1132,6 +1321,18 @@ final class iOSViewController: UIViewController {
         fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
     }
 
+    private func updateNaturalNoteStripInteractionState() {
+        guard isViewLoaded else {
+            return
+        }
+
+        if trainerDisplayState.isPositionPromptMode {
+            naturalNoteStripView.isUserInteractionEnabled = currentPositionPromptOverlayPhase == .neutralWhite
+        } else {
+            naturalNoteStripView.isUserInteractionEnabled = true
+        }
+    }
+
     private func applySingleCoverageProjection(
         reason: String,
         showsLog: Bool = true
@@ -1139,6 +1340,7 @@ final class iOSViewController: UIViewController {
         ensureSingleCoverageSession()
         targetNotePromptView.apply(content: currentSingleCoverageTargetPromptContent)
         applyCurrentFretboardFeedbackOverlayState()
+        updateNaturalNoteStripInteractionState()
 
         guard showsLog else {
             return
@@ -1156,6 +1358,30 @@ final class iOSViewController: UIViewController {
         )
     }
 
+    private func applyPositionPromptProjection(
+        reason: String,
+        showsLog: Bool = true
+    ) {
+        ensurePositionPromptSession()
+        applyCurrentFretboardFeedbackOverlayState()
+        updateNaturalNoteStripInteractionState()
+
+        guard
+            showsLog,
+            let positionPromptSession,
+            positionPromptSessionMatchesCurrentTrainer(positionPromptSession)
+        else {
+            return
+        }
+
+        let visibleCell = currentPositionPromptOverlayCell(
+            for: positionPromptSession
+        )
+        print(
+            "[PositionPrompt][iOS] prompt=\(positionPromptSession.promptPitchClass.displayText()) string=\(visibleCell.stringIndex) fret=\(visibleCell.fret) phase=\(positionPromptDebugName(for: currentPositionPromptOverlayPhase)) state=\(reason)"
+        )
+    }
+
     private func applySequenceRegenerateButtonState() {
         sequenceRegenerateButton.isHidden = !trainerDisplayState.isSequenceMode
     }
@@ -1170,6 +1396,39 @@ final class iOSViewController: UIViewController {
         )
         resetQuarterNoteSequenceInteractionState()
         synchronizeTrainerPresentationState(reason: reason)
+    }
+
+    private func schedulePositionPromptTransition(
+        after delay: TimeInterval,
+        perform update: @escaping (iOSViewController) -> Void
+    ) {
+        cancelPendingPositionPromptTransition()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else {
+                return
+            }
+            self.pendingPositionPromptTransitionWorkItem = nil
+            update(self)
+        }
+        pendingPositionPromptTransitionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + delay,
+            execute: workItem
+        )
+    }
+
+    private func positionPromptDebugName(
+        for phase: FretboardFeedbackOverlayState.PositionPromptPhase
+    ) -> String {
+        switch phase {
+        case .neutralWhite:
+            return "neutralWhite"
+        case .wrongFlash:
+            return "wrongFlash"
+        case .correctHold:
+            return "correctHold"
+        }
     }
 
     private func normalizeSettingsPanelStateContextForTrainerMode(
@@ -1297,5 +1556,10 @@ private enum Layout {
     static let settingsButtonSize: CGFloat = 40
     static let sequenceRegenerateButtonSize: CGFloat = 36
     static let contentSizeTolerance: CGFloat = 0.5
+}
+
+private enum PositionPromptTiming {
+    static let wrongFlashDuration: TimeInterval = 0.28
+    static let correctHoldDuration: TimeInterval = 1.0
 }
 #endif
