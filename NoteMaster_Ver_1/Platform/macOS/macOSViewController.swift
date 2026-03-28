@@ -940,6 +940,10 @@ final class macOSViewController: NSViewController {
             synchronizeSingleTrainerPresentation(reason: reason)
         case .sequence:
             synchronizeQuarterNoteSequencePresentation(reason: reason)
+        case .positionPrompt:
+            // Phase 1 先只打通状态面；布局与按钮判题在后续阶段接入前，
+            // 暂时沿用 single 投影，避免新模式被选中后落入未定义 UI 状态。
+            synchronizeSingleTrainerPresentation(reason: reason)
         }
     }
 

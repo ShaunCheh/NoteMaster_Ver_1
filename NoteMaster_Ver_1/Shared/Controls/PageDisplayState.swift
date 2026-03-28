@@ -8,6 +8,7 @@
 enum PageTopContentMode: Equatable, Hashable, Sendable {
     case staff
     case targetPrompt
+    case fretboard
 }
 
 enum PageMainContentMode: Equatable, Hashable, Sendable {
@@ -24,6 +25,10 @@ struct PageDisplayState: Equatable, Sendable {
         topContentMode: .staff,
         mainContentMode: .fretboard
     )
+    static let positionPrompt = PageDisplayState(
+        topContentMode: .fretboard,
+        mainContentMode: .naturalNoteStrip
+    )
 
     init(
         topContentMode: PageTopContentMode = .staff,
@@ -31,13 +36,46 @@ struct PageDisplayState: Equatable, Sendable {
     ) {
         self.topContentMode = topContentMode
         self.mainContentMode = mainContentMode
+        normalizeFretboardPlacement(prioritizingTopContent: true)
+    }
+
+    var showsFretboardInTopContent: Bool {
+        topContentMode == .fretboard
+    }
+
+    var showsFretboardInMainContent: Bool {
+        mainContentMode == .fretboard
+    }
+
+    var showsFretboard: Bool {
+        showsFretboardInTopContent || showsFretboardInMainContent
+    }
+
+    var hasValidFretboardPlacement: Bool {
+        !(showsFretboardInTopContent && showsFretboardInMainContent)
     }
 
     mutating func setTopContentMode(_ mode: PageTopContentMode) {
         topContentMode = mode
+        normalizeFretboardPlacement(prioritizingTopContent: true)
     }
 
     mutating func setMainContentMode(_ mode: PageMainContentMode) {
         mainContentMode = mode
+        normalizeFretboardPlacement(prioritizingTopContent: false)
+    }
+
+    private mutating func normalizeFretboardPlacement(
+        prioritizingTopContent: Bool
+    ) {
+        guard !hasValidFretboardPlacement else {
+            return
+        }
+
+        if prioritizingTopContent {
+            mainContentMode = .naturalNoteStrip
+        } else {
+            topContentMode = .staff
+        }
     }
 }

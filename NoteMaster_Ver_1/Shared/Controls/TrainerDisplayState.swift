@@ -8,6 +8,7 @@
 enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case single
     case sequence
+    case positionPrompt
 }
 
 struct TrainerSequenceConfiguration: Equatable, Sendable {
@@ -52,6 +53,10 @@ struct TrainerDisplayState: Equatable, Sendable {
 
     var isSequenceMode: Bool {
         exerciseMode == .sequence
+    }
+
+    var isPositionPromptMode: Bool {
+        exerciseMode == .positionPrompt
     }
 
     mutating func setExerciseMode(_ mode: TrainerExerciseMode) {
