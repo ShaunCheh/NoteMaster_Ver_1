@@ -43,6 +43,128 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         case evaluated(Evaluation)
     }
 
+    enum SingleCoverageIgnoreReason: Equatable, Sendable {
+        case nonEndedPhase(FretboardEventPhase)
+        case missingHitCell
+        case unresolvedHitPitch(FretboardCell)
+        case completedSession
+    }
+
+    enum SingleCoverageHitKind: Equatable, Sendable {
+        case correctNew
+        case correctRepeat
+        case wrong
+
+        var isCorrect: Bool {
+            switch self {
+            case .correctNew, .correctRepeat:
+                return true
+            case .wrong:
+                return false
+            }
+        }
+
+        var didIncreaseCoverage: Bool {
+            self == .correctNew
+        }
+
+        var debugName: String {
+            switch self {
+            case .correctNew:
+                return "correctNew"
+            case .correctRepeat:
+                return "correctRepeat"
+            case .wrong:
+                return "wrong"
+            }
+        }
+    }
+
+    struct SingleCoverageSession: Equatable, Sendable {
+        var targetPitchClass: PitchClass
+        var requiredCells: Set<FretboardCell>
+        var visitedCells: Set<FretboardCell>
+
+        init(
+            targetPitchClass: PitchClass,
+            requiredCells: Set<FretboardCell>,
+            visitedCells: Set<FretboardCell> = []
+        ) {
+            precondition(
+                visitedCells.isSubset(of: requiredCells),
+                "Single coverage visited cells must stay within the required cells."
+            )
+            self.targetPitchClass = targetPitchClass
+            self.requiredCells = requiredCells
+            self.visitedCells = visitedCells
+        }
+
+        var totalCount: Int {
+            requiredCells.count
+        }
+
+        var visitedCount: Int {
+            visitedCells.count
+        }
+
+        var remainingCount: Int {
+            max(totalCount - visitedCount, 0)
+        }
+
+        var remainingCells: Set<FretboardCell> {
+            requiredCells.subtracting(visitedCells)
+        }
+
+        var isCompleted: Bool {
+            remainingCells.isEmpty
+        }
+    }
+
+    struct SingleCoverageEvaluation: Equatable, Sendable {
+        var targetPitchClass: PitchClass
+        var selectedCell: FretboardCell
+        var selectedPitch: NotePitch
+        var hitKind: SingleCoverageHitKind
+        var visitedCount: Int
+        var totalCount: Int
+        var nextTargetPitchClass: PitchClass
+
+        var selectedPitchClass: PitchClass {
+            selectedPitch.pitchClass
+        }
+
+        var isCorrect: Bool {
+            hitKind.isCorrect
+        }
+
+        var didIncreaseCoverage: Bool {
+            hitKind.didIncreaseCoverage
+        }
+
+        var remainingCount: Int {
+            max(totalCount - visitedCount, 0)
+        }
+
+        var isCoverageCompleted: Bool {
+            visitedCount >= totalCount
+        }
+
+        var didAdvanceTarget: Bool {
+            nextTargetPitchClass != targetPitchClass
+        }
+
+        func debugSummary() -> String {
+            let resultText = isCorrect ? "correct" : "wrong"
+            let stateText = isCoverageCompleted ? "completed" : "inProgress"
+            return "[SingleCoverage] target=\(targetPitchClass.displayText()) selected=\(selectedPitch.displayText()) selectedClass=\(selectedPitchClass.displayText()) string=\(selectedCell.stringIndex) fret=\(selectedCell.fret) hit=\(hitKind.debugName) result=\(resultText) progress=\(visitedCount)/\(totalCount) remaining=\(remainingCount) next=\(nextTargetPitchClass.displayText()) state=\(stateText)"
+        }
+    }
+
+    enum SingleCoverageAnswerResult: Equatable, Sendable {
+        case ignored(SingleCoverageIgnoreReason)
+        case evaluated(SingleCoverageEvaluation)
+    }
+
     struct QuarterNoteSequenceSpec: Equatable, Sendable {
         var clef: StaffClef
         var noteCount: Int
@@ -326,6 +448,95 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
+    func makeSingleCoverageSession(
+        configuration: FretboardConfiguration
+    ) -> SingleCoverageSession {
+        requireSingleNaturalTargetMode()
+        return SingleCoverageSession(
+            targetPitchClass: targetPitchClass,
+            requiredCells: Set(configuration.cells(for: targetPitchClass))
+        )
+    }
+
+    mutating func handleSingleCoverageHit(
+        _ hitResult: FretboardHitResult,
+        configuration: FretboardConfiguration,
+        session: inout SingleCoverageSession
+    ) -> SingleCoverageAnswerResult {
+        var generator = SystemRandomNumberGenerator()
+        return handleSingleCoverageHit(
+            hitResult,
+            configuration: configuration,
+            session: &session,
+            using: &generator
+        )
+    }
+
+    mutating func handleSingleCoverageHit<R: RandomNumberGenerator>(
+        _ hitResult: FretboardHitResult,
+        configuration: FretboardConfiguration,
+        session: inout SingleCoverageSession,
+        using generator: inout R
+    ) -> SingleCoverageAnswerResult {
+        requireSingleNaturalTargetMode()
+        guard !session.isCompleted else {
+            return .ignored(.completedSession)
+        }
+
+        validateSingleCoverageSession(
+            session,
+            configuration: configuration
+        )
+
+        guard hitResult.phase == .ended else {
+            return .ignored(.nonEndedPhase(hitResult.phase))
+        }
+
+        guard let selectedCell = hitResult.cell else {
+            return .ignored(.missingHitCell)
+        }
+
+        guard let selectedPitch = configuration.notePitch(for: selectedCell) else {
+            return .ignored(.unresolvedHitPitch(selectedCell))
+        }
+
+        let answeredTargetPitchClass = targetPitchClass
+        let hitKind: SingleCoverageHitKind
+        if selectedPitch.pitchClass == answeredTargetPitchClass {
+            precondition(
+                session.requiredCells.contains(selectedCell),
+                "Single coverage correct pitch must belong to the session required cells."
+            )
+            if session.visitedCells.contains(selectedCell) {
+                hitKind = .correctRepeat
+            } else {
+                session.visitedCells.insert(selectedCell)
+                hitKind = .correctNew
+            }
+        } else {
+            hitKind = .wrong
+        }
+
+        let nextTargetPitchClass: PitchClass
+        if session.isCompleted {
+            nextTargetPitchClass = advanceToNextTarget(using: &generator)
+        } else {
+            nextTargetPitchClass = answeredTargetPitchClass
+        }
+
+        return .evaluated(
+            SingleCoverageEvaluation(
+                targetPitchClass: answeredTargetPitchClass,
+                selectedCell: selectedCell,
+                selectedPitch: selectedPitch,
+                hitKind: hitKind,
+                visitedCount: session.visitedCount,
+                totalCount: session.totalCount,
+                nextTargetPitchClass: nextTargetPitchClass
+            )
+        )
+    }
+
     mutating func handleQuarterNoteSequenceAnswer(
         _ pitchClass: PitchClass,
         session: inout QuarterNoteSequenceSession
@@ -453,6 +664,28 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                 "\(function) requires .singleNaturalTarget mode."
             )
         }
+    }
+
+    private func validateSingleCoverageSession(
+        _ session: SingleCoverageSession,
+        configuration: FretboardConfiguration,
+        _ function: StaticString = #function
+    ) {
+        precondition(
+            session.targetPitchClass == targetPitchClass,
+            "\(function) single coverage session target must match the trainer target."
+        )
+        let expectedRequiredCells = Set(
+            configuration.cells(for: targetPitchClass)
+        )
+        precondition(
+            session.requiredCells == expectedRequiredCells,
+            "\(function) single coverage session required cells must match the current configuration."
+        )
+        precondition(
+            session.visitedCells.isSubset(of: session.requiredCells),
+            "\(function) single coverage session visited cells must stay within the required cells."
+        )
     }
 
     private func requireQuarterNoteSequenceSpec(

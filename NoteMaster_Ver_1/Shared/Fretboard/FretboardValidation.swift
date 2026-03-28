@@ -263,6 +263,10 @@ private extension FretboardValidationRunner {
             fixture: fixture,
             record: record
         )
+        validateSingleCoverageTrainer(
+            fixture: fixture,
+            record: record
+        )
         validateQuarterNoteSequenceTrainer(
             fixture: fixture,
             record: record
@@ -885,6 +889,342 @@ private extension FretboardValidationRunner {
             }
         default:
             record("trainer 对正确命中未返回 evaluated 结果。")
+        }
+    }
+
+    static func validateSingleCoverageTrainer(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard fixture.name == "horizontal-guitar6-reference" else {
+            return
+        }
+
+        let configuration = fixture.configuration
+        let correctCells = configuration.cells(for: .c)
+        guard correctCells.count >= 2 else {
+            record("single coverage trainer 缺少至少两个 C 位置，无法覆盖 partial / repeat 语义。")
+            return
+        }
+
+        let firstCorrectCell = correctCells[0]
+        let lastCorrectCell = correctCells[correctCells.count - 1]
+        let invalidCell = FretboardCell(
+            stringIndex: configuration.stringCount,
+            fret: 0
+        )
+        let wrongCell = configuration.cells(for: .cSharp).first
+            ?? configuration.cells(for: .d).first
+        guard let wrongCell else {
+            record("single coverage trainer 无法构造非 C 的错误命中 cell。")
+            return
+        }
+
+        guard let firstCorrectPitch = configuration.notePitch(for: firstCorrectCell) else {
+            record("single coverage trainer 首个正确 cell 无法解析 NotePitch。")
+            return
+        }
+        guard let wrongPitch = configuration.notePitch(for: wrongCell) else {
+            record("single coverage trainer 错误 cell 无法解析 NotePitch。")
+            return
+        }
+
+        var initialTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        let initialSession = initialTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        if initialSession.targetPitchClass != .c {
+            record("single coverage trainer 新建 session 的 targetPitchClass 应为当前目标音 C。")
+        }
+        if initialSession.requiredCells != Set(correctCells) {
+            record("single coverage trainer 新建 session 的 requiredCells 未对齐 configuration.cells(for: .c)。")
+        }
+        if !initialSession.visitedCells.isEmpty {
+            record("single coverage trainer 新建 session 的 visitedCells 初始应为空。")
+        }
+        if initialSession.totalCount != correctCells.count {
+            record("single coverage trainer 新建 session 的 totalCount 与目标 cell 数量不一致。")
+        }
+        if initialSession.visitedCount != 0 || initialSession.remainingCount != correctCells.count {
+            record("single coverage trainer 新建 session 的 visitedCount / remainingCount 初始值错误。")
+        }
+        if initialSession.isCompleted {
+            record("single coverage trainer 新建 session 不应直接处于 completed 状态。")
+        }
+
+        var ignoredPhaseTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        var ignoredPhaseSession = ignoredPhaseTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        let ignoredPhaseSnapshot = ignoredPhaseSession
+        let ignoredPhaseResult = ignoredPhaseTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .began,
+                cell: firstCorrectCell
+            ),
+            configuration: configuration,
+            session: &ignoredPhaseSession
+        )
+        if ignoredPhaseResult != .ignored(.nonEndedPhase(.began)) {
+            record("single coverage trainer 对非 ended 事件未返回 ignored(.nonEndedPhase(.began))。")
+        }
+        if ignoredPhaseSession != ignoredPhaseSnapshot {
+            record("single coverage trainer 在忽略非 ended 事件后不应修改 session。")
+        }
+        if ignoredPhaseTrainer.targetPitchClass != .c {
+            record("single coverage trainer 在忽略非 ended 事件后不应推进目标音。")
+        }
+
+        var missingHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        var missingHitSession = missingHitTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        let missingHitSnapshot = missingHitSession
+        let missingHitResult = missingHitTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .ended,
+                cell: nil
+            ),
+            configuration: configuration,
+            session: &missingHitSession
+        )
+        if missingHitResult != .ignored(.missingHitCell) {
+            record("single coverage trainer 对空命中事件未返回 ignored(.missingHitCell)。")
+        }
+        if missingHitSession != missingHitSnapshot {
+            record("single coverage trainer 在忽略空命中事件后不应修改 session。")
+        }
+        if missingHitTrainer.targetPitchClass != .c {
+            record("single coverage trainer 在忽略空命中事件后不应推进目标音。")
+        }
+
+        var unresolvedHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        var unresolvedHitSession = unresolvedHitTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        let unresolvedHitSnapshot = unresolvedHitSession
+        let unresolvedHitResult = unresolvedHitTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .ended,
+                cell: invalidCell
+            ),
+            configuration: configuration,
+            session: &unresolvedHitSession
+        )
+        if unresolvedHitResult != .ignored(.unresolvedHitPitch(invalidCell)) {
+            record("single coverage trainer 对不可解析 cell 未返回 ignored(.unresolvedHitPitch)。")
+        }
+        if unresolvedHitSession != unresolvedHitSnapshot {
+            record("single coverage trainer 在忽略不可解析 cell 后不应修改 session。")
+        }
+        if unresolvedHitTrainer.targetPitchClass != .c {
+            record("single coverage trainer 在忽略不可解析 cell 后不应推进目标音。")
+        }
+
+        var wrongTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        var wrongSession = wrongTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        switch wrongTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .ended,
+                cell: wrongCell
+            ),
+            configuration: configuration,
+            session: &wrongSession
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.selectedPitch != wrongPitch {
+                record("single coverage trainer 错误命中时返回的 selectedPitch 与配置解析结果不一致。")
+            }
+            if evaluation.hitKind != .wrong {
+                record("single coverage trainer 错误命中时 hitKind 应为 .wrong。")
+            }
+            if evaluation.isCorrect {
+                record("single coverage trainer 把错误命中误判成了 correct。")
+            }
+            if evaluation.didIncreaseCoverage {
+                record("single coverage trainer 错误命中后不应增加 coverage。")
+            }
+            if evaluation.didAdvanceTarget {
+                record("single coverage trainer 错误命中后不应推进目标音。")
+            }
+            if evaluation.visitedCount != 0 || evaluation.remainingCount != wrongSession.totalCount {
+                record("single coverage trainer 错误命中后的 progress 计数错误。")
+            }
+            if evaluation.nextTargetPitchClass != .c {
+                record("single coverage trainer 错误命中后 nextTargetPitchClass 不应改变。")
+            }
+        default:
+            record("single coverage trainer 对错误命中未返回 evaluated 结果。")
+        }
+        if !wrongSession.visitedCells.isEmpty {
+            record("single coverage trainer 错误命中后 session.visitedCells 不应变化。")
+        }
+        if wrongTrainer.targetPitchClass != .c {
+            record("single coverage trainer 错误命中后 trainer.targetPitchClass 不应变化。")
+        }
+
+        var partialTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        var partialSession = partialTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        switch partialTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .ended,
+                cell: firstCorrectCell
+            ),
+            configuration: configuration,
+            session: &partialSession
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.selectedPitch != firstCorrectPitch {
+                record("single coverage trainer 首次正确命中时返回的 selectedPitch 与配置解析结果不一致。")
+            }
+            if evaluation.hitKind != .correctNew {
+                record("single coverage trainer 首次正确命中时 hitKind 应为 .correctNew。")
+            }
+            if !evaluation.isCorrect {
+                record("single coverage trainer 首次正确命中应判定为 correct。")
+            }
+            if !evaluation.didIncreaseCoverage {
+                record("single coverage trainer 首次正确命中应增加 coverage。")
+            }
+            if evaluation.didAdvanceTarget {
+                record("single coverage trainer 在未覆盖完全部位置前不应推进目标音。")
+            }
+            if evaluation.visitedCount != 1 || evaluation.remainingCount != partialSession.totalCount - 1 {
+                record("single coverage trainer 首次正确命中后的 progress 计数错误。")
+            }
+            if evaluation.nextTargetPitchClass != .c {
+                record("single coverage trainer 首次正确命中后 nextTargetPitchClass 不应改变。")
+            }
+        default:
+            record("single coverage trainer 对首次正确命中未返回 evaluated 结果。")
+        }
+        if !partialSession.visitedCells.contains(firstCorrectCell) || partialSession.visitedCount != 1 {
+            record("single coverage trainer 首次正确命中后 session.visitedCells 未正确记录。")
+        }
+        if partialTrainer.targetPitchClass != .c {
+            record("single coverage trainer 在 partial coverage 阶段不应推进 trainer.targetPitchClass。")
+        }
+
+        switch partialTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .ended,
+                cell: firstCorrectCell
+            ),
+            configuration: configuration,
+            session: &partialSession
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.hitKind != .correctRepeat {
+                record("single coverage trainer 重复命中已完成 cell 时 hitKind 应为 .correctRepeat。")
+            }
+            if !evaluation.isCorrect {
+                record("single coverage trainer 重复命中已完成 cell 仍应视为 correct。")
+            }
+            if evaluation.didIncreaseCoverage {
+                record("single coverage trainer 重复命中已完成 cell 不应增加 coverage。")
+            }
+            if evaluation.visitedCount != 1 || evaluation.remainingCount != partialSession.totalCount - 1 {
+                record("single coverage trainer 重复命中后的 progress 计数错误。")
+            }
+            if evaluation.didAdvanceTarget {
+                record("single coverage trainer 重复命中已完成 cell 后不应推进目标音。")
+            }
+            if evaluation.nextTargetPitchClass != .c {
+                record("single coverage trainer 重复命中后 nextTargetPitchClass 不应改变。")
+            }
+        default:
+            record("single coverage trainer 对重复命中未返回 evaluated 结果。")
+        }
+        if partialSession.visitedCount != 1 {
+            record("single coverage trainer 重复命中已完成 cell 后 session.visitedCount 不应增加。")
+        }
+
+        var completedTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
+        var completedSession = completedTrainer.makeSingleCoverageSession(
+            configuration: configuration
+        )
+        for (index, correctCell) in correctCells.enumerated() {
+            switch completedTrainer.handleSingleCoverageHit(
+                makeHitResult(
+                    phase: .ended,
+                    cell: correctCell
+                ),
+                configuration: configuration,
+                session: &completedSession
+            ) {
+            case let .evaluated(evaluation):
+                let expectedVisitedCount = index + 1
+                let shouldAdvance = expectedVisitedCount == correctCells.count
+                if evaluation.hitKind != .correctNew {
+                    record("single coverage trainer 在完整覆盖流程中每个新 cell 都应返回 .correctNew。")
+                }
+                if !evaluation.isCorrect {
+                    record("single coverage trainer 在完整覆盖流程中的正确命中被误判。")
+                }
+                if !evaluation.didIncreaseCoverage {
+                    record("single coverage trainer 在完整覆盖流程中的新 cell 应增加 coverage。")
+                }
+                if evaluation.visitedCount != expectedVisitedCount {
+                    record("single coverage trainer 完整覆盖流程中的 visitedCount 未与 session 同步。")
+                }
+                if evaluation.remainingCount != correctCells.count - expectedVisitedCount {
+                    record("single coverage trainer 完整覆盖流程中的 remainingCount 错误。")
+                }
+                if evaluation.isCoverageCompleted != shouldAdvance {
+                    record("single coverage trainer 的 coverage completed 判断与最后一题边界不一致。")
+                }
+                if evaluation.didAdvanceTarget != shouldAdvance {
+                    record("single coverage trainer 的 didAdvanceTarget 判断与最后一题边界不一致。")
+                }
+                if shouldAdvance {
+                    if evaluation.nextTargetPitchClass == .c {
+                        record("single coverage trainer 覆盖完成后未切换到新的目标音。")
+                    }
+                    if evaluation.nextTargetPitchClass.isAccidental {
+                        record("single coverage trainer 覆盖完成后切换到了非自然音目标。")
+                    }
+                    if completedTrainer.targetPitchClass != evaluation.nextTargetPitchClass {
+                        record("single coverage trainer 内部 targetPitchClass 与 evaluation.nextTargetPitchClass 未同步。")
+                    }
+                } else {
+                    if evaluation.nextTargetPitchClass != .c {
+                        record("single coverage trainer 在未完成前不应修改 nextTargetPitchClass。")
+                    }
+                    if completedTrainer.targetPitchClass != .c {
+                        record("single coverage trainer 在未完成前不应推进 trainer.targetPitchClass。")
+                    }
+                }
+            default:
+                record("single coverage trainer 在完整覆盖流程中未返回 evaluated 结果。")
+                return
+            }
+
+            if completedSession.visitedCount != index + 1 {
+                record("single coverage trainer 在完整覆盖流程中 session.visitedCount 未同步增加。")
+                return
+            }
+        }
+
+        if !completedSession.isCompleted {
+            record("single coverage trainer 完成全部目标位置后 session 应进入 completed 状态。")
+        }
+        if completedSession.remainingCount != 0 {
+            record("single coverage trainer 完成全部目标位置后 remainingCount 应为 0。")
+        }
+
+        if completedTrainer.handleSingleCoverageHit(
+            makeHitResult(
+                phase: .ended,
+                cell: lastCorrectCell
+            ),
+            configuration: configuration,
+            session: &completedSession
+        ) != .ignored(.completedSession) {
+            record("single coverage trainer 在 completed session 上继续命中应返回 ignored(.completedSession)。")
         }
     }
 
