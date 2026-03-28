@@ -62,15 +62,22 @@ enum FretboardValidationRunner {
         let fixtures = makeFixtures()
         var passedFixtureNames: [String] = []
         var issues: [FretboardValidationIssue] = []
+        print("[FretboardValidation][\(platform.displayName)] begin fixtures=\(fixtures.count)")
 
         for fixture in fixtures {
+            print("[FretboardValidation][\(platform.displayName)] fixture begin name=\(fixture.name)")
             let fixtureIssues = validate(fixture)
+            print(
+                "[FretboardValidation][\(platform.displayName)] fixture end name=\(fixture.name) issues=\(fixtureIssues.count)"
+            )
             if fixtureIssues.isEmpty {
                 passedFixtureNames.append(fixture.name)
             } else {
                 issues.append(contentsOf: fixtureIssues)
             }
         }
+
+        print("[FretboardValidation][\(platform.displayName)] end totalIssues=\(issues.count)")
 
         return FretboardValidationReport(
             platform: platform,
@@ -83,9 +90,11 @@ enum FretboardValidationRunner {
 
     static func runAndReportIfNeeded(platform: FretboardValidationPlatform) {
         #if DEBUG
+        print("[FretboardValidation][\(platform.displayName)] runAndReportIfNeeded begin")
         let report = run(platform: platform)
         let summary = report.debugSummary()
         print(summary)
+        print("[FretboardValidation][\(platform.displayName)] runAndReportIfNeeded end passing=\(report.isPassing)")
 
         if !report.isPassing {
             assertionFailure(summary)
@@ -100,9 +109,14 @@ private struct FretboardValidationFixture {
     var bounds: CGRect
 }
 
-private struct ZeroRandomNumberGenerator: RandomNumberGenerator {
+// 避免固定返回 0 触发标准库随机取样的拒绝采样死循环；
+// 递增序列仍然是可重复的，且对 validation 足够稳定。
+private struct DeterministicRandomNumberGenerator: RandomNumberGenerator {
+    private var value: UInt64 = 0
+
     mutating func next() -> UInt64 {
-        0
+        defer { value &+= 1 }
+        return value
     }
 }
 
@@ -199,8 +213,21 @@ private extension FretboardValidationRunner {
 
     static func validate(_ fixture: FretboardValidationFixture) -> [FretboardValidationIssue] {
         let sceneBuilder = FretboardSceneBuilder(configuration: fixture.configuration)
-        let scene = sceneBuilder.makeScene(bounds: fixture.bounds)
         var issues: [FretboardValidationIssue] = []
+
+        func logStep(_ phase: String, _ name: String) {
+            print("[FretboardValidation][fixture=\(fixture.name)] step \(phase) name=\(name)")
+        }
+
+        func runStep(_ name: String, _ body: () -> Void) {
+            logStep("begin", name)
+            body()
+            logStep("end", name)
+        }
+
+        logStep("begin", "makeScene")
+        let scene = sceneBuilder.makeScene(bounds: fixture.bounds)
+        logStep("end", "makeScene")
 
         func record(_ message: String) {
             issues.append(
@@ -216,71 +243,99 @@ private extension FretboardValidationRunner {
             return issues
         }
 
-        validateBoundsContainment(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateVerticalHeightConsumption(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateSceneCounts(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateCellAndAnchorMapping(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateCellAspectRatio(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateAxisOrientation(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateMarkerPlacements(
-            scene: scene,
-            fixture: fixture,
-            record: record
-        )
-        validateHitTesting(
-            scene: scene,
-            fixture: fixture,
-            sceneBuilder: sceneBuilder,
-            record: record
-        )
-        validatePitchResolution(
-            fixture: fixture,
-            record: record
-        )
-        validatePitchClassCellEnumeration(
-            fixture: fixture,
-            record: record
-        )
-        validateNaturalNoteTrainer(
-            fixture: fixture,
-            record: record
-        )
-        validateSingleCoverageTrainer(
-            fixture: fixture,
-            record: record
-        )
-        validatePositionPromptTrainer(
-            fixture: fixture,
-            record: record
-        )
-        validateQuarterNoteSequenceTrainer(
-            fixture: fixture,
-            record: record
-        )
+        runStep("validateBoundsContainment") {
+            validateBoundsContainment(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateVerticalHeightConsumption") {
+            validateVerticalHeightConsumption(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateSceneCounts") {
+            validateSceneCounts(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateCellAndAnchorMapping") {
+            validateCellAndAnchorMapping(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateCellAspectRatio") {
+            validateCellAspectRatio(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateAxisOrientation") {
+            validateAxisOrientation(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateMarkerPlacements") {
+            validateMarkerPlacements(
+                scene: scene,
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateHitTesting") {
+            validateHitTesting(
+                scene: scene,
+                fixture: fixture,
+                sceneBuilder: sceneBuilder,
+                record: record
+            )
+        }
+        runStep("validatePitchResolution") {
+            validatePitchResolution(
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validatePitchClassCellEnumeration") {
+            validatePitchClassCellEnumeration(
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateNaturalNoteTrainer") {
+            validateNaturalNoteTrainer(
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateSingleCoverageTrainer") {
+            validateSingleCoverageTrainer(
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validatePositionPromptTrainer") {
+            validatePositionPromptTrainer(
+                fixture: fixture,
+                record: record
+            )
+        }
+        runStep("validateQuarterNoteSequenceTrainer") {
+            validateQuarterNoteSequenceTrainer(
+                fixture: fixture,
+                record: record
+            )
+        }
 
         return issues
     }
@@ -568,6 +623,9 @@ private extension FretboardValidationRunner {
         sceneBuilder: FretboardSceneBuilder,
         record: (String) -> Void
     ) {
+        print(
+            "[FretboardValidation][fixture=\(fixture.name)][validateHitTesting] stage=centerAnchors count=\(scene.labelAnchors.count)"
+        )
         for anchor in scene.labelAnchors {
             let hit = sceneBuilder.hitTest(
                 anchor.center,
@@ -589,6 +647,9 @@ private extension FretboardValidationRunner {
         }
 
         if fixture.configuration.displayMode == .vertical {
+            print(
+                "[FretboardValidation][fixture=\(fixture.name)][validateHitTesting] stage=verticalNormalization count=\(scene.labelAnchors.count)"
+            )
             for anchor in scene.labelAnchors {
                 let expectedCell = FretboardCell(
                     stringIndex: anchor.stringIndex,
@@ -620,6 +681,7 @@ private extension FretboardValidationRunner {
             }
         }
 
+        print("[FretboardValidation][fixture=\(fixture.name)][validateHitTesting] stage=outsidePoint")
         let outsidePoint = CGPoint(
             x: scene.drawingRect.minX - 1,
             y: scene.drawingRect.minY - 1
@@ -767,6 +829,10 @@ private extension FretboardValidationRunner {
             return
         }
 
+        func logStage(_ name: String) {
+            print("[FretboardValidation][fixture=\(fixture.name)][validateNaturalNoteTrainer] stage=\(name)")
+        }
+
         let configuration = fixture.configuration
         let correctCell = FretboardCell(stringIndex: 2, fret: 10)
         let accidentalCell = FretboardCell(stringIndex: 1, fret: 4)
@@ -797,6 +863,7 @@ private extension FretboardValidationRunner {
             )
         }
 
+        logStage("ignoredPhase")
         var ignoredPhaseTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         let ignoredPhaseResult = ignoredPhaseTrainer.handle(
             hitResult: makeHitResult(
@@ -812,6 +879,7 @@ private extension FretboardValidationRunner {
             record("trainer 在忽略非 ended 事件后不应推进目标音。")
         }
 
+        logStage("missingHit")
         var missingHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         let missingHitResult = missingHitTrainer.handle(
             hitResult: makeHitResult(
@@ -827,6 +895,7 @@ private extension FretboardValidationRunner {
             record("trainer 在忽略空命中事件后不应推进目标音。")
         }
 
+        logStage("unresolvedHit")
         var unresolvedHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         let unresolvedHitResult = unresolvedHitTrainer.handle(
             hitResult: makeHitResult(
@@ -842,6 +911,7 @@ private extension FretboardValidationRunner {
             record("trainer 在忽略不可解析 cell 后不应推进目标音。")
         }
 
+        logStage("wrongAnswer")
         var incorrectTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         switch incorrectTrainer.handle(
             hitResult: makeHitResult(
@@ -870,6 +940,7 @@ private extension FretboardValidationRunner {
             record("trainer 对升降音错误命中未返回 evaluated 结果。")
         }
 
+        logStage("correctAnswer")
         var correctTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         switch correctTrainer.handle(
             hitResult: makeHitResult(
@@ -910,6 +981,10 @@ private extension FretboardValidationRunner {
             return
         }
 
+        func logStage(_ name: String) {
+            print("[FretboardValidation][fixture=\(fixture.name)][validateSingleCoverageTrainer] stage=\(name)")
+        }
+
         let configuration = fixture.configuration
         let correctCells = configuration.cells(for: .c)
         guard correctCells.count >= 2 else {
@@ -939,6 +1014,7 @@ private extension FretboardValidationRunner {
             return
         }
 
+        logStage("initialSession")
         var initialTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         let initialSession = initialTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -962,6 +1038,7 @@ private extension FretboardValidationRunner {
             record("single coverage trainer 新建 session 不应直接处于 completed 状态。")
         }
 
+        logStage("ignoredPhase")
         var ignoredPhaseTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         var ignoredPhaseSession = ignoredPhaseTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -985,6 +1062,7 @@ private extension FretboardValidationRunner {
             record("single coverage trainer 在忽略非 ended 事件后不应推进目标音。")
         }
 
+        logStage("missingHit")
         var missingHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         var missingHitSession = missingHitTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -1008,6 +1086,7 @@ private extension FretboardValidationRunner {
             record("single coverage trainer 在忽略空命中事件后不应推进目标音。")
         }
 
+        logStage("unresolvedHit")
         var unresolvedHitTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         var unresolvedHitSession = unresolvedHitTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -1031,6 +1110,7 @@ private extension FretboardValidationRunner {
             record("single coverage trainer 在忽略不可解析 cell 后不应推进目标音。")
         }
 
+        logStage("wrongAnswer")
         var wrongTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         var wrongSession = wrongTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -1075,6 +1155,7 @@ private extension FretboardValidationRunner {
             record("single coverage trainer 错误命中后 trainer.targetPitchClass 不应变化。")
         }
 
+        logStage("partialAndRepeat")
         var partialTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         var partialSession = partialTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -1153,6 +1234,7 @@ private extension FretboardValidationRunner {
             record("single coverage trainer 重复命中已完成 cell 后 session.visitedCount 不应增加。")
         }
 
+        logStage("completedFlow")
         var completedTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         var completedSession = completedTrainer.makeSingleCoverageSession(
             configuration: configuration
@@ -1246,7 +1328,12 @@ private extension FretboardValidationRunner {
             return
         }
 
+        func logStage(_ name: String) {
+            print("[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] stage=\(name)")
+        }
+
         let configuration = fixture.configuration
+        logStage("candidateEnumeration")
         let candidateCells = positionPromptCandidateCells(
             configuration: configuration
         )
@@ -1270,13 +1357,17 @@ private extension FretboardValidationRunner {
             record("position prompt trainer 的候选基准 cell 应为自然音。")
         }
 
-        var initialGenerator = ZeroRandomNumberGenerator()
+        logStage("initialSession")
+        var initialGenerator = DeterministicRandomNumberGenerator()
         let initialTrainer = FretboardNaturalNoteTrainerState(
             positionPromptMode: ()
         )
         let initialSession = initialTrainer.makePositionPromptSession(
             configuration: configuration,
             using: &initialGenerator
+        )
+        print(
+            "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] initialSessionCreated cell=string=\(initialSession.promptCell.stringIndex) fret=\(initialSession.promptCell.fret) pitch=\(initialSession.promptPitchClass.displayText())"
         )
         if initialSession.promptCell != firstCandidateCell {
             record("position prompt trainer 新建 session 的 promptCell 未对齐首个自然音候选。")
@@ -1288,14 +1379,21 @@ private extension FretboardValidationRunner {
             record("position prompt trainer 新建 session 的 promptPitchClass 应为自然音。")
         }
 
+        print(
+            "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] resolveWrongAnswer firstCandidatePitch=\(firstCandidatePitchClass.displayText()) naturalCases=\(PitchClass.naturalCasesInOrder.map { $0.displayText() }.joined(separator: ","))"
+        )
         guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
             $0 != firstCandidatePitchClass
         }) else {
             record("position prompt trainer 无法构造不同于首题答案的自然音错误按钮。")
             return
         }
+        print(
+            "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] wrongAnswerResolved pitch=\(wrongAnswer.displayText())"
+        )
 
-        var wrongGenerator = ZeroRandomNumberGenerator()
+        logStage("wrongAnswer")
+        var wrongGenerator = DeterministicRandomNumberGenerator()
         var wrongTrainer = FretboardNaturalNoteTrainerState(
             positionPromptMode: ()
         )
@@ -1340,7 +1438,8 @@ private extension FretboardValidationRunner {
             record("position prompt trainer 错误作答后 session 不应变化。")
         }
 
-        var correctGenerator = ZeroRandomNumberGenerator()
+        logStage("correctAnswer")
+        var correctGenerator = DeterministicRandomNumberGenerator()
         var correctTrainer = FretboardNaturalNoteTrainerState(
             positionPromptMode: ()
         )
@@ -1399,6 +1498,11 @@ private extension FretboardValidationRunner {
             return
         }
 
+        func logStage(_ name: String) {
+            print("[FretboardValidation][fixture=\(fixture.name)][validateQuarterNoteSequenceTrainer] stage=\(name)")
+        }
+
+        logStage("naturalPrompt")
         let naturalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: .treble,
             noteCount: 7,
@@ -1429,6 +1533,7 @@ private extension FretboardValidationRunner {
             record("quarter-note trainer 未保存最近一次生成的 natural shared sequence。")
         }
 
+        logStage("naturalSession")
         let naturalSession = naturalTrainer.makeQuarterNoteSequenceSession()
         if naturalSession.generatedSequence != naturalPrompt.generatedSequence {
             record("quarter-note trainer 生成的 session sequence 与最近一次 shared sequence 不一致。")
@@ -1477,6 +1582,7 @@ private extension FretboardValidationRunner {
             return
         }
 
+        logStage("incorrectAnswer")
         var incorrectSession = naturalSession
         switch naturalTrainer.handleQuarterNoteSequenceAnswer(
             incorrectPitchClass,
@@ -1531,6 +1637,7 @@ private extension FretboardValidationRunner {
             record("quarter-note trainer 错误作答后 targetPromptContent 未与当前 session.currentIndex 同步。")
         }
 
+        logStage("completedFlow")
         var completedSession = naturalSession
         for (index, expectedPitchClass) in naturalPrompt.generatedSequence.answerPitchClasses.enumerated() {
             switch naturalTrainer.handleQuarterNoteSequenceAnswer(
@@ -1616,6 +1723,7 @@ private extension FretboardValidationRunner {
             record("quarter-note trainer 完成序列后继续作答应返回 ignored(.completedSession)。")
         }
 
+        logStage("accidentalPrompt")
         let accidentalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: .bass,
             noteCount: 128,

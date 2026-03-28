@@ -63,9 +63,16 @@ enum StaffValidationRunner {
         let fixtures = makeFixtures()
         var passedFixtureNames: [String] = []
         var issues: [StaffValidationIssue] = []
+        print(
+            "[StaffValidation][\(platform.displayName)] begin decodeCases=\(decodeCases.count) fixtures=\(fixtures.count)"
+        )
 
         for decodeCase in decodeCases {
+            print("[StaffValidation][\(platform.displayName)] decode begin name=\(decodeCase.name)")
             let decodeCaseIssues = validate(decodeCase)
+            print(
+                "[StaffValidation][\(platform.displayName)] decode end name=\(decodeCase.name) issues=\(decodeCaseIssues.count)"
+            )
             if decodeCaseIssues.isEmpty {
                 passedFixtureNames.append(decodeCase.name)
             } else {
@@ -74,13 +81,19 @@ enum StaffValidationRunner {
         }
 
         for fixture in fixtures {
+            print("[StaffValidation][\(platform.displayName)] fixture begin name=\(fixture.name)")
             let fixtureIssues = validate(fixture)
+            print(
+                "[StaffValidation][\(platform.displayName)] fixture end name=\(fixture.name) issues=\(fixtureIssues.count)"
+            )
             if fixtureIssues.isEmpty {
                 passedFixtureNames.append(fixture.name)
             } else {
                 issues.append(contentsOf: fixtureIssues)
             }
         }
+
+        print("[StaffValidation][\(platform.displayName)] end totalIssues=\(issues.count)")
 
         return StaffValidationReport(
             platform: platform,
@@ -93,9 +106,11 @@ enum StaffValidationRunner {
 
     static func runAndReportIfNeeded(platform: StaffValidationPlatform) {
         #if DEBUG
+        print("[StaffValidation][\(platform.displayName)] runAndReportIfNeeded begin")
         let report = run(platform: platform)
         let summary = report.debugSummary()
         print(summary)
+        print("[StaffValidation][\(platform.displayName)] runAndReportIfNeeded end passing=\(report.isPassing)")
 
         if !report.isPassing {
             assertionFailure(summary)

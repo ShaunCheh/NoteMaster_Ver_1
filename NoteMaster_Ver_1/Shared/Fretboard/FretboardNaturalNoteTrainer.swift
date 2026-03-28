@@ -528,12 +528,17 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         configuration: FretboardConfiguration,
         using generator: inout R
     ) -> PositionPromptSession {
+        print("[PositionPrompt][Trainer] makePositionPromptSession begin")
         requirePositionPromptMode()
-        return Self.makePositionPromptSession(
+        let session = Self.makePositionPromptSession(
             configuration: configuration,
             excluding: nil,
             using: &generator
         )
+        print(
+            "[PositionPrompt][Trainer] makePositionPromptSession end prompt=string=\(session.promptCell.stringIndex) fret=\(session.promptCell.fret) pitch=\(session.promptPitchClass.displayText())"
+        )
+        return session
     }
 
     mutating func handleSingleCoverageHit(
@@ -792,33 +797,59 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         excluding excludedCell: FretboardCell?,
         using generator: inout R
     ) -> PositionPromptSession {
+        let excludedCellText: String
+        if let excludedCell {
+            excludedCellText = "string=\(excludedCell.stringIndex) fret=\(excludedCell.fret)"
+        } else {
+            excludedCellText = "nil"
+        }
+        print(
+            "[PositionPrompt][Trainer] selectPrompt begin excluded=\(excludedCellText)"
+        )
         let candidates = positionPromptCandidateCells(in: configuration)
+        print(
+            "[PositionPrompt][Trainer] selectPrompt candidates count=\(candidates.count)"
+        )
         let filteredCandidates = candidates.filter { cell in
             cell != excludedCell
         }
+        print(
+            "[PositionPrompt][Trainer] selectPrompt filtered count=\(filteredCandidates.count)"
+        )
         let resolvedCandidates = filteredCandidates.isEmpty
             ? candidates
             : filteredCandidates
+        print(
+            "[PositionPrompt][Trainer] selectPrompt resolved count=\(resolvedCandidates.count)"
+        )
 
         guard let promptCell = resolvedCandidates.randomElement(using: &generator) else {
             preconditionFailure(
                 "Position prompt candidates should never be empty."
             )
         }
+        print(
+            "[PositionPrompt][Trainer] selectPrompt selectedCell string=\(promptCell.stringIndex) fret=\(promptCell.fret)"
+        )
         guard let promptPitchClass = configuration.pitchClass(for: promptCell) else {
             preconditionFailure(
                 "Position prompt candidate cell must resolve to a pitch class."
             )
         }
+        print(
+            "[PositionPrompt][Trainer] selectPrompt resolvedPitchClass=\(promptPitchClass.displayText())"
+        )
         precondition(
             promptPitchClass.isNatural,
             "Position prompt candidate pitch class must be natural."
         )
 
-        return PositionPromptSession(
+        let session = PositionPromptSession(
             promptCell: promptCell,
             promptPitchClass: promptPitchClass
         )
+        print("[PositionPrompt][Trainer] selectPrompt end")
+        return session
     }
 
     private static func positionPromptCandidateCells(

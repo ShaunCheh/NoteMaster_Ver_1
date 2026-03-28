@@ -81,6 +81,21 @@ final class macOSViewController: NSViewController {
     private var pendingPositionPromptTransitionWorkItem: DispatchWorkItem?
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
+    private var hasLoggedInitialLayoutPass = false
+
+    private func logLifecycle(_ message: String) {
+        print("[Startup][macOSVC] \(message) \(debugStateSnapshot())")
+    }
+
+    private func debugStateSnapshot() -> String {
+        "trainerDisplay=\(String(describing: trainerDisplayState.exerciseMode)) " +
+        "trainerCore=\(String(describing: fretboardTrainerState.mode)) " +
+        "pageTop=\(String(describing: pageDisplayState.topContentMode)) " +
+        "pageMain=\(String(describing: pageDisplayState.mainContentMode)) " +
+        "displayMode=\(String(describing: displayState.displayMode)) " +
+        "showsFretboard=\(isShowingFretboard) " +
+        "settingsPresented=\(isSettingsPresented)"
+    }
 
     private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
         fretboardTrainerState.prompt
@@ -525,24 +540,33 @@ final class macOSViewController: NSViewController {
     }()
 
     override func loadView() {
+        print("[Startup][macOSVC] loadView begin")
         view = NSView()
+        print("[Startup][macOSVC] loadView end")
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        logLifecycle("viewDidLoad begin")
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         configureLayout()
         applyDisplayState()
+        logLifecycle("viewDidLoad end")
     }
 
     override func viewDidLayout() {
         super.viewDidLayout()
         syncVerticalFretboardContentSizeConstraints()
         updateFretboardViewportPresentation()
+        if !hasLoggedInitialLayoutPass {
+            hasLoggedInitialLayoutPass = true
+            logLifecycle("first layout pass bounds=\(view.bounds)")
+        }
     }
 
     private func configureLayout() {
+        logLifecycle("configureLayout begin")
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -709,6 +733,7 @@ final class macOSViewController: NSViewController {
 
         updateFretboardLayoutModeConstraints()
         applySettingsPresentationState()
+        logLifecycle("configureLayout end")
     }
 
     private func updateFretboardLayoutModeConstraints() {
@@ -751,14 +776,17 @@ final class macOSViewController: NSViewController {
     }
 
     private func applyDisplayState() {
+        logLifecycle("applyDisplayState begin")
         applyFretboardDisplayState()
         applyStaffDisplayState()
         applyPageDisplayState()
         applySequenceRegenerateButtonState()
         synchronizeTrainerPresentationState(reason: "initial")
+        logLifecycle("applyDisplayState end")
     }
 
     private func applyFretboardDisplayState() {
+        logLifecycle("applyFretboardDisplayState begin")
         fretboardView.configuration = displayState.configuration
         fretboardView.contentProvider = displayState.contentProvider
         fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
@@ -784,6 +812,7 @@ final class macOSViewController: NSViewController {
         }
 
         guard isShowingFretboard else {
+            logLifecycle("applyFretboardDisplayState end without visible fretboard")
             return
         }
 
@@ -791,6 +820,7 @@ final class macOSViewController: NSViewController {
         syncVerticalFretboardContentSizeConstraints()
         updateLayoutIfNeeded()
         updateFretboardViewportPresentation()
+        logLifecycle("applyFretboardDisplayState end")
     }
 
     private func applyStaffDisplayState() {
@@ -802,6 +832,7 @@ final class macOSViewController: NSViewController {
     }
 
     private func applyPageDisplayState() {
+        logLifecycle("applyPageDisplayState begin")
         applyFretboardHostPlacement()
         applyTopContentMode()
         applyMainContentMode()
@@ -814,9 +845,14 @@ final class macOSViewController: NSViewController {
         }
 
         updateFretboardViewportPresentation()
+        logLifecycle("applyPageDisplayState end")
     }
 
     private func applyFretboardHostPlacement() {
+        let desiredHost = isShowingFretboardTopContent
+            ? "top"
+            : (isShowingFretboardMainContent ? "main" : "hidden")
+        logLifecycle("applyFretboardHostPlacement target=\(desiredHost)")
         let desiredSuperview = isShowingFretboardTopContent
             ? topContentHostView
             : mainContentHostView
@@ -861,6 +897,11 @@ final class macOSViewController: NSViewController {
         if !activeConstraints.isEmpty {
             NSLayoutConstraint.activate(activeConstraints)
         }
+        logLifecycle(
+            "applyTopContentMode staff=\(isShowingStaffTopContent) " +
+            "targetPrompt=\(isShowingTargetPromptTopContent) " +
+            "fretboard=\(isShowingFretboardTopContent)"
+        )
     }
 
     private func applyMainContentMode() {
@@ -871,6 +912,10 @@ final class macOSViewController: NSViewController {
         }
         rebuildVerticalFretboardHostHeightConstraint()
         updateFretboardLayoutModeConstraints()
+        logLifecycle(
+            "applyMainContentMode fretboard=\(isShowingFretboardMainContent) " +
+            "naturalStrip=\(isShowingNaturalNoteStripMainContent)"
+        )
     }
 
     private func applySettingsPanelState() {
@@ -1169,6 +1214,7 @@ final class macOSViewController: NSViewController {
     }
 
     private func synchronizeTrainerPresentationState(reason: String) {
+        logLifecycle("synchronizeTrainerPresentationState reason=\(reason)")
         switch trainerDisplayState.exerciseMode {
         case .single:
             synchronizeSingleTrainerPresentation(reason: reason)
