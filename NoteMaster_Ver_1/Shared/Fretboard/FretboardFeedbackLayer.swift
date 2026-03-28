@@ -76,26 +76,19 @@ final class FretboardFeedbackLayer: CALayer {
         context.addPath(displayPath())
         context.clip()
 
-        let orderedCorrectCells = feedbackOverlayState.correctCells.sorted {
-            if $0.stringIndex == $1.stringIndex {
-                return $0.fret < $1.fret
-            }
-            return $0.stringIndex < $1.stringIndex
-        }
-        for cell in orderedCorrectCells {
-            drawFeedback(
-                for: cell,
-                fillColor: FretboardPalette.feedbackCorrectFill,
-                strokeColor: FretboardPalette.feedbackCorrectStroke,
+        switch feedbackOverlayState {
+        case .empty:
+            break
+        case let .singleCoverage(correctCells, wrongCell):
+            drawSingleCoverageFeedback(
+                correctCells: correctCells,
+                wrongCell: wrongCell,
                 in: context
             )
-        }
-
-        if let wrongCell = feedbackOverlayState.wrongCell {
-            drawFeedback(
-                for: wrongCell,
-                fillColor: FretboardPalette.feedbackWrongFill,
-                strokeColor: FretboardPalette.feedbackWrongStroke,
+        case let .positionPrompt(promptCell, phase):
+            drawPositionPromptIndicator(
+                for: promptCell,
+                phase: phase,
                 in: context
             )
         }
@@ -114,6 +107,36 @@ final class FretboardFeedbackLayer: CALayer {
             to: context,
             in: bounds
         )
+    }
+
+    private func drawSingleCoverageFeedback(
+        correctCells: Set<FretboardCell>,
+        wrongCell: FretboardCell?,
+        in context: CGContext
+    ) {
+        let orderedCorrectCells = correctCells.sorted {
+            if $0.stringIndex == $1.stringIndex {
+                return $0.fret < $1.fret
+            }
+            return $0.stringIndex < $1.stringIndex
+        }
+        for cell in orderedCorrectCells {
+            drawFeedback(
+                for: cell,
+                fillColor: FretboardPalette.feedbackCorrectFill,
+                strokeColor: FretboardPalette.feedbackCorrectStroke,
+                in: context
+            )
+        }
+
+        if let wrongCell {
+            drawFeedback(
+                for: wrongCell,
+                fillColor: FretboardPalette.feedbackWrongFill,
+                strokeColor: FretboardPalette.feedbackWrongStroke,
+                in: context
+            )
+        }
     }
 
     private func drawFeedback(
@@ -153,6 +176,41 @@ final class FretboardFeedbackLayer: CALayer {
         context.restoreGState()
     }
 
+    private func drawPositionPromptIndicator(
+        for cell: FretboardCell,
+        phase: FretboardFeedbackOverlayState.PositionPromptPhase,
+        in context: CGContext
+    ) {
+        guard
+            let cellFrame = scene.cellFrame(for: cell),
+            !cellFrame.isNull,
+            !cellFrame.isEmpty
+        else {
+            return
+        }
+
+        let indicatorRect = positionPromptRect(for: cellFrame)
+        guard !indicatorRect.isEmpty else {
+            return
+        }
+
+        let indicatorPath = CGPath(
+            ellipseIn: indicatorRect,
+            transform: nil
+        )
+        let colors = colors(for: phase)
+
+        context.saveGState()
+        context.addPath(indicatorPath)
+        context.setFillColor(colors.fillColor)
+        context.fillPath()
+        context.addPath(indicatorPath)
+        context.setStrokeColor(colors.strokeColor)
+        context.setLineWidth(resolvedPositionPromptStrokeWidth)
+        context.strokePath()
+        context.restoreGState()
+    }
+
     private func insetFeedbackRect(for cellFrame: CGRect) -> CGRect {
         let horizontalInset = max(
             cellFrame.width * Style.horizontalInsetRatio,
@@ -168,12 +226,65 @@ final class FretboardFeedbackLayer: CALayer {
         )
     }
 
+    private func positionPromptRect(for cellFrame: CGRect) -> CGRect {
+        let minDimension = min(cellFrame.width, cellFrame.height)
+        let maxDiameter = max(
+            minDimension - (Style.positionPromptMinimumInset * 2),
+            0
+        )
+        let preferredDiameter = minDimension * Style.positionPromptDiameterRatio
+        let diameter = min(
+            max(preferredDiameter, Style.positionPromptMinimumDiameter),
+            maxDiameter
+        )
+
+        guard diameter > 0 else {
+            return .zero
+        }
+
+        return CGRect(
+            x: cellFrame.midX - (diameter / 2),
+            y: cellFrame.midY - (diameter / 2),
+            width: diameter,
+            height: diameter
+        )
+    }
+
     private func resolvedCornerRadius(for rect: CGRect) -> CGFloat {
         min(rect.width, rect.height) * Style.cornerRadiusRatio
     }
 
     private var resolvedStrokeWidth: CGFloat {
         max(1 / max(contentsScale, 1), Style.minimumStrokeWidth)
+    }
+
+    private var resolvedPositionPromptStrokeWidth: CGFloat {
+        max(
+            resolvedStrokeWidth * Style.positionPromptStrokeWidthMultiplier,
+            Style.minimumStrokeWidth
+        )
+    }
+
+    private func colors(
+        for phase: FretboardFeedbackOverlayState.PositionPromptPhase
+    ) -> (fillColor: CGColor, strokeColor: CGColor) {
+        switch phase {
+        case .neutralWhite:
+            return (
+                fillColor: FretboardPalette.positionPromptNeutralFill,
+                strokeColor: FretboardPalette.positionPromptNeutralStroke
+            )
+        case .wrongFlash:
+            return (
+                fillColor: FretboardPalette.positionPromptWrongFill,
+                strokeColor: FretboardPalette.positionPromptWrongStroke
+            )
+        case .correctHold:
+            return (
+                fillColor: FretboardPalette.positionPromptCorrectFill,
+                strokeColor: FretboardPalette.positionPromptCorrectStroke
+            )
+        }
     }
 
     private func displayPath() -> CGPath {
@@ -201,4 +312,8 @@ private enum Style {
     static let cornerRadiusRatio: CGFloat = 0.22
     static let minimumInset: CGFloat = 2
     static let minimumStrokeWidth: CGFloat = 0.75
+    static let positionPromptDiameterRatio: CGFloat = 0.62
+    static let positionPromptMinimumInset: CGFloat = 3
+    static let positionPromptMinimumDiameter: CGFloat = 10
+    static let positionPromptStrokeWidthMultiplier: CGFloat = 1.25
 }

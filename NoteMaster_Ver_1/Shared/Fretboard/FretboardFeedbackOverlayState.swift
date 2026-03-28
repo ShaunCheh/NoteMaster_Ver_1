@@ -5,21 +5,31 @@
 //  Created by Cursor on 2026/3/28.
 //
 
-struct FretboardFeedbackOverlayState: Equatable, Sendable {
-    var correctCells: Set<FretboardCell>
-    var wrongCell: FretboardCell?
-
-    static let empty = FretboardFeedbackOverlayState()
-
-    init(
-        correctCells: Set<FretboardCell> = [],
-        wrongCell: FretboardCell? = nil
-    ) {
-        self.correctCells = correctCells
-        self.wrongCell = wrongCell
+enum FretboardFeedbackOverlayState: Equatable, Sendable {
+    enum PositionPromptPhase: Equatable, Sendable {
+        case neutralWhite
+        case wrongFlash
+        case correctHold
     }
 
+    case empty
+    case singleCoverage(
+        correctCells: Set<FretboardCell>,
+        wrongCell: FretboardCell?
+    )
+    case positionPrompt(
+        promptCell: FretboardCell,
+        phase: PositionPromptPhase
+    )
+
     var isEmpty: Bool {
-        correctCells.isEmpty && wrongCell == nil
+        switch self {
+        case .empty:
+            return true
+        case let .singleCoverage(correctCells, wrongCell):
+            return correctCells.isEmpty && wrongCell == nil
+        case .positionPrompt:
+            return false
+        }
     }
 }

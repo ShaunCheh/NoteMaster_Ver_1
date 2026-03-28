@@ -145,7 +145,7 @@ final class iOSViewController: UIViewController {
             wrongCell = nil
         }
 
-        return FretboardFeedbackOverlayState(
+        return .singleCoverage(
             correctCells: singleCoverageSession.visitedCells,
             wrongCell: wrongCell
         )
