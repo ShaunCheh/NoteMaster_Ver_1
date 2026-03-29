@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase5-controller-rebuild
     content: 在 iOS/macOS 控制器中把筛选状态纳入 session 匹配与重建逻辑，筛选变化时重建非法题目并保持交互时序稳定
-    status: pending
+    status: completed
   - id: phase6-validation
     content: 补充 FretboardValidation 与手工回归清单，覆盖全选、子集筛选、排除空弦与最后一个品位不可取消等场景
     status: pending

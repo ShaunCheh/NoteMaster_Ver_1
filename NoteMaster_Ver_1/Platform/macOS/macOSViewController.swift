@@ -149,6 +149,10 @@ final class macOSViewController: NSViewController {
         )
     }
 
+    private var currentPositionPromptAllowedFrets: Set<Int> {
+        trainerDisplayState.positionPromptConfiguration.selectedFrets
+    }
+
     private var currentPositionPromptOverlayPhase: FretboardFeedbackOverlayState.PositionPromptPhase {
         positionPromptOverlayPhase ?? .neutralWhite
     }
@@ -275,14 +279,55 @@ final class macOSViewController: NSViewController {
     private func positionPromptSessionMatchesCurrentTrainer(
         _ session: FretboardNaturalNoteTrainerState.PositionPromptSession
     ) -> Bool {
-        guard case .positionPrompt = fretboardTrainerState.mode,
+        guard case .positionPrompt = fretboardTrainerState.mode else {
+            return false
+        }
+
+        let visiblePrompt = currentPositionPromptVisiblePrompt(
+            for: session
+        )
+        return positionPromptCellMatchesCurrentTrainer(
+            visiblePrompt.cell,
+            expectedPitchClass: visiblePrompt.pitchClass
+        )
+    }
+
+    private func currentPositionPromptVisiblePrompt(
+        for session: FretboardNaturalNoteTrainerState.PositionPromptSession
+    ) -> (cell: FretboardCell, pitchClass: PitchClass) {
+        guard let positionPromptLastEvaluation else {
+            return (
+                cell: session.promptCell,
+                pitchClass: session.promptPitchClass
+            )
+        }
+
+        switch currentPositionPromptOverlayPhase {
+        case .neutralWhite:
+            return (
+                cell: session.promptCell,
+                pitchClass: session.promptPitchClass
+            )
+        case .wrongFlash, .correctHold:
+            return (
+                cell: positionPromptLastEvaluation.promptCell,
+                pitchClass: positionPromptLastEvaluation.expectedPitchClass
+            )
+        }
+    }
+
+    private func positionPromptCellMatchesCurrentTrainer(
+        _ cell: FretboardCell,
+        expectedPitchClass: PitchClass
+    ) -> Bool {
+        guard currentPositionPromptAllowedFrets.contains(cell.fret),
               let resolvedPitchClass = displayState.configuration.pitchClass(
-                for: session.promptCell
+                for: cell
               ) else {
             return false
         }
 
-        return resolvedPitchClass == session.promptPitchClass
+        return resolvedPitchClass == expectedPitchClass
             && resolvedPitchClass.isNatural
     }
 
@@ -1535,6 +1580,9 @@ final class macOSViewController: NSViewController {
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
         let didChangePage = nextPageDisplayState != pageDisplayState
         let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
+        let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
+        let didChangePositionPromptFrets = nextTrainerDisplayState.positionPromptConfiguration
+            != trainerDisplayState.positionPromptConfiguration
 
         guard didChangeFretboard || didChangeStaff || didChangePage || didChangeTrainer else {
             return
@@ -1564,7 +1612,15 @@ final class macOSViewController: NSViewController {
         }
 
         if didChangeTrainer {
-            synchronizeTrainerPresentationState(reason: "exerciseModeChanged")
+            let trainerSyncReason: String
+            if didChangeExerciseMode {
+                trainerSyncReason = "exerciseModeChanged"
+            } else if didChangePositionPromptFrets {
+                trainerSyncReason = "positionPromptFretsChanged"
+            } else {
+                trainerSyncReason = "trainerSettingsChanged"
+            }
+            synchronizeTrainerPresentationState(reason: trainerSyncReason)
         }
     }
 }
