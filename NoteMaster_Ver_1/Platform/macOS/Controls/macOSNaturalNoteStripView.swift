@@ -20,7 +20,7 @@ final class macOSNaturalNoteStripView: NSView {
 
     private let stackView = NSStackView()
     private lazy var buttons: [NaturalNoteButton] = {
-        PitchClass.naturalCasesInOrder.map { pitchClass in
+        PitchClass.allCases.map { pitchClass in
             makeButton(for: pitchClass)
         }
     }()
@@ -133,11 +133,10 @@ private final class NaturalNoteButton: NSButton {
 
     func apply(pitchClass: PitchClass) {
         self.pitchClass = pitchClass
-        let title = pitchClass.displayText()
-        self.title = title
-        toolTip = "Choose natural note \(title)"
+        self.title = pitchClass.stripVisibleTitle
+        toolTip = "Choose note \(pitchClass.stripAccessibilityLabel)"
         identifier = NSUserInterfaceItemIdentifier(
-            "natural-note-strip-button-\(title.lowercased())"
+            "natural-note-strip-button-\(pitchClass.stripIdentifierToken)"
         )
         applyCurrentAppearance()
         invalidateIntrinsicContentSize()
@@ -206,7 +205,7 @@ private enum Style {
         bottom: 10,
         right: 12
     )
-    static let itemSpacing: CGFloat = 8
+    static let itemSpacing: CGFloat = 6
     static let cornerRadius: CGFloat = 22
     static let borderWidth: CGFloat = 1
     static let borderOpacity: CGFloat = 0.35
@@ -215,9 +214,73 @@ private enum Style {
     static let fontSize: CGFloat = 13
     static let buttonContentInsets = NSEdgeInsets(
         top: 7,
-        left: 12,
+        left: 8,
         bottom: 7,
-        right: 12
+        right: 8
     )
+}
+
+private extension PitchClass {
+    var stripVisibleTitle: String {
+        isNatural ? displayText() : ""
+    }
+
+    var stripAccessibilityLabel: String {
+        switch self {
+        case .c:
+            return "C"
+        case .cSharp:
+            return "C sharp / D flat"
+        case .d:
+            return "D"
+        case .dSharp:
+            return "D sharp / E flat"
+        case .e:
+            return "E"
+        case .f:
+            return "F"
+        case .fSharp:
+            return "F sharp / G flat"
+        case .g:
+            return "G"
+        case .gSharp:
+            return "G sharp / A flat"
+        case .a:
+            return "A"
+        case .aSharp:
+            return "A sharp / B flat"
+        case .b:
+            return "B"
+        }
+    }
+
+    var stripIdentifierToken: String {
+        switch self {
+        case .c:
+            return "c"
+        case .cSharp:
+            return "c-sharp-d-flat"
+        case .d:
+            return "d"
+        case .dSharp:
+            return "d-sharp-e-flat"
+        case .e:
+            return "e"
+        case .f:
+            return "f"
+        case .fSharp:
+            return "f-sharp-g-flat"
+        case .g:
+            return "g"
+        case .gSharp:
+            return "g-sharp-a-flat"
+        case .a:
+            return "a"
+        case .aSharp:
+            return "a-sharp-b-flat"
+        case .b:
+            return "b"
+        }
+    }
 }
 #endif
