@@ -303,6 +303,7 @@ final class macOSViewController: NSViewController {
         var generator = SystemRandomNumberGenerator()
         positionPromptSession = fretboardTrainerState.makePositionPromptSession(
             configuration: displayState.configuration,
+            allowedFrets: trainerDisplayState.positionPromptConfiguration.selectedFrets,
             using: &generator
         )
         clearPositionPromptFeedbackState()
@@ -1037,6 +1038,7 @@ final class macOSViewController: NSViewController {
         let answerResult = fretboardTrainerState.handlePositionPromptAnswer(
             pitchClass,
             configuration: displayState.configuration,
+            allowedFrets: trainerDisplayState.positionPromptConfiguration.selectedFrets,
             session: &positionPromptSession
         )
         self.positionPromptSession = positionPromptSession

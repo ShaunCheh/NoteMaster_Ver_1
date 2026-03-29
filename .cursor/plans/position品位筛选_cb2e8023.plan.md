@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase4-trainer-filtering
     content: 在 shared positionPrompt trainer 中引入 allowed frets 过滤，确保候选池与换题都只落在选中品位
-    status: pending
+    status: completed
   - id: phase5-controller-rebuild
     content: 在 iOS/macOS 控制器中把筛选状态纳入 session 匹配与重建逻辑，筛选变化时重建非法题目并保持交互时序稳定
     status: pending

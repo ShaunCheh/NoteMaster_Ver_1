@@ -1333,9 +1333,11 @@ private extension FretboardValidationRunner {
         }
 
         let configuration = fixture.configuration
+        let allowedFrets = TrainerPositionPromptConfiguration.defaultSelectedFrets
         logStage("candidateEnumeration")
         let candidateCells = positionPromptCandidateCells(
-            configuration: configuration
+            configuration: configuration,
+            allowedFrets: allowedFrets
         )
         guard candidateCells.count >= 2 else {
             record("position prompt trainer 缺少至少两个自然音位置，无法验证换题语义。")
@@ -1356,6 +1358,10 @@ private extension FretboardValidationRunner {
         if !firstCandidatePitchClass.isNatural || !secondCandidatePitchClass.isNatural {
             record("position prompt trainer 的候选基准 cell 应为自然音。")
         }
+        if !allowedFrets.contains(firstCandidateCell.fret)
+            || !allowedFrets.contains(secondCandidateCell.fret) {
+            record("position prompt trainer 的默认候选基准 cell 应落在 1...12 品范围内。")
+        }
 
         logStage("initialSession")
         var initialGenerator = DeterministicRandomNumberGenerator()
@@ -1364,6 +1370,7 @@ private extension FretboardValidationRunner {
         )
         let initialSession = initialTrainer.makePositionPromptSession(
             configuration: configuration,
+            allowedFrets: allowedFrets,
             using: &initialGenerator
         )
         print(
@@ -1377,6 +1384,9 @@ private extension FretboardValidationRunner {
         }
         if !initialSession.promptPitchClass.isNatural {
             record("position prompt trainer 新建 session 的 promptPitchClass 应为自然音。")
+        }
+        if !allowedFrets.contains(initialSession.promptCell.fret) {
+            record("position prompt trainer 默认新建 session 不应落在空弦或未允许的品位。")
         }
 
         print(
@@ -1399,12 +1409,14 @@ private extension FretboardValidationRunner {
         )
         var wrongSession = wrongTrainer.makePositionPromptSession(
             configuration: configuration,
+            allowedFrets: allowedFrets,
             using: &wrongGenerator
         )
         let wrongSessionSnapshot = wrongSession
         switch wrongTrainer.handlePositionPromptAnswer(
             wrongAnswer,
             configuration: configuration,
+            allowedFrets: allowedFrets,
             session: &wrongSession,
             using: &wrongGenerator
         ) {
@@ -1445,11 +1457,13 @@ private extension FretboardValidationRunner {
         )
         var correctSession = correctTrainer.makePositionPromptSession(
             configuration: configuration,
+            allowedFrets: allowedFrets,
             using: &correctGenerator
         )
         switch correctTrainer.handlePositionPromptAnswer(
             correctSession.promptPitchClass,
             configuration: configuration,
+            allowedFrets: allowedFrets,
             session: &correctSession,
             using: &correctGenerator
         ) {
@@ -1481,12 +1495,18 @@ private extension FretboardValidationRunner {
             if !evaluation.nextPromptPitchClass.isNatural {
                 record("position prompt trainer 正确作答后切换到了非自然音题目。")
             }
+            if !allowedFrets.contains(evaluation.nextPromptCell.fret) {
+                record("position prompt trainer 正确作答后 nextPromptCell 应继续落在允许品位内。")
+            }
         }
         if correctSession.promptCell != secondCandidateCell {
             record("position prompt trainer 正确作答后 session.promptCell 未推进到新题。")
         }
         if correctSession.promptPitchClass != secondCandidatePitchClass {
             record("position prompt trainer 正确作答后 session.promptPitchClass 未与新题同步。")
+        }
+        if !allowedFrets.contains(correctSession.promptCell.fret) {
+            record("position prompt trainer 正确作答后 session.promptCell 应继续落在允许品位内。")
         }
     }
 
@@ -1837,13 +1857,20 @@ private extension FretboardValidationRunner {
     }
 
     static func positionPromptCandidateCells(
-        configuration: FretboardConfiguration
+        configuration: FretboardConfiguration,
+        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets
     ) -> [FretboardCell] {
+        let normalizedAllowedFrets = TrainerPositionPromptConfiguration(
+            selectedFrets: allowedFrets
+        ).selectedFrets
         var cells: [FretboardCell] = []
         cells.reserveCapacity(configuration.stringCount * configuration.displayPositionCount)
 
         for stringIndex in 0..<configuration.stringCount {
             for fret in configuration.fretRange {
+                guard normalizedAllowedFrets.contains(fret) else {
+                    continue
+                }
                 let cell = FretboardCell(
                     stringIndex: stringIndex,
                     fret: fret
