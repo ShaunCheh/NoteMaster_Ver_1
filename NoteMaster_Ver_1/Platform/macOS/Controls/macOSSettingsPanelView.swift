@@ -157,6 +157,19 @@ final class macOSSettingsPanelView: NSView {
             rowView.apply(item: item)
             controlViewsByID[rowID] = rowView
             return rowView
+        case let .fretFilter(item):
+            let rowID = row.id
+            if let existingRow = controlViewsByID[rowID] as? FretFilterPlaceholderRowView {
+                existingRow.apply(item: item)
+                return existingRow
+            }
+
+            detachControlViewIfNeeded(for: rowID)
+
+            let rowView = FretFilterPlaceholderRowView(frame: .zero)
+            rowView.apply(item: item)
+            controlViewsByID[rowID] = rowView
+            return rowView
         case let .slider(item):
             let rowID = row.id
             if let existingRow = controlViewsByID[rowID] as? SliderRowView {
@@ -742,6 +755,19 @@ private final class ToggleRowView: NSView {
     }
 }
 
+private final class FretFilterPlaceholderRowView: NSView {
+    override var intrinsicContentSize: NSSize {
+        .zero
+    }
+
+    func apply(item: SettingsFretFilterRow) {
+        identifier = NSUserInterfaceItemIdentifier(
+            "settings-panel-fret-filter-row-\(String(describing: item.id))"
+        )
+        isHidden = true
+    }
+}
+
 private final class SectionView: NSView {
     var titleText: String = "" {
         didSet {
@@ -788,6 +814,7 @@ private final class SectionView: NSView {
         rowsStackView.orientation = .vertical
         rowsStackView.alignment = .leading
         rowsStackView.distribution = .fill
+        rowsStackView.detachesHiddenViews = true
         rowsStackView.spacing = Style.rowSpacing
 
         addSubview(contentStackView)

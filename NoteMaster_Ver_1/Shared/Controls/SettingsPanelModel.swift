@@ -20,6 +20,7 @@ enum SettingsPresentationStyle: Equatable, Sendable {
 
 enum SettingsRowID: Equatable, Hashable, Sendable {
     case choice(SettingsChoiceRowID)
+    case fretFilter(SettingsFretFilterRowID)
     case slider(SettingsSliderID)
     case toggle(SettingsToggleID)
 }
@@ -58,7 +59,8 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             ]
         case .trainer:
             return [
-                .choice(.exerciseMode)
+                .choice(.exerciseMode),
+                .fretFilter(.positionPromptFrets)
             ]
         case .fretboard:
             return [
@@ -83,6 +85,38 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .toggle(.showsComponentBounds)
             ]
+        }
+    }
+}
+
+enum SettingsFretFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
+    case positionPromptFrets
+
+    var sectionID: SettingsSectionID {
+        switch self {
+        case .positionPromptFrets:
+            return .trainer
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .positionPromptFrets:
+            return "Frets"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .positionPromptFrets:
+            return "Select the frets used when generating position prompt questions"
+        }
+    }
+
+    var supportedFrets: ClosedRange<Int> {
+        switch self {
+        case .positionPromptFrets:
+            return TrainerPositionPromptConfiguration.supportedFretRange
         }
     }
 }
@@ -636,6 +670,21 @@ struct SettingsChoiceRow: Equatable, Sendable {
     var choices: [SettingsChoiceItem]
 }
 
+struct SettingsFretFilterItem: Equatable, Hashable, Sendable {
+    var fret: Int
+    var title: String
+    var accessibilityLabel: String
+    var isSelected: Bool
+    var isEnabled: Bool
+}
+
+struct SettingsFretFilterRow: Equatable, Sendable {
+    var id: SettingsFretFilterRowID
+    var title: String
+    var accessibilityLabel: String
+    var frets: [SettingsFretFilterItem]
+}
+
 enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
     case showsComponentBounds
 
@@ -865,6 +914,7 @@ struct SettingsSliderRow: Equatable, Sendable {
 
 enum SettingsRow: Equatable, Sendable {
     case choice(SettingsChoiceRow)
+    case fretFilter(SettingsFretFilterRow)
     case slider(SettingsSliderRow)
     case toggle(SettingsToggleRow)
 
@@ -872,6 +922,8 @@ enum SettingsRow: Equatable, Sendable {
         switch self {
         case let .choice(row):
             return .choice(row.id)
+        case let .fretFilter(row):
+            return .fretFilter(row.id)
         case let .slider(row):
             return .slider(row.id)
         case let .toggle(row):
@@ -905,6 +957,16 @@ struct SettingsPanelModel: Equatable, Sendable {
         }.first { $0.id == id }
     }
 
+    func fretFilterRow(for id: SettingsFretFilterRowID) -> SettingsFretFilterRow? {
+        rows.compactMap { row in
+            guard case let .fretFilter(fretFilterRow) = row else {
+                return nil
+            }
+
+            return fretFilterRow
+        }.first { $0.id == id }
+    }
+
     func sliderRow(for id: SettingsSliderID) -> SettingsSliderRow? {
         rows.compactMap { row in
             guard case let .slider(sliderRow) = row else {
@@ -928,6 +990,7 @@ struct SettingsPanelModel: Equatable, Sendable {
 
 enum SettingsPanelEvent: Equatable, Sendable {
     case triggerAction(SettingsActionID)
+    case togglePositionPromptFret(Int)
     case setSliderValue(SettingsSliderID, CGFloat)
     case setToggleValue(SettingsToggleID, Bool)
 
@@ -937,6 +1000,8 @@ enum SettingsPanelEvent: Equatable, Sendable {
         switch self {
         case let .triggerAction(actionID):
             actionID.apply(to: &stateContext)
+        case let .togglePositionPromptFret(fret):
+            stateContext.trainerDisplayState.togglePositionPromptFret(fret)
         case let .setSliderValue(sliderID, value):
             sliderID.apply(value: value, to: &stateContext)
         case let .setToggleValue(toggleID, value):

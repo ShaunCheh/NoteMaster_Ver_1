@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: phase2-settings-model
     content: 扩展 SettingsPanelModel / SnapshotBuilder / Event，新增只在 positionPrompt 下显示的 fret-filter row 与 toggle fret 事件
-    status: pending
+    status: completed
   - id: phase3-platform-settings-ui
     content: 在 iOS/macOS SettingsPanelView 新增 12 格单行品位筛选控件，并接通事件与回显
     status: pending

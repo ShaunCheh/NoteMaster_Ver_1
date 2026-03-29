@@ -56,6 +56,20 @@ enum SettingsPanelSnapshotBuilder {
                     stateContext: stateContext
                 )
             )
+        case let .fretFilter(fretFilterRowID):
+            guard shouldInclude(
+                fretFilterRowID: fretFilterRowID,
+                stateContext: stateContext
+            ) else {
+                return nil
+            }
+
+            return .fretFilter(
+                makeFretFilterRow(
+                    id: fretFilterRowID,
+                    stateContext: stateContext
+                )
+            )
         case let .slider(sliderID):
             guard shouldInclude(
                 sliderID: sliderID,
@@ -144,6 +158,29 @@ enum SettingsPanelSnapshotBuilder {
         )
     }
 
+    private static func makeFretFilterRow(
+        id: SettingsFretFilterRowID,
+        stateContext: SettingsPanelStateContext
+    ) -> SettingsFretFilterRow {
+        let configuration = stateContext.trainerDisplayState.positionPromptConfiguration
+
+        return SettingsFretFilterRow(
+            id: id,
+            title: id.title,
+            accessibilityLabel: id.accessibilityLabel,
+            frets: id.supportedFrets.map { fret in
+                let isSelected = configuration.contains(fret)
+                return SettingsFretFilterItem(
+                    fret: fret,
+                    title: "\(fret)",
+                    accessibilityLabel: "Toggle fret \(fret) for position prompt questions",
+                    isSelected: isSelected,
+                    isEnabled: !isSelected || configuration.canDeselect(fret)
+                )
+            }
+        )
+    }
+
     private static func shouldInclude(
         sliderID: SettingsSliderID,
         stateContext: SettingsPanelStateContext
@@ -153,6 +190,16 @@ enum SettingsPanelSnapshotBuilder {
             return stateContext.fretboardDisplayState.displayMode == .vertical
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
             return true
+        }
+    }
+
+    private static func shouldInclude(
+        fretFilterRowID: SettingsFretFilterRowID,
+        stateContext: SettingsPanelStateContext
+    ) -> Bool {
+        switch fretFilterRowID {
+        case .positionPromptFrets:
+            return stateContext.trainerDisplayState.isPositionPromptMode
         }
     }
 }

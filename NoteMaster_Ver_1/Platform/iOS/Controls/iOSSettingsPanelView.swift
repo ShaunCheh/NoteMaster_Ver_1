@@ -145,6 +145,19 @@ final class iOSSettingsPanelView: UIView {
             rowView.apply(item: item)
             controlViewsByID[rowID] = rowView
             return rowView
+        case let .fretFilter(item):
+            let rowID = row.id
+            if let existingRow = controlViewsByID[rowID] as? FretFilterPlaceholderRowView {
+                existingRow.apply(item: item)
+                return existingRow
+            }
+
+            detachControlViewIfNeeded(for: rowID)
+
+            let rowView = FretFilterPlaceholderRowView()
+            rowView.apply(item: item)
+            controlViewsByID[rowID] = rowView
+            return rowView
         case let .slider(item):
             let rowID = row.id
             if let existingRow = controlViewsByID[rowID] as? SliderRowView {
@@ -696,6 +709,18 @@ private final class ToggleRowView: UIView {
         }
 
         onEvent?(.setToggleValue(toggleID, sender.isOn))
+    }
+}
+
+private final class FretFilterPlaceholderRowView: UIView {
+    override var intrinsicContentSize: CGSize {
+        .zero
+    }
+
+    func apply(item: SettingsFretFilterRow) {
+        accessibilityIdentifier = "settings-panel-fret-filter-row-\(String(describing: item.id))"
+        isUserInteractionEnabled = false
+        isHidden = true
     }
 }
 
