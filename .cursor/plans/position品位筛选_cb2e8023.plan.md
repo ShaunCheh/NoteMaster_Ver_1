@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: phase3-platform-settings-ui
     content: 在 iOS/macOS SettingsPanelView 新增 12 格单行品位筛选控件，并接通事件与回显
-    status: pending
+    status: completed
   - id: phase4-trainer-filtering
     content: 在 shared positionPrompt trainer 中引入 allowed frets 过滤，确保候选池与换题都只落在选中品位
     status: pending

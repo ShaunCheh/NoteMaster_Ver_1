@@ -159,14 +159,17 @@ final class macOSSettingsPanelView: NSView {
             return rowView
         case let .fretFilter(item):
             let rowID = row.id
-            if let existingRow = controlViewsByID[rowID] as? FretFilterPlaceholderRowView {
+            if let existingRow = controlViewsByID[rowID] as? FretFilterRowView {
                 existingRow.apply(item: item)
                 return existingRow
             }
 
             detachControlViewIfNeeded(for: rowID)
 
-            let rowView = FretFilterPlaceholderRowView(frame: .zero)
+            let rowView = FretFilterRowView(frame: .zero)
+            rowView.onEvent = { [weak self] event in
+                self?.onEvent?(event)
+            }
             rowView.apply(item: item)
             controlViewsByID[rowID] = rowView
             return rowView
@@ -755,16 +758,244 @@ private final class ToggleRowView: NSView {
     }
 }
 
-private final class FretFilterPlaceholderRowView: NSView {
-    override var intrinsicContentSize: NSSize {
-        .zero
+private final class FretFilterRowView: NSView {
+    var onEvent: ((SettingsPanelEvent) -> Void)?
+
+    private var buttonsByFret: [Int: FretFilterButton] = [:]
+
+    private let contentStackView = NSStackView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let fretsStackView = NSStackView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        configureView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureView()
     }
 
     func apply(item: SettingsFretFilterRow) {
         identifier = NSUserInterfaceItemIdentifier(
             "settings-panel-fret-filter-row-\(String(describing: item.id))"
         )
-        isHidden = true
+        toolTip = item.accessibilityLabel
+        titleLabel.stringValue = item.title
+        removeObsoleteButtons(notIn: Set(item.frets.map(\.fret)))
+
+        let orderedButtons = item.frets.map { fret -> NSView in
+            fretButton(for: fret)
+        }
+
+        replaceArrangedSubviews(
+            in: fretsStackView,
+            with: orderedButtons
+        )
+    }
+
+    private func configureView() {
+        contentStackView.orientation = .vertical
+        contentStackView.alignment = .leading
+        contentStackView.distribution = .fill
+        contentStackView.spacing = Style.fretFilterContentSpacing
+        contentStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        titleLabel.font = .systemFont(ofSize: Style.bodyFontSize, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.setContentCompressionResistancePriority(.required, for: .vertical)
+
+        fretsStackView.orientation = .horizontal
+        fretsStackView.alignment = .centerY
+        fretsStackView.distribution = .fillEqually
+        fretsStackView.spacing = Style.fretFilterSpacing
+
+        addSubview(contentStackView)
+        contentStackView.addArrangedSubview(titleLabel)
+        contentStackView.addArrangedSubview(fretsStackView)
+
+        NSLayoutConstraint.activate([
+            contentStackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentStackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            contentStackView.topAnchor.constraint(equalTo: topAnchor),
+            contentStackView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
+    private func fretButton(for item: SettingsFretFilterItem) -> FretFilterButton {
+        if let existingButton = buttonsByFret[item.fret] {
+            existingButton.apply(item: item)
+            return existingButton
+        }
+
+        let button = FretFilterButton(frame: .zero)
+        button.target = self
+        button.action = #selector(handleFretButtonTap(_:))
+        button.apply(item: item)
+        buttonsByFret[item.fret] = button
+        return button
+    }
+
+    private func removeObsoleteButtons(notIn validFrets: Set<Int>) {
+        let obsoleteFrets = buttonsByFret.keys.filter { !validFrets.contains($0) }
+
+        for fret in obsoleteFrets {
+            guard let button = buttonsByFret.removeValue(forKey: fret) else {
+                continue
+            }
+
+            if let stackView = button.superview as? NSStackView {
+                stackView.removeArrangedSubview(button)
+            }
+            button.removeFromSuperview()
+        }
+    }
+
+    private func replaceArrangedSubviews(
+        in stackView: NSStackView,
+        with views: [NSView]
+    ) {
+        for arrangedSubview in stackView.arrangedSubviews {
+            stackView.removeArrangedSubview(arrangedSubview)
+            arrangedSubview.removeFromSuperview()
+        }
+
+        for view in views {
+            if let parentStackView = view.superview as? NSStackView {
+                parentStackView.removeArrangedSubview(view)
+            }
+            view.removeFromSuperview()
+            stackView.addArrangedSubview(view)
+        }
+    }
+
+    @objc
+    private func handleFretButtonTap(_ sender: FretFilterButton) {
+        guard
+            let fret = sender.fret,
+            sender.isEnabled
+        else {
+            return
+        }
+
+        onEvent?(.togglePositionPromptFret(fret))
+    }
+}
+
+private final class FretFilterButton: NSButton {
+    var fret: Int?
+
+    private var isPressed = false
+
+    override var intrinsicContentSize: NSSize {
+        let size = super.intrinsicContentSize
+        return NSSize(
+            width: max(
+                Style.minimumFretFilterButtonWidth,
+                size.width + Style.fretFilterButtonContentInsets.left + Style.fretFilterButtonContentInsets.right
+            ),
+            height: max(
+                Style.minimumFretFilterButtonHeight,
+                size.height + Style.fretFilterButtonContentInsets.top + Style.fretFilterButtonContentInsets.bottom
+            )
+        )
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        configureButton()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureButton()
+    }
+
+    func apply(item: SettingsFretFilterItem) {
+        fret = item.fret
+        state = item.isSelected ? .on : .off
+        isEnabled = item.isEnabled
+        title = item.title
+        toolTip = item.accessibilityLabel
+        identifier = NSUserInterfaceItemIdentifier(
+            "settings-panel-fret-\(item.fret)"
+        )
+        applyCurrentAppearance()
+        invalidateIntrinsicContentSize()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        isPressed = true
+        applyCurrentAppearance()
+        super.mouseDown(with: event)
+        isPressed = false
+        applyCurrentAppearance()
+    }
+
+    private func configureButton() {
+        setButtonType(.momentaryPushIn)
+        bezelStyle = .regularSquare
+        isBordered = false
+        focusRingType = .default
+        wantsLayer = true
+        layer?.cornerRadius = Style.fretFilterButtonCornerRadius
+        layer?.masksToBounds = true
+
+        if let buttonCell = cell as? NSButtonCell {
+            buttonCell.lineBreakMode = .byClipping
+            buttonCell.usesSingleLineMode = true
+        }
+
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+    }
+
+    private func applyCurrentAppearance() {
+        layer?.backgroundColor = resolvedBackgroundColor().cgColor
+        attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(
+                    ofSize: Style.fretFilterButtonFontSize,
+                    weight: .semibold
+                ),
+                .foregroundColor: resolvedForegroundColor()
+            ]
+        )
+    }
+
+    private func resolvedBackgroundColor() -> NSColor {
+        if state == .on {
+            if !isEnabled {
+                return NSColor.controlAccentColor.withAlphaComponent(0.38)
+            }
+
+            return isPressed
+                ? NSColor.controlAccentColor.withAlphaComponent(0.78)
+                : NSColor.controlAccentColor
+        }
+
+        if !isEnabled {
+            return .quaternaryLabelColor.withAlphaComponent(0.12)
+        }
+
+        return isPressed
+            ? NSColor.quaternaryLabelColor.withAlphaComponent(0.18)
+            : NSColor.quaternaryLabelColor.withAlphaComponent(0.1)
+    }
+
+    private func resolvedForegroundColor() -> NSColor {
+        if state == .on {
+            return .white.withAlphaComponent(isEnabled ? 1 : 0.84)
+        }
+
+        if !isEnabled {
+            return .disabledControlTextColor
+        }
+
+        return .labelColor
     }
 }
 
@@ -858,10 +1089,14 @@ private enum Style {
     static let panelCornerRadius: CGFloat = 14
     static let buttonCornerRadius: CGFloat = 11
     static let minimumButtonHeight: CGFloat = 30
+    static let minimumFretFilterButtonWidth: CGFloat = 24
+    static let minimumFretFilterButtonHeight: CGFloat = 28
     static let sectionSpacing: CGFloat = 12
     static let sectionContentSpacing: CGFloat = 6
     static let rowSpacing: CGFloat = 12
     static let choiceContentSpacing: CGFloat = 8
+    static let fretFilterContentSpacing: CGFloat = 8
+    static let fretFilterSpacing: CGFloat = 4
     static let sliderContentSpacing: CGFloat = 8
     static let headerSpacing: CGFloat = 8
     static let toggleSpacing: CGFloat = 12
@@ -870,11 +1105,19 @@ private enum Style {
     static let captionFontSize: CGFloat = 12
     static let bodyFontSize: CGFloat = 13
     static let valueFontSize: CGFloat = 13
+    static let fretFilterButtonCornerRadius: CGFloat = 8
+    static let fretFilterButtonFontSize: CGFloat = 12
     static let buttonContentInsets = NSEdgeInsets(
         top: 7,
         left: 12,
         bottom: 7,
         right: 12
+    )
+    static let fretFilterButtonContentInsets = NSEdgeInsets(
+        top: 5,
+        left: 0,
+        bottom: 5,
+        right: 0
     )
 }
 #endif
