@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: phase6-validation
     content: 补充 FretboardValidation 与手工回归清单，覆盖全选、子集筛选、排除空弦与最后一个品位不可取消等场景
-    status: pending
+    status: completed
 isProject: false
 ---
 

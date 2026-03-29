@@ -1333,181 +1333,224 @@ private extension FretboardValidationRunner {
         }
 
         let configuration = fixture.configuration
-        let allowedFrets = TrainerPositionPromptConfiguration.defaultSelectedFrets
-        logStage("candidateEnumeration")
-        let candidateCells = positionPromptCandidateCells(
-            configuration: configuration,
-            allowedFrets: allowedFrets
-        )
-        guard candidateCells.count >= 2 else {
-            record("position prompt trainer 缺少至少两个自然音位置，无法验证换题语义。")
-            return
-        }
 
-        let firstCandidateCell = candidateCells[0]
-        let secondCandidateCell = candidateCells[1]
-        guard let firstCandidatePitchClass = configuration.pitchClass(for: firstCandidateCell) else {
-            record("position prompt trainer 首个候选 cell 无法解析 PitchClass。")
-            return
-        }
-        guard let secondCandidatePitchClass = configuration.pitchClass(for: secondCandidateCell) else {
-            record("position prompt trainer 第二个候选 cell 无法解析 PitchClass。")
-            return
-        }
-
-        if !firstCandidatePitchClass.isNatural || !secondCandidatePitchClass.isNatural {
-            record("position prompt trainer 的候选基准 cell 应为自然音。")
-        }
-        if !allowedFrets.contains(firstCandidateCell.fret)
-            || !allowedFrets.contains(secondCandidateCell.fret) {
-            record("position prompt trainer 的默认候选基准 cell 应落在 1...12 品范围内。")
-        }
-
-        logStage("initialSession")
-        var initialGenerator = DeterministicRandomNumberGenerator()
-        let initialTrainer = FretboardNaturalNoteTrainerState(
-            positionPromptMode: ()
-        )
-        let initialSession = initialTrainer.makePositionPromptSession(
-            configuration: configuration,
-            allowedFrets: allowedFrets,
-            using: &initialGenerator
-        )
-        print(
-            "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] initialSessionCreated cell=string=\(initialSession.promptCell.stringIndex) fret=\(initialSession.promptCell.fret) pitch=\(initialSession.promptPitchClass.displayText())"
-        )
-        if initialSession.promptCell != firstCandidateCell {
-            record("position prompt trainer 新建 session 的 promptCell 未对齐首个自然音候选。")
-        }
-        if initialSession.promptPitchClass != firstCandidatePitchClass {
-            record("position prompt trainer 新建 session 的 promptPitchClass 与配置解析结果不一致。")
-        }
-        if !initialSession.promptPitchClass.isNatural {
-            record("position prompt trainer 新建 session 的 promptPitchClass 应为自然音。")
-        }
-        if !allowedFrets.contains(initialSession.promptCell.fret) {
-            record("position prompt trainer 默认新建 session 不应落在空弦或未允许的品位。")
-        }
-
-        print(
-            "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] resolveWrongAnswer firstCandidatePitch=\(firstCandidatePitchClass.displayText()) naturalCases=\(PitchClass.naturalCasesInOrder.map { $0.displayText() }.joined(separator: ","))"
-        )
-        guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
-            $0 != firstCandidatePitchClass
-        }) else {
-            record("position prompt trainer 无法构造不同于首题答案的自然音错误按钮。")
-            return
-        }
-        print(
-            "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] wrongAnswerResolved pitch=\(wrongAnswer.displayText())"
-        )
-
-        logStage("wrongAnswer")
-        var wrongGenerator = DeterministicRandomNumberGenerator()
-        var wrongTrainer = FretboardNaturalNoteTrainerState(
-            positionPromptMode: ()
-        )
-        var wrongSession = wrongTrainer.makePositionPromptSession(
-            configuration: configuration,
-            allowedFrets: allowedFrets,
-            using: &wrongGenerator
-        )
-        let wrongSessionSnapshot = wrongSession
-        switch wrongTrainer.handlePositionPromptAnswer(
-            wrongAnswer,
-            configuration: configuration,
-            allowedFrets: allowedFrets,
-            session: &wrongSession,
-            using: &wrongGenerator
+        func validateAllowedFretsScenario(
+            name: String,
+            allowedFrets: Set<Int>,
+            requiresNoOpenStrings: Bool
         ) {
-        case let .evaluated(evaluation):
-            if evaluation.promptCell != firstCandidateCell {
-                record("position prompt trainer 错误作答时 promptCell 未对齐当前题目。")
+            let normalizedAllowedFrets = TrainerPositionPromptConfiguration(
+                selectedFrets: allowedFrets
+            ).selectedFrets
+
+            logStage("\(name)-candidateEnumeration")
+            let candidateCells = positionPromptCandidateCells(
+                configuration: configuration,
+                allowedFrets: normalizedAllowedFrets
+            )
+            guard candidateCells.count >= 2 else {
+                record("position prompt trainer \(name) 缺少至少两个自然音位置，无法验证换题语义。")
+                return
             }
-            if evaluation.expectedPitchClass != firstCandidatePitchClass {
-                record("position prompt trainer 错误作答时 expectedPitchClass 与当前题目不一致。")
+
+            if !candidateCells.allSatisfy({ normalizedAllowedFrets.contains($0.fret) }) {
+                record("position prompt trainer \(name) 的候选池包含了未允许的品位。")
             }
-            if evaluation.answeredPitchClass != wrongAnswer {
-                record("position prompt trainer 错误作答时 answeredPitchClass 未保留按钮输入。")
+            if requiresNoOpenStrings,
+               candidateCells.contains(where: { $0.fret == 0 }) {
+                record("position prompt trainer \(name) 候选池不应包含空弦。")
             }
-            if evaluation.isCorrect {
-                record("position prompt trainer 把错误按钮输入误判成了正确。")
+
+            let firstCandidateCell = candidateCells[0]
+            let secondCandidateCell = candidateCells[1]
+            guard let firstCandidatePitchClass = configuration.pitchClass(for: firstCandidateCell) else {
+                record("position prompt trainer \(name) 首个候选 cell 无法解析 PitchClass。")
+                return
             }
-            if evaluation.didAdvancePrompt {
-                record("position prompt trainer 错误作答后不应推进题目。")
+            guard let secondCandidatePitchClass = configuration.pitchClass(for: secondCandidateCell) else {
+                record("position prompt trainer \(name) 第二个候选 cell 无法解析 PitchClass。")
+                return
             }
-            if evaluation.didChangePromptCell {
-                record("position prompt trainer 错误作答后不应切换 promptCell。")
+
+            if !firstCandidatePitchClass.isNatural || !secondCandidatePitchClass.isNatural {
+                record("position prompt trainer \(name) 的候选基准 cell 应为自然音。")
             }
-            if evaluation.nextPromptCell != firstCandidateCell {
-                record("position prompt trainer 错误作答后 nextPromptCell 不应改变。")
+            if !normalizedAllowedFrets.contains(firstCandidateCell.fret)
+                || !normalizedAllowedFrets.contains(secondCandidateCell.fret) {
+                record("position prompt trainer \(name) 的候选基准 cell 应落在允许品位内。")
             }
-            if evaluation.nextPromptPitchClass != firstCandidatePitchClass {
-                record("position prompt trainer 错误作答后 nextPromptPitchClass 不应改变。")
+
+            logStage("\(name)-initialSession")
+            var initialGenerator = DeterministicRandomNumberGenerator()
+            let initialTrainer = FretboardNaturalNoteTrainerState(
+                positionPromptMode: ()
+            )
+            let initialSession = initialTrainer.makePositionPromptSession(
+                configuration: configuration,
+                allowedFrets: normalizedAllowedFrets,
+                using: &initialGenerator
+            )
+            print(
+                "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) initialSessionCreated cell=string=\(initialSession.promptCell.stringIndex) fret=\(initialSession.promptCell.fret) pitch=\(initialSession.promptPitchClass.displayText())"
+            )
+            if initialSession.promptCell != firstCandidateCell {
+                record("position prompt trainer \(name) 新建 session 的 promptCell 未对齐首个自然音候选。")
             }
-        }
-        if wrongSession != wrongSessionSnapshot {
-            record("position prompt trainer 错误作答后 session 不应变化。")
+            if initialSession.promptPitchClass != firstCandidatePitchClass {
+                record("position prompt trainer \(name) 新建 session 的 promptPitchClass 与配置解析结果不一致。")
+            }
+            if !initialSession.promptPitchClass.isNatural {
+                record("position prompt trainer \(name) 新建 session 的 promptPitchClass 应为自然音。")
+            }
+            if !normalizedAllowedFrets.contains(initialSession.promptCell.fret) {
+                record("position prompt trainer \(name) 新建 session 不应落在未允许的品位。")
+            }
+
+            print(
+                "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) resolveWrongAnswer firstCandidatePitch=\(firstCandidatePitchClass.displayText()) naturalCases=\(PitchClass.naturalCasesInOrder.map { $0.displayText() }.joined(separator: ","))"
+            )
+            guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
+                $0 != firstCandidatePitchClass
+            }) else {
+                record("position prompt trainer \(name) 无法构造不同于首题答案的自然音错误按钮。")
+                return
+            }
+            print(
+                "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) wrongAnswerResolved pitch=\(wrongAnswer.displayText())"
+            )
+
+            logStage("\(name)-wrongAnswer")
+            var wrongGenerator = DeterministicRandomNumberGenerator()
+            var wrongTrainer = FretboardNaturalNoteTrainerState(
+                positionPromptMode: ()
+            )
+            var wrongSession = wrongTrainer.makePositionPromptSession(
+                configuration: configuration,
+                allowedFrets: normalizedAllowedFrets,
+                using: &wrongGenerator
+            )
+            let wrongSessionSnapshot = wrongSession
+            switch wrongTrainer.handlePositionPromptAnswer(
+                wrongAnswer,
+                configuration: configuration,
+                allowedFrets: normalizedAllowedFrets,
+                session: &wrongSession,
+                using: &wrongGenerator
+            ) {
+            case let .evaluated(evaluation):
+                if evaluation.promptCell != firstCandidateCell {
+                    record("position prompt trainer \(name) 错误作答时 promptCell 未对齐当前题目。")
+                }
+                if evaluation.expectedPitchClass != firstCandidatePitchClass {
+                    record("position prompt trainer \(name) 错误作答时 expectedPitchClass 与当前题目不一致。")
+                }
+                if evaluation.answeredPitchClass != wrongAnswer {
+                    record("position prompt trainer \(name) 错误作答时 answeredPitchClass 未保留按钮输入。")
+                }
+                if evaluation.isCorrect {
+                    record("position prompt trainer \(name) 把错误按钮输入误判成了正确。")
+                }
+                if evaluation.didAdvancePrompt {
+                    record("position prompt trainer \(name) 错误作答后不应推进题目。")
+                }
+                if evaluation.didChangePromptCell {
+                    record("position prompt trainer \(name) 错误作答后不应切换 promptCell。")
+                }
+                if evaluation.nextPromptCell != firstCandidateCell {
+                    record("position prompt trainer \(name) 错误作答后 nextPromptCell 不应改变。")
+                }
+                if evaluation.nextPromptPitchClass != firstCandidatePitchClass {
+                    record("position prompt trainer \(name) 错误作答后 nextPromptPitchClass 不应改变。")
+                }
+                if !normalizedAllowedFrets.contains(evaluation.nextPromptCell.fret) {
+                    record("position prompt trainer \(name) 错误作答后 nextPromptCell 仍应落在允许品位内。")
+                }
+            }
+            if wrongSession != wrongSessionSnapshot {
+                record("position prompt trainer \(name) 错误作答后 session 不应变化。")
+            }
+
+            logStage("\(name)-correctAnswer")
+            var correctGenerator = DeterministicRandomNumberGenerator()
+            var correctTrainer = FretboardNaturalNoteTrainerState(
+                positionPromptMode: ()
+            )
+            var correctSession = correctTrainer.makePositionPromptSession(
+                configuration: configuration,
+                allowedFrets: normalizedAllowedFrets,
+                using: &correctGenerator
+            )
+            switch correctTrainer.handlePositionPromptAnswer(
+                correctSession.promptPitchClass,
+                configuration: configuration,
+                allowedFrets: normalizedAllowedFrets,
+                session: &correctSession,
+                using: &correctGenerator
+            ) {
+            case let .evaluated(evaluation):
+                if evaluation.promptCell != firstCandidateCell {
+                    record("position prompt trainer \(name) 正确作答时 promptCell 未对齐首题。")
+                }
+                if evaluation.expectedPitchClass != firstCandidatePitchClass {
+                    record("position prompt trainer \(name) 正确作答时 expectedPitchClass 与配置解析结果不一致。")
+                }
+                if evaluation.answeredPitchClass != firstCandidatePitchClass {
+                    record("position prompt trainer \(name) 正确作答时 answeredPitchClass 未保留按钮输入。")
+                }
+                if !evaluation.isCorrect {
+                    record("position prompt trainer \(name) 未把正确按钮输入判定为 correct。")
+                }
+                if !evaluation.didAdvancePrompt {
+                    record("position prompt trainer \(name) 正确作答后应推进到下一题。")
+                }
+                if !evaluation.didChangePromptCell {
+                    record("position prompt trainer \(name) 在存在多个候选位置时，正确作答后应切换到新的 promptCell。")
+                }
+                if evaluation.nextPromptCell != secondCandidateCell {
+                    record("position prompt trainer \(name) 正确作答后 nextPromptCell 未切换到排除当前题后的首个候选。")
+                }
+                if evaluation.nextPromptPitchClass != secondCandidatePitchClass {
+                    record("position prompt trainer \(name) 正确作答后 nextPromptPitchClass 与新题不一致。")
+                }
+                if !evaluation.nextPromptPitchClass.isNatural {
+                    record("position prompt trainer \(name) 正确作答后切换到了非自然音题目。")
+                }
+                if !normalizedAllowedFrets.contains(evaluation.nextPromptCell.fret) {
+                    record("position prompt trainer \(name) 正确作答后 nextPromptCell 应继续落在允许品位内。")
+                }
+            }
+            if correctSession.promptCell != secondCandidateCell {
+                record("position prompt trainer \(name) 正确作答后 session.promptCell 未推进到新题。")
+            }
+            if correctSession.promptPitchClass != secondCandidatePitchClass {
+                record("position prompt trainer \(name) 正确作答后 session.promptPitchClass 未与新题同步。")
+            }
+            if !normalizedAllowedFrets.contains(correctSession.promptCell.fret) {
+                record("position prompt trainer \(name) 正确作答后 session.promptCell 应继续落在允许品位内。")
+            }
         }
 
-        logStage("correctAnswer")
-        var correctGenerator = DeterministicRandomNumberGenerator()
-        var correctTrainer = FretboardNaturalNoteTrainerState(
-            positionPromptMode: ()
+        logStage("lastSelectedFretGuard")
+        let lockedFretConfiguration = TrainerPositionPromptConfiguration(
+            selectedFrets: [7]
         )
-        var correctSession = correctTrainer.makePositionPromptSession(
-            configuration: configuration,
-            allowedFrets: allowedFrets,
-            using: &correctGenerator
+        if lockedFretConfiguration.canDeselect(7) {
+            record("position prompt 配置在只剩最后一个已选品位时不应允许 canDeselect 返回 true。")
+        }
+        if lockedFretConfiguration.toggled(fret: 7).selectedFrets != Set([7]) {
+            record("position prompt 配置在只剩最后一个已选品位时，不应允许 toggled(fret:) 取消该品位。")
+        }
+
+        validateAllowedFretsScenario(
+            name: "defaultSelectedFrets",
+            allowedFrets: TrainerPositionPromptConfiguration.defaultSelectedFrets,
+            requiresNoOpenStrings: true
         )
-        switch correctTrainer.handlePositionPromptAnswer(
-            correctSession.promptPitchClass,
-            configuration: configuration,
-            allowedFrets: allowedFrets,
-            session: &correctSession,
-            using: &correctGenerator
-        ) {
-        case let .evaluated(evaluation):
-            if evaluation.promptCell != firstCandidateCell {
-                record("position prompt trainer 正确作答时 promptCell 未对齐首题。")
-            }
-            if evaluation.expectedPitchClass != firstCandidatePitchClass {
-                record("position prompt trainer 正确作答时 expectedPitchClass 与配置解析结果不一致。")
-            }
-            if evaluation.answeredPitchClass != firstCandidatePitchClass {
-                record("position prompt trainer 正确作答时 answeredPitchClass 未保留按钮输入。")
-            }
-            if !evaluation.isCorrect {
-                record("position prompt trainer 未把正确按钮输入判定为 correct。")
-            }
-            if !evaluation.didAdvancePrompt {
-                record("position prompt trainer 正确作答后应推进到下一题。")
-            }
-            if !evaluation.didChangePromptCell {
-                record("position prompt trainer 在存在多个候选位置时，正确作答后应切换到新的 promptCell。")
-            }
-            if evaluation.nextPromptCell != secondCandidateCell {
-                record("position prompt trainer 正确作答后 nextPromptCell 未切换到排除当前题后的首个候选。")
-            }
-            if evaluation.nextPromptPitchClass != secondCandidatePitchClass {
-                record("position prompt trainer 正确作答后 nextPromptPitchClass 与新题不一致。")
-            }
-            if !evaluation.nextPromptPitchClass.isNatural {
-                record("position prompt trainer 正确作答后切换到了非自然音题目。")
-            }
-            if !allowedFrets.contains(evaluation.nextPromptCell.fret) {
-                record("position prompt trainer 正确作答后 nextPromptCell 应继续落在允许品位内。")
-            }
-        }
-        if correctSession.promptCell != secondCandidateCell {
-            record("position prompt trainer 正确作答后 session.promptCell 未推进到新题。")
-        }
-        if correctSession.promptPitchClass != secondCandidatePitchClass {
-            record("position prompt trainer 正确作答后 session.promptPitchClass 未与新题同步。")
-        }
-        if !allowedFrets.contains(correctSession.promptCell.fret) {
-            record("position prompt trainer 正确作答后 session.promptCell 应继续落在允许品位内。")
-        }
+        validateAllowedFretsScenario(
+            name: "subset_1_3_5_7",
+            allowedFrets: [1, 3, 5, 7],
+            requiresNoOpenStrings: true
+        )
     }
 
     static func validateQuarterNoteSequenceTrainer(
@@ -1893,7 +1936,12 @@ private extension FretboardValidationRunner {
             "观察页面加载后的控制台目标音日志；点击与目标同名但不同八度的音位，确认判定为 correct，并立即打印下一题目标音。",
             "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",
             "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
-            "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。"
+            "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。",
+            "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Frets` 这一行；切到 `positionPrompt` 后再确认该行出现，并默认选中 `1...12`。",
+            "在 `positionPrompt` 默认全选状态下连续答对多次，确认题目不会落在空弦，只会出现在 `1...12` 品。",
+            "在 `positionPrompt` 里只保留 `1 / 3 / 5 / 7` 这几个品位后连续答对多次，确认当前题与下一题都只落在这些品位。",
+            "尝试连续取消品位直到只剩最后一个已选格子，再继续点击该格子；确认 UI 仍保持至少一个品位被选中。",
+            "在 `wrongFlash` 或 `correctHold` 期间切换品位筛选；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。"
         ]
 
         switch platform {
