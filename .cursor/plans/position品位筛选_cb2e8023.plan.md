@@ -4,7 +4,7 @@ overview: 在 `positionPrompt` 模式下为设置面板新增 1~12 品位筛选�
 todos:
   - id: phase1-state
     content: 扩展 TrainerDisplayState，新增 positionPrompt 专属品位筛选配置与至少保留一个品位的归一化/切换辅助方法
-    status: pending
+    status: completed
   - id: phase2-settings-model
     content: 扩展 SettingsPanelModel / SnapshotBuilder / Event，新增只在 positionPrompt 下显示的 fret-filter row 与 toggle fret 事件
     status: pending
