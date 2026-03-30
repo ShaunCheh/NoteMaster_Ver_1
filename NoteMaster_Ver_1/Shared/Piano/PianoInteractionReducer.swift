@@ -222,31 +222,12 @@ private extension PianoInteractionReducer {
                 semanticEvents: []
             )
         case .ended:
-            let endedInsideSameButton = hitResult.rowIndex == interaction.rowIndex
-                && hitResult.buttonDirection == interaction.direction
-
-            var nextState = state
-            var semanticEvents: [PianoSemanticEvent] = []
-
-            if endedInsideSameButton {
-                let nextRows = applyButtonStep(
-                    state.rows,
-                    triggerRowIndex: interaction.rowIndex,
-                    direction: interaction.direction,
-                    movementScope: interaction.movementScope,
-                    configuration: configuration
-                )
-                nextState.rows = nextRows
-                if nextRows != state.rows {
-                    semanticEvents.append(.rowsChanged(nextRows))
-                }
-            }
-
-            nextState.activeInteraction = nil
-            return PianoReduction(
-                previousState: state,
-                nextState: nextState,
-                semanticEvents: semanticEvents
+            return finalizeButtonPress(
+                interaction,
+                state: state,
+                endedInsideSameButton: hitResult.rowIndex == interaction.rowIndex
+                    && hitResult.buttonDirection == interaction.direction,
+                configuration: configuration
             )
         case .cancelled:
             var nextState = state
@@ -257,6 +238,52 @@ private extension PianoInteractionReducer {
                 semanticEvents: []
             )
         }
+    }
+
+    static func finalizeButtonPress(
+        _ interaction: PianoButtonPressInteraction,
+        state: PianoComponentState,
+        endedInsideSameButton: Bool,
+        configuration: PianoConfiguration
+    ) -> PianoReduction {
+        let presentationCommand: PianoPresentationCommand?
+        if endedInsideSameButton {
+            let fromRows = state.rows
+            let toRows = applyButtonStep(
+                fromRows,
+                triggerRowIndex: interaction.rowIndex,
+                direction: interaction.direction,
+                movementScope: interaction.movementScope,
+                configuration: configuration
+            )
+
+            if toRows != fromRows {
+                presentationCommand = .animateRowsTransition(
+                    PianoRowsTransitionPlan(
+                        fromRows: fromRows,
+                        toRows: toRows,
+                        affectedRowIndices: resolvedAffectedRowIndices(
+                            rowIndex: interaction.rowIndex,
+                            movementScope: interaction.movementScope,
+                            rowCount: state.rowCount
+                        )
+                    )
+                )
+            } else {
+                presentationCommand = nil
+            }
+        } else {
+            presentationCommand = nil
+        }
+
+        var nextState = state
+        nextState.activeInteraction = nil
+        return PianoReduction(
+            previousState: state,
+            nextState: nextState,
+            semanticEvents: [],
+            presentationCommand: presentationCommand
+        )
     }
 
     static func reduceScaleDrag(

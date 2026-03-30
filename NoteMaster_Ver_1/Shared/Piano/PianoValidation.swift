@@ -912,17 +912,37 @@ private extension PianoValidationRunner {
             ),
             configuration: PianoConfiguration()
         )
-        if rowOnlyReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .cSharp, octave: 4) {
-            issues.append(issue(fixtureName, "rowOnly 模式下当前行应前进一步到 C#4。"))
-        }
-        if rowOnlyReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .g, octave: 3) {
-            issues.append(issue(fixtureName, "rowOnly 模式下其他行不应被修改。"))
+        let expectedRowOnlyRows = [
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .cSharp, octave: 4),
+                movementScope: .rowOnly
+            ),
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .g, octave: 3),
+                movementScope: .rowOnly
+            )
+        ]
+        if rowOnlyReduction.nextState.rows != rowOnlyState.rows {
+            issues.append(issue(fixtureName, "rowOnly 按钮结束时，reducer 不应立即提交最终 rows。"))
         }
         if rowOnlyReduction.nextState.activeInteraction != nil {
             issues.append(issue(fixtureName, "按钮结束后应清空 activeInteraction。"))
         }
-        if rowOnlyReduction.semanticEvents != [.rowsChanged(rowOnlyReduction.nextState.rows)] {
-            issues.append(issue(fixtureName, "rowOnly 步进后应产生 rowsChanged 事件。"))
+        if !rowOnlyReduction.semanticEvents.isEmpty {
+            issues.append(issue(fixtureName, "rowOnly 按钮结束时不应立即发出 rowsChanged，应该等动画完成后再发。"))
+        }
+        guard let rowOnlyPlan = rowOnlyReduction.presentationCommand?.rowsTransitionPlan else {
+            issues.append(issue(fixtureName, "rowOnly 模式下按钮结束后应输出 rows transition plan。"))
+            return issues
+        }
+        if rowOnlyPlan.fromRows != rowOnlyState.rows {
+            issues.append(issue(fixtureName, "rowOnly plan 的 fromRows 应等于按钮结束前的当前 rows。"))
+        }
+        if rowOnlyPlan.toRows != expectedRowOnlyRows {
+            issues.append(issue(fixtureName, "rowOnly plan 的 toRows 应只推进当前行到 C#4。"))
+        }
+        if rowOnlyPlan.affectedRowIndices != [0] {
+            issues.append(issue(fixtureName, "rowOnly plan 应只覆盖触发行。"))
         }
 
         let cascadeState = PianoComponentState(
@@ -960,11 +980,37 @@ private extension PianoValidationRunner {
             ),
             configuration: PianoConfiguration()
         )
-        if cascadeReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .b, octave: 3) {
-            issues.append(issue(fixtureName, "cascade 模式下触发行应左移一个半音到 B3。"))
+        let expectedCascadeRows = [
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .b, octave: 3),
+                movementScope: .cascade
+            ),
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .fSharp, octave: 3),
+                movementScope: .rowOnly
+            )
+        ]
+        if cascadeReduction.nextState.rows != cascadeState.rows {
+            issues.append(issue(fixtureName, "cascade 按钮结束时，reducer 不应立即提交最终 rows。"))
         }
-        if cascadeReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .fSharp, octave: 3) {
-            issues.append(issue(fixtureName, "cascade 模式下其他行也应同步左移一个半音到 F#3。"))
+        if cascadeReduction.nextState.activeInteraction != nil {
+            issues.append(issue(fixtureName, "cascade 按钮结束后应清空 activeInteraction。"))
+        }
+        if !cascadeReduction.semanticEvents.isEmpty {
+            issues.append(issue(fixtureName, "cascade 按钮结束时也不应立即发出 rowsChanged。"))
+        }
+        guard let cascadePlan = cascadeReduction.presentationCommand?.rowsTransitionPlan else {
+            issues.append(issue(fixtureName, "cascade 模式下按钮结束后应输出 rows transition plan。"))
+            return issues
+        }
+        if cascadePlan.fromRows != cascadeState.rows {
+            issues.append(issue(fixtureName, "cascade plan 的 fromRows 应等于按钮结束前的当前 rows。"))
+        }
+        if cascadePlan.toRows != expectedCascadeRows {
+            issues.append(issue(fixtureName, "cascade plan 的 toRows 应让所有受影响行同步左移一个半音。"))
+        }
+        if cascadePlan.affectedRowIndices != [0, 1] {
+            issues.append(issue(fixtureName, "cascade plan 应覆盖所有受影响行。"))
         }
 
         return issues
