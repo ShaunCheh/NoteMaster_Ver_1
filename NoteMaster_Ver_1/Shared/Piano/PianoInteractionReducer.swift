@@ -433,8 +433,8 @@ private extension PianoInteractionReducer {
             )
             resolvedRows = finalRows
             if snappedRows != finalRows {
-                presentationCommand = .animateScaleSnap(
-                    PianoScaleSnapAnimationPlan(
+                presentationCommand = .animateRowsTransition(
+                    PianoRowsTransitionPlan(
                         fromRows: finalRows,
                         toRows: snappedRows,
                         affectedRowIndices: interaction.affectedRowIndices

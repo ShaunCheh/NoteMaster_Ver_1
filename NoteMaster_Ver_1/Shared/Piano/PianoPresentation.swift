@@ -8,7 +8,7 @@
 import CoreGraphics
 import Foundation
 
-struct PianoScaleSnapAnimationPlan: Equatable, Sendable {
+struct PianoRowsTransitionPlan: Equatable, Sendable {
     static let defaultDuration: TimeInterval = 0.12
 
     var fromRows: [PianoRowState]
@@ -37,13 +37,28 @@ struct PianoScaleSnapAnimationPlan: Equatable, Sendable {
     }
 }
 
+typealias PianoScaleSnapAnimationPlan = PianoRowsTransitionPlan
+
 enum PianoPresentationCommand: Equatable, Sendable {
-    case animateScaleSnap(PianoScaleSnapAnimationPlan)
+    case animateScaleSnap(PianoRowsTransitionPlan)
+
+    static func animateRowsTransition(
+        _ plan: PianoRowsTransitionPlan
+    ) -> PianoPresentationCommand {
+        .animateScaleSnap(plan)
+    }
+
+    var rowsTransitionPlan: PianoRowsTransitionPlan? {
+        switch self {
+        case let .animateScaleSnap(plan):
+            return plan
+        }
+    }
 }
 
 enum PianoPresentationMath {
     static func rows(
-        for plan: PianoScaleSnapAnimationPlan,
+        for plan: PianoRowsTransitionPlan,
         progress: CGFloat,
         configuration: PianoConfiguration
     ) -> [PianoRowState] {

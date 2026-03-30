@@ -104,8 +104,8 @@ final class PianoKeyboardLayer: CALayer {
 
     private var rowLayers: [PianoRowLayer] = []
     private var presentationRowsOverride: [PianoRowState]?
-    private var activeScaleSnapAnimation: PianoActiveScaleSnapAnimation?
-    private var scaleSnapTimer: Timer?
+    private var activeRowsTransitionAnimation: PianoActiveRowsTransitionAnimation?
+    private var rowsTransitionTimer: Timer?
 
     override init() {
         super.init()
@@ -133,7 +133,7 @@ final class PianoKeyboardLayer: CALayer {
     }
 
     deinit {
-        invalidateScaleSnapTimer()
+        invalidateRowsTransitionTimer()
     }
 
     override func layoutSublayers() {
@@ -145,36 +145,43 @@ final class PianoKeyboardLayer: CALayer {
         invalidateSublayersForCurrentState(displayImmediately: displayImmediately)
     }
 
-    func startScaleSnapAnimation(
-        _ plan: PianoScaleSnapAnimationPlan,
+    func startRowsTransitionAnimation(
+        _ plan: PianoRowsTransitionPlan,
         completion: @escaping ([PianoRowState]) -> Void
     ) {
         guard !plan.isNoOp else {
-            clearScaleSnapPresentationOverride()
+            clearRowsTransitionPresentationOverride()
             completion(plan.toRows)
             return
         }
 
-        _ = cancelScaleSnapAnimation(materializeCurrentFrame: false)
-        activeScaleSnapAnimation = PianoActiveScaleSnapAnimation(
+        _ = cancelRowsTransitionAnimation(materializeCurrentFrame: false)
+        activeRowsTransitionAnimation = PianoActiveRowsTransitionAnimation(
             plan: plan,
             startedAt: CACurrentMediaTime(),
             completion: completion
         )
         presentationRowsOverride = plan.fromRows
         invalidateSublayersForCurrentState()
-        scheduleScaleSnapTimer()
+        scheduleRowsTransitionTimer()
+    }
+
+    func startScaleSnapAnimation(
+        _ plan: PianoScaleSnapAnimationPlan,
+        completion: @escaping ([PianoRowState]) -> Void
+    ) {
+        startRowsTransitionAnimation(plan, completion: completion)
     }
 
     @discardableResult
-    func cancelScaleSnapAnimation(
+    func cancelRowsTransitionAnimation(
         materializeCurrentFrame: Bool
     ) -> [PianoRowState]? {
         let materializedRows = materializeCurrentFrame
-            ? materializedScaleSnapRows()
+            ? materializedRowsTransitionRows()
             : nil
-        invalidateScaleSnapTimer()
-        activeScaleSnapAnimation = nil
+        invalidateRowsTransitionTimer()
+        activeRowsTransitionAnimation = nil
 
         if let materializedRows {
             presentationRowsOverride = materializedRows
@@ -191,13 +198,26 @@ final class PianoKeyboardLayer: CALayer {
         return nil
     }
 
-    func clearScaleSnapPresentationOverride() {
+    @discardableResult
+    func cancelScaleSnapAnimation(
+        materializeCurrentFrame: Bool
+    ) -> [PianoRowState]? {
+        cancelRowsTransitionAnimation(
+            materializeCurrentFrame: materializeCurrentFrame
+        )
+    }
+
+    func clearRowsTransitionPresentationOverride() {
         guard presentationRowsOverride != nil else {
             return
         }
 
         presentationRowsOverride = nil
         invalidateSublayersForCurrentState()
+    }
+
+    func clearScaleSnapPresentationOverride() {
+        clearRowsTransitionPresentationOverride()
     }
 }
 
@@ -322,51 +342,51 @@ private extension PianoKeyboardLayer {
         CATransaction.commit()
     }
 
-    func materializedScaleSnapRows() -> [PianoRowState]? {
-        guard let activeScaleSnapAnimation else {
+    func materializedRowsTransitionRows() -> [PianoRowState]? {
+        guard let activeRowsTransitionAnimation else {
             return nil
         }
 
-        let duration = max(activeScaleSnapAnimation.plan.duration, 0.001)
+        let duration = max(activeRowsTransitionAnimation.plan.duration, 0.001)
         let progress = CGFloat(
-            (CACurrentMediaTime() - activeScaleSnapAnimation.startedAt) / duration
+            (CACurrentMediaTime() - activeRowsTransitionAnimation.startedAt) / duration
         )
         return PianoPresentationMath.rows(
-            for: activeScaleSnapAnimation.plan,
+            for: activeRowsTransitionAnimation.plan,
             progress: progress,
             configuration: configuration
         )
     }
 
-    func scheduleScaleSnapTimer() {
-        invalidateScaleSnapTimer()
+    func scheduleRowsTransitionTimer() {
+        invalidateRowsTransitionTimer()
         let timer = Timer(
             timeInterval: 1.0 / 60.0,
             repeats: true
         ) { [weak self] _ in
-            self?.updateScaleSnapAnimationFrame()
+            self?.updateRowsTransitionAnimationFrame()
         }
-        scaleSnapTimer = timer
+        rowsTransitionTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    func invalidateScaleSnapTimer() {
-        scaleSnapTimer?.invalidate()
-        scaleSnapTimer = nil
+    func invalidateRowsTransitionTimer() {
+        rowsTransitionTimer?.invalidate()
+        rowsTransitionTimer = nil
     }
 
-    func updateScaleSnapAnimationFrame() {
-        guard let activeScaleSnapAnimation else {
-            invalidateScaleSnapTimer()
+    func updateRowsTransitionAnimationFrame() {
+        guard let activeRowsTransitionAnimation else {
+            invalidateRowsTransitionTimer()
             return
         }
 
-        let duration = max(activeScaleSnapAnimation.plan.duration, 0.001)
+        let duration = max(activeRowsTransitionAnimation.plan.duration, 0.001)
         let progress = CGFloat(
-            (CACurrentMediaTime() - activeScaleSnapAnimation.startedAt) / duration
+            (CACurrentMediaTime() - activeRowsTransitionAnimation.startedAt) / duration
         )
         presentationRowsOverride = PianoPresentationMath.rows(
-            for: activeScaleSnapAnimation.plan,
+            for: activeRowsTransitionAnimation.plan,
             progress: progress,
             configuration: configuration
         )
@@ -376,18 +396,18 @@ private extension PianoKeyboardLayer {
             return
         }
 
-        let completion = activeScaleSnapAnimation.completion
-        let finalRows = activeScaleSnapAnimation.plan.toRows
-        self.activeScaleSnapAnimation = nil
-        invalidateScaleSnapTimer()
+        let completion = activeRowsTransitionAnimation.completion
+        let finalRows = activeRowsTransitionAnimation.plan.toRows
+        self.activeRowsTransitionAnimation = nil
+        invalidateRowsTransitionTimer()
         presentationRowsOverride = finalRows
         invalidateSublayersForCurrentState()
         completion(finalRows)
     }
 }
 
-private struct PianoActiveScaleSnapAnimation {
-    var plan: PianoScaleSnapAnimationPlan
+private struct PianoActiveRowsTransitionAnimation {
+    var plan: PianoRowsTransitionPlan
     var startedAt: TimeInterval
     var completion: ([PianoRowState]) -> Void
 }
