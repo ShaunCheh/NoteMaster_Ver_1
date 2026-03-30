@@ -8,6 +8,58 @@
 import CoreGraphics
 import QuartzCore
 
+enum PianoContextNormalizationMode: Equatable, Sendable {
+    case none
+    case flipYToTopLeft
+
+    func normalizedPoint(
+        _ point: CGPoint,
+        in bounds: CGRect
+    ) -> CGPoint {
+        switch self {
+        case .none:
+            return point
+        case .flipYToTopLeft:
+            let mirroredY = bounds.minY + bounds.maxY - point.y
+            return CGPoint(x: point.x, y: mirroredY)
+        }
+    }
+
+    func normalizedRect(
+        _ rect: CGRect,
+        in bounds: CGRect
+    ) -> CGRect {
+        switch self {
+        case .none:
+            return rect
+        case .flipYToTopLeft:
+            guard !rect.isNull else {
+                return rect
+            }
+
+            return CGRect(
+                x: rect.minX,
+                y: bounds.minY + bounds.maxY - rect.maxY,
+                width: rect.width,
+                height: rect.height
+            )
+        }
+    }
+
+    func applyIfNeeded(
+        to context: CGContext,
+        in bounds: CGRect
+    ) {
+        switch self {
+        case .none:
+            return
+        case .flipYToTopLeft:
+            context.translateBy(x: 0, y: bounds.minY + bounds.maxY)
+            context.scaleBy(x: 1, y: -1)
+        }
+    }
+}
+
 final class PianoKeyboardLayer: CALayer {
     var configuration: PianoConfiguration = .init() {
         didSet {
@@ -22,6 +74,16 @@ final class PianoKeyboardLayer: CALayer {
     var state: PianoComponentState = .empty {
         didSet {
             guard oldValue != state else {
+                return
+            }
+
+            invalidateSublayersForCurrentState()
+        }
+    }
+
+    var contextNormalizationMode: PianoContextNormalizationMode = .none {
+        didSet {
+            guard oldValue != contextNormalizationMode else {
                 return
             }
 
@@ -53,6 +115,7 @@ final class PianoKeyboardLayer: CALayer {
         if let otherLayer = layer as? PianoKeyboardLayer {
             configuration = otherLayer.configuration
             state = otherLayer.state
+            contextNormalizationMode = otherLayer.contextNormalizationMode
         }
 
         configureLayer()
@@ -92,10 +155,14 @@ private extension PianoKeyboardLayer {
 
             for (index, absoluteRowScene) in scene.rows.enumerated() {
                 let rowLayer = rowLayers[index]
-                rowLayer.frame = absoluteRowScene.frame
+                rowLayer.frame = contextNormalizationMode.normalizedRect(
+                    absoluteRowScene.frame,
+                    in: bounds
+                )
                 rowLayer.configuration = configuration
                 rowLayer.scene = absoluteRowScene.localizedToRowBounds()
                 rowLayer.renderState = renderState(for: absoluteRowScene.rowIndex)
+                rowLayer.contextNormalizationMode = contextNormalizationMode
                 rowLayer.contentsScale = contentsScale
             }
         }

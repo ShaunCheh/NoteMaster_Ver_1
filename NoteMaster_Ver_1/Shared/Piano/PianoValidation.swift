@@ -191,6 +191,10 @@ private extension PianoValidationRunner {
             PianoValidationFixture(
                 name: "keyboard_layer_routes_visual_state_to_rows",
                 validate: validateKeyboardLayerRoutesVisualStateToRows
+            ),
+            PianoValidationFixture(
+                name: "keyboard_layer_flip_normalization_preserves_top_left_layout",
+                validate: validateKeyboardLayerFlipNormalization
             )
         ]
     }
@@ -201,7 +205,8 @@ private extension PianoValidationRunner {
             "确认 B 区连续拖动离开区域后会立即停止，且吸附开关开闭语义正确。",
             "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
-            "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。"
+            "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。",
+            "确认 macOS 归一化后顶行仍显示在最上方，A/B/C 区命中与 iOS 保持一致。"
         ]
     }
 
@@ -1199,6 +1204,69 @@ private extension PianoValidationRunner {
         }
         if rowLayers.first?.renderState.referenceNote != NotePitch(pitchClass: .a, octave: 4) {
             issues.append(issue(fixtureName, "缩减到单行后，剩余 row layer 的参考音应同步刷新。"))
+        }
+
+        return issues
+    }
+
+    static func validateKeyboardLayerFlipNormalization() -> [PianoValidationIssue] {
+        let fixtureName = "keyboard_layer_flip_normalization_preserves_top_left_layout"
+        let configuration = PianoConfiguration(
+            whiteKeyWidth: 40,
+            rowHeight: 80,
+            rowSpacing: 10,
+            scaleAreaHeight: 20,
+            buttonAreaWidth: 24
+        )
+        let state = PianoComponentState(
+            rows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4)),
+                PianoRowState(startNote: NotePitch(pitchClass: .f, octave: 3))
+            ]
+        )
+        let layer = PianoKeyboardLayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 320, height: 200)
+        layer.contextNormalizationMode = .flipYToTopLeft
+        layer.configuration = configuration
+        layer.state = state
+        layer.refreshForCurrentBounds()
+
+        let expectedScene = PianoSceneBuilder(
+            configuration: configuration,
+            state: state
+        ).makeScene(bounds: layer.bounds)
+        let rowLayers = (layer.sublayers ?? []).compactMap { $0 as? PianoRowLayer }
+        var issues: [PianoValidationIssue] = []
+
+        if rowLayers.count != expectedScene.rows.count {
+            issues.append(issue(fixtureName, "flip normalization 下 row layer 数量应与 scene.rows 一致。"))
+            return issues
+        }
+
+        let samplePoint = CGPoint(x: 12, y: 18)
+        let normalizedPoint = PianoContextNormalizationMode.flipYToTopLeft.normalizedPoint(
+            samplePoint,
+            in: layer.bounds
+        )
+        if normalizedPoint != CGPoint(x: samplePoint.x, y: layer.bounds.maxY - samplePoint.y) {
+            issues.append(issue(fixtureName, "normalizedPoint 应把 bottom-left 点位翻转到 Shared 的 top-left 语义。"))
+        }
+
+        for (index, rowLayer) in rowLayers.enumerated() {
+            let expectedFrame = PianoContextNormalizationMode.flipYToTopLeft.normalizedRect(
+                expectedScene.rows[index].frame,
+                in: layer.bounds
+            )
+            if rowLayer.frame != expectedFrame {
+                issues.append(issue(fixtureName, "第 \(index) 行 row layer frame 应按 flipYToTopLeft 规则翻转。"))
+            }
+            if rowLayer.contextNormalizationMode != .flipYToTopLeft {
+                issues.append(issue(fixtureName, "第 \(index) 行 row layer 应继承 flipYToTopLeft 归一化模式。"))
+            }
+        }
+
+        if rowLayers[0].frame.minY <= rowLayers[1].frame.minY {
+            issues.append(issue(fixtureName, "翻转后第 0 行应位于更靠上的图层位置。"))
         }
 
         return issues

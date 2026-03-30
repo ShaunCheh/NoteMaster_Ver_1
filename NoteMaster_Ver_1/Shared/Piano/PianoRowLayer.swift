@@ -57,6 +57,16 @@ final class PianoRowLayer: CALayer {
         }
     }
 
+    var contextNormalizationMode: PianoContextNormalizationMode = .none {
+        didSet {
+            guard oldValue != contextNormalizationMode else {
+                return
+            }
+
+            setNeedsDisplay()
+        }
+    }
+
     override init() {
         super.init()
         configureLayer()
@@ -69,6 +79,7 @@ final class PianoRowLayer: CALayer {
             configuration = otherLayer.configuration
             scene = otherLayer.scene
             renderState = otherLayer.renderState
+            contextNormalizationMode = otherLayer.contextNormalizationMode
         }
 
         configureLayer()
@@ -88,10 +99,13 @@ final class PianoRowLayer: CALayer {
             return
         }
 
+        context.saveGState()
+        applyContextNormalizationIfNeeded(in: context)
         drawRowBackground(in: context)
         drawControlStrip(in: context)
         drawKeys(in: context)
         drawSeparatorsAndBorder(in: context)
+        context.restoreGState()
     }
 }
 
@@ -100,6 +114,13 @@ private extension PianoRowLayer {
         isOpaque = false
         drawsAsynchronously = false
         needsDisplayOnBoundsChange = true
+    }
+
+    func applyContextNormalizationIfNeeded(in context: CGContext) {
+        contextNormalizationMode.applyIfNeeded(
+            to: context,
+            in: bounds
+        )
     }
 
     func drawRowBackground(in context: CGContext) {
