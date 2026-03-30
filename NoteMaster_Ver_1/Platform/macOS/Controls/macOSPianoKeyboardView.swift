@@ -162,7 +162,7 @@ private extension macOSPianoKeyboardView {
     }
 
     func applyConfiguration() {
-        cancelScaleSnapAnimationForExternalStateChange()
+        cancelRowsTransitionAnimationForExternalStateChange()
         pianoKeyboardLayer.configuration = configuration
         pianoKeyboardLayer.contextNormalizationMode = resolvedContextNormalizationMode
         updateContentsScale()
@@ -207,7 +207,7 @@ private extension macOSPianoKeyboardView {
             return
         }
 
-        cancelScaleSnapAnimationForExternalStateChange()
+        cancelRowsTransitionAnimationForExternalStateChange()
         let hadActiveInteraction = componentState.activeInteraction != nil
         componentState = sanitizedState(
             byReplacingRowsWith: newRows,
@@ -304,7 +304,7 @@ private extension macOSPianoKeyboardView {
         }
 
         if rawEvent.phase == .began {
-            materializeScaleSnapAnimationForNewInteractionIfNeeded()
+            materializeRowsTransitionAnimationForNewInteractionIfNeeded()
         }
 
         let geometry = PianoGeometry(
@@ -339,38 +339,35 @@ private extension macOSPianoKeyboardView {
     }
 
     func applyPresentationCommand(_ presentationCommand: PianoPresentationCommand?) {
-        guard let presentationCommand else {
+        guard let rowsTransitionPlan = presentationCommand?.rowsTransitionPlan else {
             return
         }
 
-        switch presentationCommand {
-        case let .animateScaleSnap(plan):
-            pianoKeyboardLayer.startScaleSnapAnimation(plan) { [weak self] finalRows in
-                self?.finalizeScaleSnapAnimation(with: finalRows)
-            }
+        pianoKeyboardLayer.startRowsTransitionAnimation(rowsTransitionPlan) { [weak self] finalRows in
+            self?.finalizeRowsTransitionAnimation(with: finalRows)
         }
     }
 
-    func finalizeScaleSnapAnimation(with finalRows: [PianoRowState]) {
+    func finalizeRowsTransitionAnimation(with finalRows: [PianoRowState]) {
         guard componentState.rows != finalRows else {
-            pianoKeyboardLayer.clearScaleSnapPresentationOverride()
+            pianoKeyboardLayer.clearRowsTransitionPresentationOverride()
             return
         }
 
         componentState.rows = finalRows
         applyBackingState()
-        pianoKeyboardLayer.clearScaleSnapPresentationOverride()
+        pianoKeyboardLayer.clearRowsTransitionPresentationOverride()
         emitSemanticEvents([.rowsChanged(finalRows)])
     }
 
-    func cancelScaleSnapAnimationForExternalStateChange() {
-        _ = pianoKeyboardLayer.cancelScaleSnapAnimation(
+    func cancelRowsTransitionAnimationForExternalStateChange() {
+        _ = pianoKeyboardLayer.cancelRowsTransitionAnimation(
             materializeCurrentFrame: false
         )
     }
 
-    func materializeScaleSnapAnimationForNewInteractionIfNeeded() {
-        guard let materializedRows = pianoKeyboardLayer.cancelScaleSnapAnimation(
+    func materializeRowsTransitionAnimationForNewInteractionIfNeeded() {
+        guard let materializedRows = pianoKeyboardLayer.cancelRowsTransitionAnimation(
             materializeCurrentFrame: true
         ) else {
             return
@@ -378,7 +375,7 @@ private extension macOSPianoKeyboardView {
 
         componentState.rows = materializedRows
         applyBackingState()
-        pianoKeyboardLayer.clearScaleSnapPresentationOverride()
+        pianoKeyboardLayer.clearRowsTransitionPresentationOverride()
         emitSemanticEvents([.rowsChanged(materializedRows)])
     }
 
