@@ -29,6 +29,7 @@ struct PianoScene: Equatable, Sendable {
             rowIndex: 0,
             frame: .null,
             controlStripRect: .null,
+            buttonStripRect: .null,
             buttonLeftRect: .null,
             buttonRightRect: .null,
             scaleRect: .null,
@@ -41,6 +42,7 @@ struct PianoScene: Equatable, Sendable {
         var rowIndex: Int
         var frame: CGRect
         var controlStripRect: CGRect
+        var buttonStripRect: CGRect
         var buttonLeftRect: CGRect
         var buttonRightRect: CGRect
         var scaleRect: CGRect
@@ -81,6 +83,7 @@ struct PianoScene: Equatable, Sendable {
                 rowIndex: rowIndex,
                 frame: CGRect(origin: .zero, size: frame.size),
                 controlStripRect: controlStripRect.offsetBy(dx: dx, dy: dy),
+                buttonStripRect: buttonStripRect.offsetBy(dx: dx, dy: dy),
                 buttonLeftRect: buttonLeftRect.offsetBy(dx: dx, dy: dy),
                 buttonRightRect: buttonRightRect.offsetBy(dx: dx, dy: dy),
                 scaleRect: scaleRect.offsetBy(dx: dx, dy: dy),

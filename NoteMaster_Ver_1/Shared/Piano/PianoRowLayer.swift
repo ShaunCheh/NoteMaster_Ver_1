@@ -131,14 +131,7 @@ private extension PianoRowLayer {
     }
 
     func drawControlStrip(in context: CGContext) {
-        guard !scene.controlStripRect.isNull, !scene.controlStripRect.isEmpty else {
-            return
-        }
-
-        context.saveGState()
-        context.setFillColor(PianoLayerPalette.controlStripFill)
-        context.fill(scene.controlStripRect)
-        context.restoreGState()
+        drawButtonStripBackground(in: context)
 
         drawButton(
             direction: .left,
@@ -151,6 +144,17 @@ private extension PianoRowLayer {
             in: context
         )
         drawScaleArea(in: context)
+    }
+
+    func drawButtonStripBackground(in context: CGContext) {
+        guard !scene.buttonStripRect.isNull, !scene.buttonStripRect.isEmpty else {
+            return
+        }
+
+        context.saveGState()
+        context.setFillColor(PianoLayerPalette.controlStripFill)
+        context.fill(scene.buttonStripRect)
+        context.restoreGState()
     }
 
     func drawButton(

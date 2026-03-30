@@ -271,7 +271,19 @@ enum PianoLayoutMath {
             x: rowFrame.minX,
             y: rowFrame.minY,
             width: rowFrame.width,
-            height: configuration.resolvedScaleAreaHeight
+            height: configuration.resolvedControlAreaHeight
+        )
+    }
+
+    static func buttonStripRect(
+        for rowFrame: CGRect,
+        configuration: PianoConfiguration
+    ) -> CGRect {
+        CGRect(
+            x: rowFrame.minX,
+            y: rowFrame.minY,
+            width: rowFrame.width,
+            height: configuration.resolvedButtonStripHeight
         )
     }
 
@@ -279,7 +291,7 @@ enum PianoLayoutMath {
         for rowFrame: CGRect,
         configuration: PianoConfiguration
     ) -> CGRect {
-        let controlHeight = configuration.resolvedScaleAreaHeight
+        let controlHeight = configuration.resolvedControlAreaHeight
         return CGRect(
             x: rowFrame.minX,
             y: rowFrame.minY + controlHeight,
@@ -289,60 +301,54 @@ enum PianoLayoutMath {
     }
 
     static func buttonLeftRect(
-        in controlStripRect: CGRect,
+        in buttonStripRect: CGRect,
         configuration: PianoConfiguration
     ) -> CGRect {
         let buttonWidth = resolvedButtonWidth(
-            in: controlStripRect,
+            in: buttonStripRect,
             configuration: configuration
         )
         return CGRect(
-            x: controlStripRect.minX,
-            y: controlStripRect.minY,
+            x: buttonStripRect.minX,
+            y: buttonStripRect.minY,
             width: buttonWidth,
-            height: controlStripRect.height
+            height: buttonStripRect.height
         )
     }
 
     static func buttonRightRect(
-        in controlStripRect: CGRect,
+        in buttonStripRect: CGRect,
         configuration: PianoConfiguration
     ) -> CGRect {
         let buttonWidth = resolvedButtonWidth(
-            in: controlStripRect,
+            in: buttonStripRect,
             configuration: configuration
         )
         return CGRect(
-            x: controlStripRect.maxX - buttonWidth,
-            y: controlStripRect.minY,
+            x: buttonStripRect.maxX - buttonWidth,
+            y: buttonStripRect.minY,
             width: buttonWidth,
-            height: controlStripRect.height
+            height: buttonStripRect.height
         )
     }
 
     static func scaleRect(
-        in controlStripRect: CGRect,
+        for rowFrame: CGRect,
         configuration: PianoConfiguration
     ) -> CGRect {
-        let buttonWidth = resolvedButtonWidth(
-            in: controlStripRect,
-            configuration: configuration
-        )
-        let originX = controlStripRect.minX + buttonWidth
-        let width = max(controlStripRect.width - (buttonWidth * 2), 0)
         return CGRect(
-            x: originX,
-            y: controlStripRect.minY,
-            width: width,
-            height: controlStripRect.height
+            x: rowFrame.minX,
+            y: rowFrame.minY + configuration.resolvedButtonStripHeight,
+            width: rowFrame.width,
+            height: configuration.resolvedScaleAreaHeight
         )
     }
 
     static func resolvedButtonWidth(
-        in controlStripRect: CGRect,
+        in buttonStripRect: CGRect,
         configuration: PianoConfiguration
     ) -> CGFloat {
-        min(configuration.resolvedButtonAreaWidth, controlStripRect.width / 2)
+        min(configuration.resolvedButtonAreaWidth, buttonStripRect.width / 2)
     }
 
     static func blackKeyWidth(

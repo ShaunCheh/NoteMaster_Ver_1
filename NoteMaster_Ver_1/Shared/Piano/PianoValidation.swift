@@ -236,6 +236,9 @@ private extension PianoValidationRunner {
         if configuration.resolvedScaleAreaHeight != 1 {
             issues.append(issue(fixtureName, "resolvedScaleAreaHeight 不应超过 resolvedRowHeight。"))
         }
+        if configuration.resolvedButtonStripHeight != 0 {
+            issues.append(issue(fixtureName, "当 scaleAreaHeight 已吃满整行时，buttonStripHeight 应退化为 0。"))
+        }
         if configuration.keyAreaHeight != 0 {
             issues.append(issue(fixtureName, "当顶部区域吃满整行时，keyAreaHeight 应为 0。"))
         }
@@ -438,16 +441,22 @@ private extension PianoValidationRunner {
         if secondRow.frame != CGRect(x: 0, y: 108, width: 320, height: 100) {
             issues.append(issue(fixtureName, "第二行 frame 应包含 rowSpacing 位移。"))
         }
+        if firstRow.controlStripRect != CGRect(x: 0, y: 0, width: 320, height: 40) {
+            issues.append(issue(fixtureName, "顶部控制区总 rect 应覆盖独立的 A/B 两条区域。"))
+        }
+        if firstRow.buttonStripRect != CGRect(x: 0, y: 0, width: 320, height: 20) {
+            issues.append(issue(fixtureName, "A 区按钮条 rect 计算不正确。"))
+        }
         if firstRow.buttonLeftRect != CGRect(x: 0, y: 0, width: 30, height: 20) {
             issues.append(issue(fixtureName, "左按钮区域 rect 计算不正确。"))
         }
         if firstRow.buttonRightRect != CGRect(x: 290, y: 0, width: 30, height: 20) {
             issues.append(issue(fixtureName, "右按钮区域 rect 计算不正确。"))
         }
-        if firstRow.scaleRect != CGRect(x: 30, y: 0, width: 260, height: 20) {
+        if firstRow.scaleRect != CGRect(x: 0, y: 20, width: 320, height: 20) {
             issues.append(issue(fixtureName, "刻度区域 rect 计算不正确。"))
         }
-        if firstRow.keysRect != CGRect(x: 0, y: 20, width: 320, height: 80) {
+        if firstRow.keysRect != CGRect(x: 0, y: 40, width: 320, height: 60) {
             issues.append(issue(fixtureName, "琴键区域 rect 计算不正确。"))
         }
         if geometry.scene.contentRect.height != 208 {

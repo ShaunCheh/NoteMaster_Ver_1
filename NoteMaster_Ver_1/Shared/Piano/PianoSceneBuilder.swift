@@ -56,16 +56,20 @@ struct PianoSceneBuilder: Equatable, Sendable {
             for: rowFrame,
             configuration: configuration
         )
+        let buttonStripRect = PianoLayoutMath.buttonStripRect(
+            for: rowFrame,
+            configuration: configuration
+        )
         let buttonLeftRect = PianoLayoutMath.buttonLeftRect(
-            in: controlStripRect,
+            in: buttonStripRect,
             configuration: configuration
         )
         let buttonRightRect = PianoLayoutMath.buttonRightRect(
-            in: controlStripRect,
+            in: buttonStripRect,
             configuration: configuration
         )
         let scaleRect = PianoLayoutMath.scaleRect(
-            in: controlStripRect,
+            for: rowFrame,
             configuration: configuration
         )
         let keysRect = PianoLayoutMath.keysRect(
@@ -86,6 +90,7 @@ struct PianoSceneBuilder: Equatable, Sendable {
             rowIndex: rowIndex,
             frame: rowFrame,
             controlStripRect: controlStripRect,
+            buttonStripRect: buttonStripRect,
             buttonLeftRect: buttonLeftRect,
             buttonRightRect: buttonRightRect,
             scaleRect: scaleRect,

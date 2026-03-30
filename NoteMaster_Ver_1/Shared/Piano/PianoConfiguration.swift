@@ -12,7 +12,7 @@ struct PianoConfiguration: Equatable, Sendable {
     static let blackKeyHeightRatioRange: ClosedRange<CGFloat> = 0.2...1
 
     var whiteKeyWidth: CGFloat
-    // rowHeight 表示单行总高度；顶部 A/B 区高度由 scaleAreaHeight 单独控制。
+    // rowHeight 表示单行总高度；顶部 A/B 区按上下两条控制区布局。
     var rowHeight: CGFloat
     var rowSpacing: CGFloat
     var scaleAreaHeight: CGFloat
@@ -57,6 +57,17 @@ struct PianoConfiguration: Equatable, Sendable {
         min(max(scaleAreaHeight, 0), resolvedRowHeight)
     }
 
+    var resolvedButtonStripHeight: CGFloat {
+        min(
+            resolvedScaleAreaHeight,
+            max(resolvedRowHeight - resolvedScaleAreaHeight, 0)
+        )
+    }
+
+    var resolvedControlAreaHeight: CGFloat {
+        resolvedButtonStripHeight + resolvedScaleAreaHeight
+    }
+
     var resolvedButtonAreaWidth: CGFloat {
         max(buttonAreaWidth, 0)
     }
@@ -76,6 +87,6 @@ struct PianoConfiguration: Equatable, Sendable {
     }
 
     var keyAreaHeight: CGFloat {
-        max(resolvedRowHeight - resolvedScaleAreaHeight, 0)
+        max(resolvedRowHeight - resolvedControlAreaHeight, 0)
     }
 }
