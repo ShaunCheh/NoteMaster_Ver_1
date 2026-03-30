@@ -880,9 +880,9 @@ private extension PianoValidationRunner {
             ),
             configuration: configuration
         )
-        if movedReduction.nextState.rows[0].offsetX != 40
-            || movedReduction.nextState.rows[1].offsetX != 40 {
-            issues.append(issue(fixtureName, "scale moved 后应按 deltaX 同步更新受影响行 offsetX。"))
+        if movedReduction.nextState.rows[0].offsetX != -40
+            || movedReduction.nextState.rows[1].offsetX != -40 {
+            issues.append(issue(fixtureName, "scale moved 后应按指针位移反向更新受影响行 offsetX。"))
         }
         if movedReduction.semanticEvents != [.rowsChanged(movedReduction.nextState.rows)] {
             issues.append(issue(fixtureName, "scale moved 后应产生 rowsChanged。"))
@@ -904,13 +904,13 @@ private extension PianoValidationRunner {
             ),
             configuration: configuration
         )
-        if endedReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .d, octave: 4)
+        if endedReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .b, octave: 3)
             || endedReduction.nextState.rows[0].offsetX != 0 {
-            issues.append(issue(fixtureName, "snapEnabled 开启时，第一行结束后应归一化到 D4 且 offsetX 为 0。"))
+            issues.append(issue(fixtureName, "snapEnabled 开启时，第一行右拖结束后应归一化到 B3 且 offsetX 为 0。"))
         }
-        if endedReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .d, octave: 3)
+        if endedReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .b, octave: 2)
             || endedReduction.nextState.rows[1].offsetX != 0 {
-            issues.append(issue(fixtureName, "cascade 结束时第二行也应归一化到 D3。"))
+            issues.append(issue(fixtureName, "cascade 结束时第二行也应同步归一化到 B2。"))
         }
         if endedReduction.nextState.activeInteraction != nil {
             issues.append(issue(fixtureName, "scale drag 结束后应清空 activeInteraction。"))

@@ -493,7 +493,9 @@ private extension PianoInteractionReducer {
                 continue
             }
 
-            nextRows[rowIndex].offsetX = interaction.initialOffsetsX[offsetIndex] + deltaX
+            // Pointer drag uses direct-manipulation semantics: dragging right moves the
+            // keyboard content right, which means the internal left-edge offset decreases.
+            nextRows[rowIndex].offsetX = interaction.initialOffsetsX[offsetIndex] - deltaX
         }
 
         return nextRows
