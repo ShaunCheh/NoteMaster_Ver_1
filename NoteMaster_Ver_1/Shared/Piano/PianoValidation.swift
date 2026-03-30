@@ -162,6 +162,26 @@ private extension PianoValidationRunner {
             PianoValidationFixture(
                 name: "active_zone_tracking_respects_locked_mode",
                 validate: validateActiveZoneTracking
+            ),
+            PianoValidationFixture(
+                name: "button_press_lifecycle_tracks_inside_state",
+                validate: validateButtonPressLifecycle
+            ),
+            PianoValidationFixture(
+                name: "button_step_updates_row_only_and_cascade_rows",
+                validate: validateButtonStepPropagation
+            ),
+            PianoValidationFixture(
+                name: "scale_drag_updates_rows_and_snaps_on_finish",
+                validate: validateScaleDragLifecycle
+            ),
+            PianoValidationFixture(
+                name: "scale_drag_exit_does_not_switch_into_key_preview",
+                validate: validateScaleDragExitDoesNotStartPreview
+            ),
+            PianoValidationFixture(
+                name: "key_glissando_emits_preview_lifecycle",
+                validate: validateKeyGlissandoLifecycle
             )
         ]
     }
@@ -170,7 +190,8 @@ private extension PianoValidationRunner {
         [
             "在 \(platform.displayName) 上确认 A 区按钮按下/抬起高亮与步进触发边界一致。",
             "确认 B 区连续拖动离开区域后会立即停止，且吸附开关开闭语义正确。",
-            "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。"
+            "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
+            "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。"
         ]
     }
 
@@ -614,6 +635,399 @@ private extension PianoValidationRunner {
         )
         if keyHit.isInsideActiveZone {
             issues.append(issue(fixtureName, "scale drag 进入 keys 区后不应继续视为 insideActiveZone。"))
+        }
+
+        return issues
+    }
+
+    static func validateButtonPressLifecycle() -> [PianoValidationIssue] {
+        let fixtureName = "button_press_lifecycle_tracks_inside_state"
+        let state = PianoComponentState(
+            rows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4))
+            ]
+        )
+        let beganReduction = PianoInteractionReducer.reduce(
+            state: state,
+            rawEvent: PianoRawEvent(
+                phase: .began,
+                locationInView: CGPoint(x: 12, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .began,
+                locationInView: CGPoint(x: 12, y: 10),
+                rowIndex: 0,
+                zone: .buttonRight,
+                note: nil,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        var issues: [PianoValidationIssue] = []
+
+        guard case let .buttonPressed(interaction)? = beganReduction.nextState.activeInteraction else {
+            return [issue(fixtureName, "began 命中按钮后应建立 buttonPressed 交互。")]
+        }
+        if interaction.direction != .right || interaction.rowIndex != 0 {
+            issues.append(issue(fixtureName, "buttonPressed 交互应保留正确的 rowIndex 和 direction。"))
+        }
+        if !beganReduction.needsDisplay || !beganReduction.semanticEvents.isEmpty {
+            issues.append(issue(fixtureName, "按钮 began 应触发重绘，但不应产生语义事件。"))
+        }
+
+        let movedReduction = PianoInteractionReducer.reduce(
+            state: beganReduction.nextState,
+            rawEvent: PianoRawEvent(
+                phase: .moved,
+                locationInView: CGPoint(x: 180, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .moved,
+                locationInView: CGPoint(x: 180, y: 10),
+                rowIndex: nil,
+                zone: .outside,
+                note: nil,
+                isInsideActiveZone: false
+            ),
+            configuration: PianoConfiguration()
+        )
+
+        guard case let .buttonPressed(updatedInteraction)? = movedReduction.nextState.activeInteraction else {
+            issues.append(issue(fixtureName, "按钮 moved 到外部后仍应保留 buttonPressed 交互。"))
+            return issues
+        }
+        if updatedInteraction.isTrackingInsideButton {
+            issues.append(issue(fixtureName, "按钮 moved 到外部后 isTrackingInsideButton 应为 false。"))
+        }
+
+        return issues
+    }
+
+    static func validateButtonStepPropagation() -> [PianoValidationIssue] {
+        let fixtureName = "button_step_updates_row_only_and_cascade_rows"
+        var issues: [PianoValidationIssue] = []
+
+        let rowOnlyState = PianoComponentState(
+            rows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    movementScope: .rowOnly
+                ),
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .g, octave: 3),
+                    movementScope: .rowOnly
+                )
+            ],
+            activeInteraction: .buttonPressed(
+                PianoButtonPressInteraction(
+                    rowIndex: 0,
+                    direction: .right,
+                    movementScope: .rowOnly
+                )
+            )
+        )
+        let rowOnlyReduction = PianoInteractionReducer.reduce(
+            state: rowOnlyState,
+            rawEvent: PianoRawEvent(
+                phase: .ended,
+                locationInView: CGPoint(x: 12, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .ended,
+                locationInView: CGPoint(x: 12, y: 10),
+                rowIndex: 0,
+                zone: .buttonRight,
+                note: nil,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if rowOnlyReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .cSharp, octave: 4) {
+            issues.append(issue(fixtureName, "rowOnly 模式下当前行应前进一步到 C#4。"))
+        }
+        if rowOnlyReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .g, octave: 3) {
+            issues.append(issue(fixtureName, "rowOnly 模式下其他行不应被修改。"))
+        }
+        if rowOnlyReduction.nextState.activeInteraction != nil {
+            issues.append(issue(fixtureName, "按钮结束后应清空 activeInteraction。"))
+        }
+        if rowOnlyReduction.semanticEvents != [.rowsChanged(rowOnlyReduction.nextState.rows)] {
+            issues.append(issue(fixtureName, "rowOnly 步进后应产生 rowsChanged 事件。"))
+        }
+
+        let cascadeState = PianoComponentState(
+            rows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    movementScope: .cascade
+                ),
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .g, octave: 3),
+                    movementScope: .rowOnly
+                )
+            ],
+            activeInteraction: .buttonPressed(
+                PianoButtonPressInteraction(
+                    rowIndex: 0,
+                    direction: .left,
+                    movementScope: .cascade
+                )
+            )
+        )
+        let cascadeReduction = PianoInteractionReducer.reduce(
+            state: cascadeState,
+            rawEvent: PianoRawEvent(
+                phase: .ended,
+                locationInView: CGPoint(x: 4, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .ended,
+                locationInView: CGPoint(x: 4, y: 10),
+                rowIndex: 0,
+                zone: .buttonLeft,
+                note: nil,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if cascadeReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .b, octave: 3) {
+            issues.append(issue(fixtureName, "cascade 模式下触发行应左移一个半音到 B3。"))
+        }
+        if cascadeReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .fSharp, octave: 3) {
+            issues.append(issue(fixtureName, "cascade 模式下其他行也应同步左移一个半音到 F#3。"))
+        }
+
+        return issues
+    }
+
+    static func validateScaleDragLifecycle() -> [PianoValidationIssue] {
+        let fixtureName = "scale_drag_updates_rows_and_snaps_on_finish"
+        let configuration = PianoConfiguration(whiteKeyWidth: 40, snapEnabled: true)
+        let initialState = PianoComponentState(
+            rows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    movementScope: .cascade
+                ),
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 3),
+                    movementScope: .rowOnly
+                )
+            ]
+        )
+        var issues: [PianoValidationIssue] = []
+
+        let beganReduction = PianoInteractionReducer.reduce(
+            state: initialState,
+            rawEvent: PianoRawEvent(
+                phase: .began,
+                locationInView: CGPoint(x: 60, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .began,
+                locationInView: CGPoint(x: 60, y: 10),
+                rowIndex: 0,
+                zone: .scale,
+                note: NotePitch(pitchClass: .c, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: configuration
+        )
+        guard case let .scaleDrag(interaction)? = beganReduction.nextState.activeInteraction else {
+            return [issue(fixtureName, "scale began 后应建立 scaleDrag 交互。")]
+        }
+        if interaction.affectedRowIndices != [0, 1] {
+            issues.append(issue(fixtureName, "cascade 模式下 scaleDrag 应影响所有行。"))
+        }
+
+        let movedReduction = PianoInteractionReducer.reduce(
+            state: beganReduction.nextState,
+            rawEvent: PianoRawEvent(
+                phase: .moved,
+                locationInView: CGPoint(x: 100, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .moved,
+                locationInView: CGPoint(x: 100, y: 10),
+                rowIndex: 0,
+                zone: .scale,
+                note: NotePitch(pitchClass: .d, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: configuration
+        )
+        if movedReduction.nextState.rows[0].offsetX != 40
+            || movedReduction.nextState.rows[1].offsetX != 40 {
+            issues.append(issue(fixtureName, "scale moved 后应按 deltaX 同步更新受影响行 offsetX。"))
+        }
+        if movedReduction.semanticEvents != [.rowsChanged(movedReduction.nextState.rows)] {
+            issues.append(issue(fixtureName, "scale moved 后应产生 rowsChanged。"))
+        }
+
+        let endedReduction = PianoInteractionReducer.reduce(
+            state: movedReduction.nextState,
+            rawEvent: PianoRawEvent(
+                phase: .ended,
+                locationInView: CGPoint(x: 100, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .ended,
+                locationInView: CGPoint(x: 100, y: 10),
+                rowIndex: 0,
+                zone: .scale,
+                note: NotePitch(pitchClass: .d, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: configuration
+        )
+        if endedReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .d, octave: 4)
+            || endedReduction.nextState.rows[0].offsetX != 0 {
+            issues.append(issue(fixtureName, "snapEnabled 开启时，第一行结束后应归一化到 D4 且 offsetX 为 0。"))
+        }
+        if endedReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .d, octave: 3)
+            || endedReduction.nextState.rows[1].offsetX != 0 {
+            issues.append(issue(fixtureName, "cascade 结束时第二行也应归一化到 D3。"))
+        }
+        if endedReduction.nextState.activeInteraction != nil {
+            issues.append(issue(fixtureName, "scale drag 结束后应清空 activeInteraction。"))
+        }
+
+        return issues
+    }
+
+    static func validateScaleDragExitDoesNotStartPreview() -> [PianoValidationIssue] {
+        let fixtureName = "scale_drag_exit_does_not_switch_into_key_preview"
+        let state = PianoComponentState(
+            rows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4))
+            ],
+            activeInteraction: .scaleDrag(
+                PianoScaleDragInteraction(
+                    rowIndex: 0,
+                    movementScope: .rowOnly,
+                    beganLocationInView: CGPoint(x: 60, y: 10),
+                    affectedRowIndices: [0],
+                    initialOffsetsX: [0]
+                )
+            )
+        )
+        let reduction = PianoInteractionReducer.reduce(
+            state: state,
+            rawEvent: PianoRawEvent(
+                phase: .moved,
+                locationInView: CGPoint(x: 80, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                phase: .moved,
+                locationInView: CGPoint(x: 80, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: NotePitch(pitchClass: .c, octave: 4),
+                isInsideActiveZone: false
+            ),
+            configuration: PianoConfiguration(snapEnabled: false)
+        )
+        var issues: [PianoValidationIssue] = []
+
+        if reduction.nextState.activeInteraction != nil {
+            issues.append(issue(fixtureName, "离开 scale 区后应结束 scaleDrag 交互。"))
+        }
+        if reduction.nextState.preview != nil {
+            issues.append(issue(fixtureName, "scaleDrag 离开到 keys 区时不应切换成 preview。"))
+        }
+        if reduction.semanticEvents.contains(where: { event in
+            switch event {
+            case .previewStarted, .previewChanged, .previewEnded:
+                return true
+            case .rowsChanged:
+                return false
+            }
+        }) {
+            issues.append(issue(fixtureName, "scaleDrag 退出时不应发出任何 preview 生命周期事件。"))
+        }
+
+        return issues
+    }
+
+    static func validateKeyGlissandoLifecycle() -> [PianoValidationIssue] {
+        let fixtureName = "key_glissando_emits_preview_lifecycle"
+        let initialState = PianoComponentState(
+            rows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4))
+            ]
+        )
+        var issues: [PianoValidationIssue] = []
+
+        let beganReduction = PianoInteractionReducer.reduce(
+            state: initialState,
+            rawEvent: PianoRawEvent(
+                phase: .began,
+                locationInView: CGPoint(x: 30, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                phase: .began,
+                locationInView: CGPoint(x: 30, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: NotePitch(pitchClass: .c, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if beganReduction.semanticEvents != [.previewStarted(PianoPreviewState(
+            rowIndex: 0,
+            note: NotePitch(pitchClass: .c, octave: 4)
+        ))] {
+            issues.append(issue(fixtureName, "key began 后应发出 previewStarted(C4)。"))
+        }
+
+        let movedReduction = PianoInteractionReducer.reduce(
+            state: beganReduction.nextState,
+            rawEvent: PianoRawEvent(
+                phase: .moved,
+                locationInView: CGPoint(x: 70, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                phase: .moved,
+                locationInView: CGPoint(x: 70, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: NotePitch(pitchClass: .d, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if movedReduction.semanticEvents != [.previewChanged(PianoPreviewState(
+            rowIndex: 0,
+            note: NotePitch(pitchClass: .d, octave: 4)
+        ))] {
+            issues.append(issue(fixtureName, "glissando 移动到 D4 后应发出 previewChanged(D4)。"))
+        }
+
+        let endedReduction = PianoInteractionReducer.reduce(
+            state: movedReduction.nextState,
+            rawEvent: PianoRawEvent(
+                phase: .ended,
+                locationInView: CGPoint(x: 200, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .ended,
+                locationInView: CGPoint(x: 200, y: 10),
+                rowIndex: nil,
+                zone: .outside,
+                note: nil,
+                isInsideActiveZone: false
+            ),
+            configuration: PianoConfiguration()
+        )
+        if endedReduction.nextState.preview != nil || endedReduction.nextState.activeInteraction != nil {
+            issues.append(issue(fixtureName, "glissando 结束后应清空 preview 和 activeInteraction。"))
+        }
+        if endedReduction.semanticEvents != [.previewEnded(PianoPreviewState(
+            rowIndex: 0,
+            note: NotePitch(pitchClass: .d, octave: 4)
+        ))] {
+            issues.append(issue(fixtureName, "glissando 离开后应发出 previewEnded(D4)。"))
         }
 
         return issues
