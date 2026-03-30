@@ -1195,7 +1195,8 @@ private extension PianoValidationRunner {
             rowHeight: 88,
             rowSpacing: 10,
             scaleAreaHeight: 22,
-            buttonAreaWidth: 28
+            buttonAreaWidth: 28,
+            whiteKeyStyle: .borderlessSeparatedByGaps
         )
         let state = PianoComponentState(
             rows: [
@@ -1242,6 +1243,9 @@ private extension PianoValidationRunner {
             }
             if rowLayer.contentsScale != layer.contentsScale {
                 issues.append(issue(fixtureName, "第 \(index) 行 row layer 应继承根 layer 的 contentsScale。"))
+            }
+            if rowLayer.configuration.whiteKeyStyle != configuration.whiteKeyStyle {
+                issues.append(issue(fixtureName, "第 \(index) 行 row layer 应继承 configuration.whiteKeyStyle。"))
             }
         }
 

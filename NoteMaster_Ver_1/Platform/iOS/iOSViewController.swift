@@ -30,6 +30,7 @@ final class iOSViewController: UIViewController {
         buttonAreaWidth: 30,
         blackKeyWidthRatio: 0.62,
         blackKeyHeightRatio: 0.6,
+        whiteKeyStyle: .borderlessSeparatedByGaps,
         snapEnabled: true
     )
 

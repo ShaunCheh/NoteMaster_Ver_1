@@ -7,6 +7,11 @@
 
 import CoreGraphics
 
+enum PianoWhiteKeyStyle: Equatable, Sendable {
+    case outlined
+    case borderlessSeparatedByGaps
+}
+
 struct PianoConfiguration: Equatable, Sendable {
     static let blackKeyWidthRatioRange: ClosedRange<CGFloat> = 0.2...0.95
     static let blackKeyHeightRatioRange: ClosedRange<CGFloat> = 0.2...1
@@ -19,6 +24,7 @@ struct PianoConfiguration: Equatable, Sendable {
     var buttonAreaWidth: CGFloat
     var blackKeyWidthRatio: CGFloat
     var blackKeyHeightRatio: CGFloat
+    var whiteKeyStyle: PianoWhiteKeyStyle
     var snapEnabled: Bool
 
     init(
@@ -29,6 +35,7 @@ struct PianoConfiguration: Equatable, Sendable {
         buttonAreaWidth: CGFloat = 28,
         blackKeyWidthRatio: CGFloat = 0.62,
         blackKeyHeightRatio: CGFloat = 0.6,
+        whiteKeyStyle: PianoWhiteKeyStyle = .outlined,
         snapEnabled: Bool = true
     ) {
         self.whiteKeyWidth = whiteKeyWidth
@@ -38,6 +45,7 @@ struct PianoConfiguration: Equatable, Sendable {
         self.buttonAreaWidth = buttonAreaWidth
         self.blackKeyWidthRatio = blackKeyWidthRatio
         self.blackKeyHeightRatio = blackKeyHeightRatio
+        self.whiteKeyStyle = whiteKeyStyle
         self.snapEnabled = snapEnabled
     }
 

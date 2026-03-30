@@ -395,18 +395,51 @@ private extension PianoRowLayer {
 
         context.saveGState()
 
-        for whiteKey in scene.whiteKeys {
+        for (index, whiteKey) in scene.whiteKeys.enumerated() {
+            let fillRect = whiteKeyFillRect(
+                for: whiteKey.rect,
+                index: index,
+                totalCount: scene.whiteKeys.count
+            )
             let fillColor = renderState.previewedNote == whiteKey.note
                 ? PianoLayerPalette.previewWhiteKeyFill
                 : PianoLayerPalette.whiteKeyFill
             context.setFillColor(fillColor)
-            context.fill(whiteKey.rect)
-            context.setStrokeColor(PianoLayerPalette.whiteKeyStroke)
-            context.setLineWidth(1)
-            context.stroke(strokedRect(whiteKey.rect))
+            context.fill(fillRect)
+
+            if configuration.whiteKeyStyle == .outlined {
+                context.setStrokeColor(PianoLayerPalette.whiteKeyStroke)
+                context.setLineWidth(1)
+                context.stroke(strokedRect(whiteKey.rect))
+            }
         }
 
         context.restoreGState()
+    }
+
+    func whiteKeyFillRect(
+        for rect: CGRect,
+        index: Int,
+        totalCount: Int
+    ) -> CGRect {
+        switch configuration.whiteKeyStyle {
+        case .outlined:
+            return rect
+        case .borderlessSeparatedByGaps:
+            guard totalCount > 1, !rect.isEmpty else {
+                return rect
+            }
+
+            let gapWidth = min(1, rect.width)
+            let leftInset = index == 0 ? 0 : gapWidth * 0.5
+            let rightInset = index == totalCount - 1 ? 0 : gapWidth * 0.5
+            return CGRect(
+                x: rect.minX + leftInset,
+                y: rect.minY,
+                width: max(rect.width - leftInset - rightInset, 0),
+                height: rect.height
+            )
+        }
     }
 
     func drawBlackKeys(in context: CGContext) {
