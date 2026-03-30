@@ -121,6 +121,14 @@ private extension PianoValidationRunner {
                 validate: validateConfigurationResolvesSafeMetrics
             ),
             PianoValidationFixture(
+                name: "piano_panel_state_infers_and_clamps_supported_values",
+                validate: validatePianoPanelStateInferenceAndClamp
+            ),
+            PianoValidationFixture(
+                name: "piano_panel_projection_resolves_rows_and_configuration",
+                validate: validatePianoPanelProjectionResolution
+            ),
+            PianoValidationFixture(
                 name: "accidental_start_note_is_preserved",
                 validate: validateAccidentalStartNote
             ),
@@ -250,6 +258,129 @@ private extension PianoValidationRunner {
         }
         if configuration.resolvedBlackKeyHeightRatio != PianoConfiguration.blackKeyHeightRatioRange.lowerBound {
             issues.append(issue(fixtureName, "blackKeyHeightRatio 应钳制到下界。"))
+        }
+
+        return issues
+    }
+
+    static func validatePianoPanelStateInferenceAndClamp() -> [PianoValidationIssue] {
+        let fixtureName = "piano_panel_state_infers_and_clamps_supported_values"
+        let inferred = PianoPanelState.inferred(
+            configuration: PianoConfiguration(snapEnabled: false),
+            rows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 5),
+                    movementScope: .rowOnly
+                ),
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    movementScope: .cascade
+                )
+            ]
+        )
+        let oversized = PianoPanelState(
+            isVisible: false,
+            rowCount: 99,
+            movementScope: .cascade,
+            snapEnabled: true
+        )
+        var issues: [PianoValidationIssue] = []
+
+        if inferred.rowCount != 2 {
+            issues.append(issue(fixtureName, "inferred rowCount 应保留当前 rows.count。"))
+        }
+        if inferred.movementScope != .rowOnly {
+            issues.append(issue(fixtureName, "inferred movementScope 应沿用首行 movementScope。"))
+        }
+        if inferred.snapEnabled {
+            issues.append(issue(fixtureName, "inferred snapEnabled 应沿用 configuration.snapEnabled。"))
+        }
+        if oversized.resolvedRowCount != PianoPanelState.supportedRowCountRange.upperBound {
+            issues.append(issue(fixtureName, "resolvedRowCount 应钳制到 supportedRowCountRange 上界。"))
+        }
+
+        return issues
+    }
+
+    static func validatePianoPanelProjectionResolution() -> [PianoValidationIssue] {
+        let fixtureName = "piano_panel_projection_resolves_rows_and_configuration"
+        let baseConfiguration = PianoConfiguration(
+            whiteKeyWidth: 32,
+            rowHeight: 96,
+            rowSpacing: 10,
+            scaleAreaHeight: 28,
+            buttonAreaWidth: 30,
+            blackKeyWidthRatio: 0.62,
+            blackKeyHeightRatio: 0.6,
+            snapEnabled: true
+        )
+        let baseRows = [
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .c, octave: 5),
+                offsetX: 18,
+                movementScope: .rowOnly
+            ),
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .c, octave: 4),
+                offsetX: 18,
+                movementScope: .rowOnly
+            )
+        ]
+        let panelState = PianoPanelState(
+            isVisible: false,
+            rowCount: 4,
+            movementScope: .cascade,
+            snapEnabled: false
+        )
+        let resolvedConfiguration = PianoPanelProjection.resolvedConfiguration(
+            from: baseConfiguration,
+            panelState: panelState
+        )
+        let resolvedRows = PianoPanelProjection.resolvedRows(
+            from: baseRows,
+            panelState: panelState
+        )
+        let fallbackRows = PianoPanelProjection.resolvedRows(
+            from: [],
+            panelState: PianoPanelState(
+                rowCount: 2,
+                movementScope: .rowOnly
+            )
+        )
+        var issues: [PianoValidationIssue] = []
+
+        if resolvedConfiguration.snapEnabled {
+            issues.append(issue(fixtureName, "panel projection 应允许单独关闭 snapEnabled。"))
+        }
+        if resolvedConfiguration.whiteKeyWidth != baseConfiguration.whiteKeyWidth
+            || resolvedConfiguration.rowHeight != baseConfiguration.rowHeight {
+            issues.append(issue(fixtureName, "panel projection 不应意外改动除 snapEnabled 外的 configuration 字段。"))
+        }
+        if resolvedRows.count != 4 {
+            issues.append(issue(fixtureName, "rowCount 扩容后应返回 4 行。"))
+        }
+        if resolvedRows.contains(where: { $0.movementScope != .cascade }) {
+            issues.append(issue(fixtureName, "projection 应统一覆盖所有行的 movementScope。"))
+        }
+        if resolvedRows.map(\.offsetX) != [18, 18, 18, 18] {
+            issues.append(issue(fixtureName, "projection 扩容时应保留既有 offsetX 对齐。"))
+        }
+        if resolvedRows.map(\.startNote) != [
+            NotePitch(pitchClass: .c, octave: 5),
+            NotePitch(pitchClass: .c, octave: 4),
+            NotePitch(pitchClass: .c, octave: 3),
+            NotePitch(pitchClass: .c, octave: 2)
+        ] {
+            issues.append(issue(fixtureName, "projection 扩容时应按每次 -12 semitones 追加新行。"))
+        }
+        if fallbackRows.map(\.startNote) != [
+            NotePitch(pitchClass: .c, octave: 4),
+            NotePitch(pitchClass: .c, octave: 3)
+        ] {
+            issues.append(issue(fixtureName, "空 rows 输入时应退化生成 C4 开始的默认行。"))
+        }
+        if fallbackRows.contains(where: { $0.movementScope != .rowOnly }) {
+            issues.append(issue(fixtureName, "空 rows fallback 也应继承 panel 的 movementScope。"))
         }
 
         return issues

@@ -188,6 +188,8 @@ enum SettingsPanelSnapshotBuilder {
         switch sliderID {
         case .verticalHostHeightRatio:
             return stateContext.fretboardDisplayState.displayMode == .vertical
+        case .pianoRowCount:
+            return true
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
             return true
         }

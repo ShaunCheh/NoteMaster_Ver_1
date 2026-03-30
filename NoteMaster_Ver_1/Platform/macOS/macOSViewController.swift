@@ -108,8 +108,12 @@ final class macOSViewController: NSViewController {
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
     private var hasLoggedInitialLayoutPass = false
-    private let pianoDemoConfiguration = macOSViewController.initialPianoDemoConfiguration
-    private var pianoDemoRows = macOSViewController.initialPianoDemoRows
+    private let pianoBaseConfiguration = macOSViewController.initialPianoDemoConfiguration
+    private var pianoBaseRows = macOSViewController.initialPianoDemoRows
+    private var pianoPanelState = PianoPanelState.inferred(
+        configuration: macOSViewController.initialPianoDemoConfiguration,
+        rows: macOSViewController.initialPianoDemoRows
+    )
     private var pianoDemoPreview: PianoPreviewState?
     private var pianoDemoLastEventText = "ready"
 
@@ -493,7 +497,22 @@ final class macOSViewController: NSViewController {
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState,
             pageDisplayState: pageDisplayState,
-            trainerDisplayState: trainerDisplayState
+            trainerDisplayState: trainerDisplayState,
+            pianoPanelState: pianoPanelState
+        )
+    }
+
+    private var resolvedPianoDemoConfiguration: PianoConfiguration {
+        PianoPanelProjection.resolvedConfiguration(
+            from: pianoBaseConfiguration,
+            panelState: pianoPanelState
+        )
+    }
+
+    private var resolvedPianoDemoRows: [PianoRowState] {
+        PianoPanelProjection.resolvedRows(
+            from: pianoBaseRows,
+            panelState: pianoPanelState
         )
     }
 
@@ -577,6 +596,8 @@ final class macOSViewController: NSViewController {
     private var verticalFretboardContentWidthConstraint: NSLayoutConstraint?
     private var fretboardContentCenterXConstraint: NSLayoutConstraint?
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
+    private var pianoDemoBottomToContentConstraint: NSLayoutConstraint?
+    private var mainContentBottomToContentConstraint: NSLayoutConstraint?
     private var topContentStaffConstraints: [NSLayoutConstraint] = []
     private var topContentTargetPromptConstraints: [NSLayoutConstraint] = []
     private var topContentFretboardConstraints: [NSLayoutConstraint] = []
@@ -633,8 +654,8 @@ final class macOSViewController: NSViewController {
 
     private lazy var pianoKeyboardView: macOSPianoKeyboardView = {
         let pianoKeyboardView = macOSPianoKeyboardView(
-            configuration: pianoDemoConfiguration,
-            rows: pianoDemoRows
+            configuration: resolvedPianoDemoConfiguration,
+            rows: resolvedPianoDemoRows
         )
         pianoKeyboardView.onRowsChanged = { [weak self] rows in
             self?.handlePianoDemoRowsChanged(rows)
@@ -780,6 +801,14 @@ final class macOSViewController: NSViewController {
             )
         )
         verticalFretboardContentWidthConstraint?.priority = .required
+        pianoDemoBottomToContentConstraint = pianoDemoContainerView.bottomAnchor.constraint(
+            equalTo: contentView.bottomAnchor,
+            constant: -Layout.bottomInset
+        )
+        mainContentBottomToContentConstraint = mainContentHostView.bottomAnchor.constraint(
+            equalTo: contentView.bottomAnchor,
+            constant: -Layout.bottomInset
+        )
         fretboardContentCenterXConstraint = fretboardView.centerXAnchor.constraint(
             equalTo: fretboardScrollContentView.centerXAnchor
         )
@@ -831,10 +860,7 @@ final class macOSViewController: NSViewController {
                 equalTo: contentView.trailingAnchor,
                 constant: -Layout.horizontalInset
             ),
-            pianoDemoContainerView.bottomAnchor.constraint(
-                equalTo: contentView.bottomAnchor,
-                constant: -Layout.bottomInset
-            ),
+            pianoDemoBottomToContentConstraint!,
             pianoDemoTitleLabel.leadingAnchor.constraint(
                 equalTo: pianoDemoContainerView.leadingAnchor,
                 constant: Layout.pianoDemoInnerInset
@@ -1682,9 +1708,12 @@ final class macOSViewController: NSViewController {
     }
 
     private func applyPianoDemoState() {
-        pianoKeyboardView.configuration = pianoDemoConfiguration
-        pianoKeyboardView.rows = pianoDemoRows
+        pianoKeyboardView.configuration = resolvedPianoDemoConfiguration
+        pianoKeyboardView.rows = resolvedPianoDemoRows
         pianoKeyboardView.showsComponentBoundsOverlay = false
+        pianoDemoContainerView.isHidden = !pianoPanelState.isVisible
+        pianoDemoBottomToContentConstraint?.isActive = pianoPanelState.isVisible
+        mainContentBottomToContentConstraint?.isActive = !pianoPanelState.isVisible
         updatePianoDemoStatusLabel()
     }
 
@@ -1703,7 +1732,8 @@ final class macOSViewController: NSViewController {
         return [
             "event: \(pianoDemoLastEventText)",
             "preview: \(previewText)",
-            "rows: \(pianoDemoRowsSummaryText(pianoDemoRows))"
+            "panel: visible=\(pianoPanelState.isVisible) rows=\(resolvedPianoDemoRows.count) scope=\(pianoPanelState.movementScope.debugName) snap=\(resolvedPianoDemoConfiguration.snapEnabled)",
+            "rows: \(pianoDemoRowsSummaryText(resolvedPianoDemoRows))"
         ].joined(separator: "\n")
     }
 
@@ -1714,7 +1744,7 @@ final class macOSViewController: NSViewController {
     }
 
     private func handlePianoDemoRowsChanged(_ rows: [PianoRowState]) {
-        pianoDemoRows = rows
+        pianoBaseRows = rows
         pianoDemoLastEventText = "rowsChanged"
         print("[PianoDemo][macOS] rowsChanged \(pianoDemoRowsSummaryText(rows))")
         applyPianoDemoState()
@@ -1761,16 +1791,18 @@ final class macOSViewController: NSViewController {
         let nextStaffDisplayState = nextStateContext.staffDisplayState
         let nextPageDisplayState = nextStateContext.pageDisplayState
         let nextTrainerDisplayState = nextStateContext.trainerDisplayState
+        let nextPianoPanelState = nextStateContext.pianoPanelState
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
         let didChangePage = nextPageDisplayState != pageDisplayState
         let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
+        let didChangePianoPanel = nextPianoPanelState != pianoPanelState
         let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
         let didChangePositionPromptFrets = nextTrainerDisplayState.positionPromptConfiguration
             != trainerDisplayState.positionPromptConfiguration
 
-        guard didChangeFretboard || didChangeStaff || didChangePage || didChangeTrainer else {
+        guard didChangeFretboard || didChangeStaff || didChangePage || didChangeTrainer || didChangePianoPanel else {
             return
         }
 
@@ -1795,6 +1827,12 @@ final class macOSViewController: NSViewController {
 
         if didChangeStaff {
             staffDisplayState = nextStaffDisplayState
+        }
+
+        if didChangePianoPanel {
+            pianoPanelState = nextPianoPanelState
+            applyPianoDemoState()
+            applySettingsPanelState()
         }
 
         if didChangeTrainer {

@@ -31,6 +31,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     case fretboard
     case staff
     case layout
+    case piano
     case debug
 
     var title: String {
@@ -45,6 +46,8 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Staff"
         case .layout:
             return "Layout"
+        case .piano:
+            return "Piano"
         case .debug:
             return "Debug"
         }
@@ -80,6 +83,13 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         case .layout:
             return [
                 .slider(.verticalHostHeightRatio)
+            ]
+        case .piano:
+            return [
+                .toggle(.pianoVisible),
+                .slider(.pianoRowCount),
+                .choice(.pianoMovementScope),
+                .toggle(.pianoSnapEnabled)
             ]
         case .debug:
             return [
@@ -131,6 +141,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     case spelling
     case octave
     case clef
+    case pianoMovementScope
 
     var sectionID: SettingsSectionID {
         switch self {
@@ -142,6 +153,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return .fretboard
         case .clef:
             return .staff
+        case .pianoMovementScope:
+            return .piano
         }
     }
 
@@ -165,6 +178,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Octave"
         case .clef:
             return "Type"
+        case .pianoMovementScope:
+            return "Row Linking"
         }
     }
 
@@ -188,6 +203,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Toggle octave display"
         case .clef:
             return "Select clef"
+        case .pianoMovementScope:
+            return "Select whether piano movement affects the current row or cascades across rows"
         }
     }
 
@@ -200,7 +217,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
              .displayMode,
              .labels,
              .spelling,
-             .clef:
+             .clef,
+             .pianoMovementScope:
             return .singleSelection
         case .octave:
             return .independent
@@ -209,7 +227,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var presentationStyle: SettingsPresentationStyle {
         switch self {
-        case .topContent, .mainContent, .exerciseMode, .clef:
+        case .topContent, .mainContent, .exerciseMode, .clef, .pianoMovementScope:
             return .segmented
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .chips
@@ -267,6 +285,11 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
                 .setClefTreble,
                 .setClefBass
             ]
+        case .pianoMovementScope:
+            return [
+                .setPianoMovementScopeCascade,
+                .setPianoMovementScopeRowOnly
+            ]
         }
     }
 }
@@ -294,6 +317,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case toggleShowsOctave
     case setClefTreble
     case setClefBass
+    case setPianoMovementScopeCascade
+    case setPianoMovementScopeRowOnly
 
     var rowID: SettingsChoiceRowID {
         switch self {
@@ -328,6 +353,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setClefTreble,
              .setClefBass:
             return .clef
+        case .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly:
+            return .pianoMovementScope
         }
     }
 
@@ -377,6 +405,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Treble"
         case .setClefBass:
             return "Bass"
+        case .setPianoMovementScopeCascade:
+            return "Cascade"
+        case .setPianoMovementScopeRowOnly:
+            return "Row Only"
         }
     }
 
@@ -426,6 +458,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Use treble clef"
         case .setClefBass:
             return "Use bass clef"
+        case .setPianoMovementScopeCascade:
+            return "Make piano movement cascade across all visible rows"
+        case .setPianoMovementScopeRowOnly:
+            return "Restrict piano movement to the active row only"
         }
     }
 
@@ -477,6 +513,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.staffDisplayState.configuration.clef == .treble
         case .setClefBass:
             return stateContext.staffDisplayState.configuration.clef == .bass
+        case .setPianoMovementScopeCascade:
+            return stateContext.pianoPanelState.movementScope == .cascade
+        case .setPianoMovementScopeRowOnly:
+            return stateContext.pianoPanelState.movementScope == .rowOnly
         }
     }
 
@@ -504,7 +544,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setSpellingFlat,
              .toggleShowsOctave,
              .setClefTreble,
-             .setClefBass:
+             .setClefBass,
+             .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly:
             return true
         case .setTopContentFretboard:
             return false
@@ -520,7 +562,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setMainContentNaturalNotes,
              .setExerciseModeSingle,
              .setExerciseModeSequence,
-             .setExerciseModePositionPrompt:
+             .setExerciseModePositionPrompt,
+             .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly:
             return
         case .setInstrumentGuitar6:
             displayState.configuration.tuning = .standard(for: .guitar6)
@@ -546,7 +590,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.spelling = .flat
         case .toggleShowsOctave:
             displayState.showsOctave.toggle()
-        case .setClefTreble, .setClefBass:
+        case .setClefTreble,
+             .setClefBass:
             return
         }
     }
@@ -576,7 +621,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setVisibilityNone,
              .setSpellingSharp,
              .setSpellingFlat,
-             .toggleShowsOctave:
+             .toggleShowsOctave,
+             .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly:
             return
         }
     }
@@ -609,7 +656,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setSpellingFlat,
              .toggleShowsOctave,
              .setClefTreble,
-             .setClefBass:
+             .setClefBass,
+             .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly:
             return
         }
     }
@@ -640,6 +689,40 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setSpellingFlat,
              .toggleShowsOctave,
              .setClefTreble,
+             .setClefBass,
+             .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly:
+            return
+        }
+    }
+
+    func apply(to pianoPanelState: inout PianoPanelState) {
+        switch self {
+        case .setPianoMovementScopeCascade:
+            pianoPanelState.movementScope = .cascade
+        case .setPianoMovementScopeRowOnly:
+            pianoPanelState.movementScope = .rowOnly
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt,
+             .setTopContentFretboard,
+             .setMainContentFretboard,
+             .setMainContentNaturalNotes,
+             .setExerciseModeSingle,
+             .setExerciseModeSequence,
+             .setExerciseModePositionPrompt,
+             .setInstrumentGuitar6,
+             .setInstrumentBass4,
+             .setInstrumentBass5,
+             .setDisplayModeHorizontal,
+             .setDisplayModeVertical,
+             .setVisibilityAll,
+             .setVisibilityNaturalOnly,
+             .setVisibilityAccidentalOnly,
+             .setVisibilityNone,
+             .setSpellingSharp,
+             .setSpellingFlat,
+             .toggleShowsOctave,
+             .setClefTreble,
              .setClefBass:
             return
         }
@@ -650,6 +733,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         apply(to: &stateContext.staffDisplayState)
         apply(to: &stateContext.pageDisplayState)
         apply(to: &stateContext.trainerDisplayState)
+        apply(to: &stateContext.pianoPanelState)
     }
 }
 
@@ -687,11 +771,15 @@ struct SettingsFretFilterRow: Equatable, Sendable {
 
 enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
     case showsComponentBounds
+    case pianoVisible
+    case pianoSnapEnabled
 
     var sectionID: SettingsSectionID {
         switch self {
         case .showsComponentBounds:
             return .debug
+        case .pianoVisible, .pianoSnapEnabled:
+            return .piano
         }
     }
 
@@ -699,6 +787,10 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             return "Component Bounds"
+        case .pianoVisible:
+            return "Visible"
+        case .pianoSnapEnabled:
+            return "Snap Drag"
         }
     }
 
@@ -706,6 +798,10 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             return "Toggle green bounds overlay for fretboard and staff"
+        case .pianoVisible:
+            return "Toggle whether the piano demo is visible in the page layout"
+        case .pianoSnapEnabled:
+            return "Toggle whether piano scale dragging snaps to semitone alignment when released"
         }
     }
 
@@ -716,6 +812,10 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             return stateContext.fretboardDisplayState.showsComponentBoundsOverlay
                 || stateContext.staffDisplayState.showsComponentBoundsOverlay
+        case .pianoVisible:
+            return stateContext.pianoPanelState.isVisible
+        case .pianoSnapEnabled:
+            return stateContext.pianoPanelState.snapEnabled
         }
     }
 
@@ -723,7 +823,7 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         in _: SettingsPanelStateContext
     ) -> Bool {
         switch self {
-        case .showsComponentBounds:
+        case .showsComponentBounds, .pianoVisible, .pianoSnapEnabled:
             return true
         }
     }
@@ -732,6 +832,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
+        case .pianoVisible, .pianoSnapEnabled:
+            return
         }
     }
 
@@ -739,6 +841,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
+        case .pianoVisible, .pianoSnapEnabled:
+            return
         }
     }
 
@@ -746,8 +850,15 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         value: Bool,
         to stateContext: inout SettingsPanelStateContext
     ) {
-        apply(value: value, to: &stateContext.fretboardDisplayState)
-        apply(value: value, to: &stateContext.staffDisplayState)
+        switch self {
+        case .showsComponentBounds:
+            apply(value: value, to: &stateContext.fretboardDisplayState)
+            apply(value: value, to: &stateContext.staffDisplayState)
+        case .pianoVisible:
+            stateContext.pianoPanelState.isVisible = value
+        case .pianoSnapEnabled:
+            stateContext.pianoPanelState.snapEnabled = value
+        }
     }
 }
 
@@ -764,6 +875,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
     case clefVerticalTrim
     case clefAnchorYOffset
     case verticalHostHeightRatio
+    case pianoRowCount
 
     var sectionID: SettingsSectionID {
         switch self {
@@ -771,6 +883,8 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             return .staff
         case .verticalHostHeightRatio:
             return .layout
+        case .pianoRowCount:
+            return .piano
         }
     }
 
@@ -784,6 +898,8 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             return "Anchor Y Offset"
         case .verticalHostHeightRatio:
             return "Viewport Height"
+        case .pianoRowCount:
+            return "Rows"
         }
     }
 
@@ -797,6 +913,8 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             return "Adjust clef anchor vertical offset"
         case .verticalHostHeightRatio:
             return "Adjust vertical fretboard viewport height. Increasing height may require horizontal scrolling."
+        case .pianoRowCount:
+            return "Adjust the number of visible piano rows"
         }
     }
 
@@ -810,6 +928,9 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             return (-0.25)...0.25
         case .verticalHostHeightRatio:
             return FretboardDisplayState.verticalHostHeightRatioRange
+        case .pianoRowCount:
+            return CGFloat(PianoPanelState.supportedRowCountRange.lowerBound)
+                ... CGFloat(PianoPanelState.supportedRowCountRange.upperBound)
         }
     }
 
@@ -829,6 +950,8 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             )
         case .verticalHostHeightRatio:
             return stateContext.fretboardDisplayState.verticalHostHeightRatio
+        case .pianoRowCount:
+            return CGFloat(stateContext.pianoPanelState.resolvedRowCount)
         }
     }
 
@@ -836,7 +959,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
-        case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
+        case .clefScale, .clefVerticalTrim, .clefAnchorYOffset, .pianoRowCount:
             return true
         case .verticalHostHeightRatio:
             return stateContext.fretboardDisplayState.displayMode == .vertical
@@ -854,6 +977,8 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             return String(format: "%+.2f", Double(normalizedValue))
         case .verticalHostHeightRatio:
             return String(format: "%.0f%%", Double(value * 100))
+        case .pianoRowCount:
+            return "\(Int(value.rounded()))"
         }
     }
 
@@ -867,7 +992,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.setVerticalHostHeightRatio(
                 clampedValue(value)
             )
-        case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
+        case .clefScale, .clefVerticalTrim, .clefAnchorYOffset, .pianoRowCount:
             return
         }
     }
@@ -888,7 +1013,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
                 clampedValue,
                 for: displayState.configuration.clef
             )
-        case .verticalHostHeightRatio:
+        case .verticalHostHeightRatio, .pianoRowCount:
             return
         }
     }
@@ -897,8 +1022,13 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         value: CGFloat,
         to stateContext: inout SettingsPanelStateContext
     ) {
-        apply(value: value, to: &stateContext.fretboardDisplayState)
-        apply(value: value, to: &stateContext.staffDisplayState)
+        switch self {
+        case .pianoRowCount:
+            stateContext.pianoPanelState.rowCount = Int(clampedValue(value).rounded())
+        case .clefScale, .clefVerticalTrim, .clefAnchorYOffset, .verticalHostHeightRatio:
+            apply(value: value, to: &stateContext.fretboardDisplayState)
+            apply(value: value, to: &stateContext.staffDisplayState)
+        }
     }
 }
 
