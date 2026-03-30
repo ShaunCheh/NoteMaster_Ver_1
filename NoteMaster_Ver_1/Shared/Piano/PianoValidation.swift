@@ -177,8 +177,16 @@ private extension PianoValidationRunner {
                 validate: validateButtonPressLifecycle
             ),
             PianoValidationFixture(
-                name: "button_step_updates_row_only_and_cascade_rows",
+                name: "button_step_emits_rows_transition_on_finish",
+                validate: validateButtonStepEmitsRowsTransitionOnFinish
+            ),
+            PianoValidationFixture(
+                name: "button_transition_preserves_row_only_and_cascade_targets",
                 validate: validateButtonStepPropagation
+            ),
+            PianoValidationFixture(
+                name: "button_transition_interrupt_materializes_current_frame",
+                validate: validateButtonTransitionInterruptMaterialization
             ),
             PianoValidationFixture(
                 name: "scale_drag_updates_rows_and_emits_snap_animation_on_finish",
@@ -213,7 +221,10 @@ private extension PianoValidationRunner {
 
     static func manualChecklist(for platform: PianoValidationPlatform) -> [String] {
         [
-            "在 \(platform.displayName) 上确认 A 区按钮按下/抬起高亮与步进触发边界一致。",
+            "在 \(platform.displayName) 上确认 A 区按钮按下/抬起高亮与步进触发边界一致，且点击左 / 右后键盘会以短动画移动而不是瞬时跳变。",
+            "确认 A 区按钮在 rowOnly 下只移动当前行，在 cascade 下会让所有联动行同步移动。",
+            "确认连续快速点击 A 区左 / 右按钮时，每次都会从当前可见中间帧继续，不会反跳到旧终点。",
+            "确认按钮动画播放期间切换设置、改行数或外部覆盖 rows 时，不会残留 presentation override 或出现视觉错位。",
             "确认 B 区连续拖动离开区域后会立即停止；开启吸附时应先保留连续位置，再以短动画收口到最近锚点。",
             "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
@@ -873,8 +884,81 @@ private extension PianoValidationRunner {
         return issues
     }
 
+    static func validateButtonStepEmitsRowsTransitionOnFinish() -> [PianoValidationIssue] {
+        let fixtureName = "button_step_emits_rows_transition_on_finish"
+        let state = PianoComponentState(
+            rows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    movementScope: .rowOnly
+                )
+            ],
+            activeInteraction: .buttonPressed(
+                PianoButtonPressInteraction(
+                    rowIndex: 0,
+                    direction: .right,
+                    movementScope: .rowOnly
+                )
+            )
+        )
+        let reduction = PianoInteractionReducer.reduce(
+            state: state,
+            rawEvent: PianoRawEvent(
+                phase: .ended,
+                locationInView: CGPoint(x: 12, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                phase: .ended,
+                locationInView: CGPoint(x: 12, y: 10),
+                rowIndex: 0,
+                zone: .buttonRight,
+                note: nil,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        let expectedRows = [
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .cSharp, octave: 4),
+                movementScope: .rowOnly
+            )
+        ]
+        var issues: [PianoValidationIssue] = []
+
+        if reduction.nextState.rows != state.rows {
+            issues.append(issue(fixtureName, "按钮 ended 时不应立即提交最终 rows。"))
+        }
+        if reduction.nextState.activeInteraction != nil {
+            issues.append(issue(fixtureName, "按钮 ended 后应清空 activeInteraction。"))
+        }
+        if !reduction.semanticEvents.isEmpty {
+            issues.append(issue(fixtureName, "按钮 ended 后不应立即发出 rowsChanged，应该等动画完成时再发。"))
+        }
+        if !reduction.needsDisplay {
+            issues.append(issue(fixtureName, "按钮 ended 后输出过渡命令时应要求刷新显示。"))
+        }
+        guard let plan = reduction.presentationCommand?.rowsTransitionPlan else {
+            issues.append(issue(fixtureName, "按钮 ended 后应输出 rows transition plan。"))
+            return issues
+        }
+        if plan.fromRows != state.rows {
+            issues.append(issue(fixtureName, "按钮 plan 的 fromRows 应等于结束时的当前 logical rows。"))
+        }
+        if plan.toRows != expectedRows {
+            issues.append(issue(fixtureName, "按钮 plan 的 toRows 应等于按钮步进后的目标 rows。"))
+        }
+        if plan.affectedRowIndices != [0] {
+            issues.append(issue(fixtureName, "单行 rowOnly 按钮 plan 应只覆盖第 0 行。"))
+        }
+        if abs(plan.duration - PianoRowsTransitionPlan.defaultDuration) > 0.0001 {
+            issues.append(issue(fixtureName, "按钮 plan 应沿用默认 rows transition 时长。"))
+        }
+
+        return issues
+    }
+
     static func validateButtonStepPropagation() -> [PianoValidationIssue] {
-        let fixtureName = "button_step_updates_row_only_and_cascade_rows"
+        let fixtureName = "button_transition_preserves_row_only_and_cascade_targets"
         var issues: [PianoValidationIssue] = []
 
         let rowOnlyState = PianoComponentState(
@@ -1011,6 +1095,93 @@ private extension PianoValidationRunner {
         }
         if cascadePlan.affectedRowIndices != [0, 1] {
             issues.append(issue(fixtureName, "cascade plan 应覆盖所有受影响行。"))
+        }
+
+        return issues
+    }
+
+    static func validateButtonTransitionInterruptMaterialization() -> [PianoValidationIssue] {
+        let fixtureName = "button_transition_interrupt_materializes_current_frame"
+        let configuration = PianoConfiguration(whiteKeyWidth: 40)
+        let fromRows = [
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .c, octave: 4),
+                movementScope: .rowOnly
+            )
+        ]
+        let toRows = [
+            PianoRowState(
+                startNote: NotePitch(pitchClass: .cSharp, octave: 4),
+                movementScope: .rowOnly
+            )
+        ]
+        let layer = PianoKeyboardLayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 320, height: 120)
+        layer.contentsScale = 2
+        layer.configuration = configuration
+        layer.state = PianoComponentState(rows: fromRows)
+        layer.refreshForCurrentBounds()
+
+        var completedRows: [PianoRowState]?
+        layer.startRowsTransitionAnimation(
+            PianoRowsTransitionPlan(
+                fromRows: fromRows,
+                toRows: toRows,
+                affectedRowIndices: [0]
+            )
+        ) { finalRows in
+            completedRows = finalRows
+        }
+
+        Thread.sleep(forTimeInterval: 0.03)
+        let materializedRows = layer.cancelRowsTransitionAnimation(
+            materializeCurrentFrame: true
+        )
+        defer {
+            layer.clearRowsTransitionPresentationOverride()
+        }
+
+        var issues: [PianoValidationIssue] = []
+        guard let materializedRows,
+              let materializedRow = materializedRows.first else {
+            issues.append(issue(fixtureName, "按钮过渡被打断时，应能物化出当前中间帧 rows。"))
+            return issues
+        }
+
+        if completedRows != nil {
+            issues.append(issue(fixtureName, "中断按钮过渡时不应提前触发完成回调。"))
+        }
+        if materializedRow.startNote != fromRows[0].startNote {
+            issues.append(issue(fixtureName, "中间帧物化结果应保留 fromRow.startNote 作为渲染参考锚点。"))
+        }
+        if materializedRow.movementScope != .rowOnly {
+            issues.append(issue(fixtureName, "中间帧物化结果应保留目标 movementScope。"))
+        }
+
+        let fromAnchorX = PianoLayoutMath.noteLeadingX(
+            fromRows[0].startNote,
+            configuration: configuration
+        ) + fromRows[0].offsetX
+        let toAnchorX = PianoLayoutMath.noteLeadingX(
+            toRows[0].startNote,
+            configuration: configuration
+        ) + toRows[0].offsetX
+        let currentAnchorX = PianoLayoutMath.noteLeadingX(
+            materializedRow.startNote,
+            configuration: configuration
+        ) + materializedRow.offsetX
+        let minAnchorX = min(fromAnchorX, toAnchorX)
+        let maxAnchorX = max(fromAnchorX, toAnchorX)
+
+        if currentAnchorX < minAnchorX || currentAnchorX > maxAnchorX {
+            issues.append(issue(fixtureName, "中间帧物化结果的 anchorX 应位于 from / to 两端之间。"))
+        }
+        if abs(currentAnchorX - fromAnchorX) <= 0.001
+            || abs(currentAnchorX - toAnchorX) <= 0.001 {
+            issues.append(issue(fixtureName, "等待一小段时间后物化按钮过渡，结果应处于中间帧而不是任一端点。"))
+        }
+        if layer.cancelRowsTransitionAnimation(materializeCurrentFrame: true) != nil {
+            issues.append(issue(fixtureName, "按钮过渡已被取消后，不应继续返回新的物化 rows。"))
         }
 
         return issues
