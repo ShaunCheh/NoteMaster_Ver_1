@@ -184,11 +184,12 @@ private extension iOSPianoKeyboardView {
     }
 
     func replaceRows(_ newRows: [PianoRowState]) {
+        // External rows are authoritative, so reapplying them must also stop any in-flight presentation animation.
+        cancelRowsTransitionAnimationForExternalStateChange()
+
         guard componentState.rows != newRows else {
             return
         }
-
-        cancelRowsTransitionAnimationForExternalStateChange()
         let hadActiveInteraction = componentState.activeInteraction != nil
         componentState = sanitizedState(
             byReplacingRowsWith: newRows,
