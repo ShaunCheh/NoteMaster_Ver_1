@@ -24,7 +24,7 @@ final class iOSViewController: UIViewController {
 
     private static let initialPianoDemoConfiguration = PianoConfiguration(
         whiteKeyWidth: 30,
-        rowHeight: 96,
+        rowHeight: 136,
         rowSpacing: 10,
         scaleAreaHeight: 28,
         buttonAreaWidth: 30,
