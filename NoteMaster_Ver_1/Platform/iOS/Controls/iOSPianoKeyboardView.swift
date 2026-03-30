@@ -155,6 +155,7 @@ private extension iOSPianoKeyboardView {
     }
 
     func applyConfiguration() {
+        cancelScaleSnapAnimationForExternalStateChange()
         pianoKeyboardLayer.configuration = configuration
         updateContentsScale()
         invalidateIntrinsicContentSize()
@@ -187,6 +188,7 @@ private extension iOSPianoKeyboardView {
             return
         }
 
+        cancelScaleSnapAnimationForExternalStateChange()
         let hadActiveInteraction = componentState.activeInteraction != nil
         componentState = sanitizedState(
             byReplacingRowsWith: newRows,
@@ -322,6 +324,10 @@ private extension iOSPianoKeyboardView {
             return
         }
 
+        if rawEvent.phase == .began {
+            materializeScaleSnapAnimationForNewInteractionIfNeeded()
+        }
+
         let geometry = PianoGeometry(
             configuration: configuration,
             state: componentState,
@@ -341,13 +347,60 @@ private extension iOSPianoKeyboardView {
     }
 
     func applyReduction(_ reduction: PianoReduction) {
-        guard reduction.nextState != componentState || !reduction.semanticEvents.isEmpty else {
+        guard reduction.nextState != componentState
+            || !reduction.semanticEvents.isEmpty
+            || reduction.presentationCommand != nil else {
             return
         }
 
         componentState = reduction.nextState
         applyBackingState()
+        applyPresentationCommand(reduction.presentationCommand)
         emitSemanticEvents(reduction.semanticEvents)
+    }
+
+    func applyPresentationCommand(_ presentationCommand: PianoPresentationCommand?) {
+        guard let presentationCommand else {
+            return
+        }
+
+        switch presentationCommand {
+        case let .animateScaleSnap(plan):
+            pianoKeyboardLayer.startScaleSnapAnimation(plan) { [weak self] finalRows in
+                self?.finalizeScaleSnapAnimation(with: finalRows)
+            }
+        }
+    }
+
+    func finalizeScaleSnapAnimation(with finalRows: [PianoRowState]) {
+        guard componentState.rows != finalRows else {
+            pianoKeyboardLayer.clearScaleSnapPresentationOverride()
+            return
+        }
+
+        componentState.rows = finalRows
+        applyBackingState()
+        pianoKeyboardLayer.clearScaleSnapPresentationOverride()
+        emitSemanticEvents([.rowsChanged(finalRows)])
+    }
+
+    func cancelScaleSnapAnimationForExternalStateChange() {
+        _ = pianoKeyboardLayer.cancelScaleSnapAnimation(
+            materializeCurrentFrame: false
+        )
+    }
+
+    func materializeScaleSnapAnimationForNewInteractionIfNeeded() {
+        guard let materializedRows = pianoKeyboardLayer.cancelScaleSnapAnimation(
+            materializeCurrentFrame: true
+        ) else {
+            return
+        }
+
+        componentState.rows = materializedRows
+        applyBackingState()
+        pianoKeyboardLayer.clearScaleSnapPresentationOverride()
+        emitSemanticEvents([.rowsChanged(materializedRows)])
     }
 
     func emitSemanticEvents(_ semanticEvents: [PianoSemanticEvent]) {

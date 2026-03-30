@@ -10,16 +10,21 @@ import CoreGraphics
 struct PianoReduction: Equatable, Sendable {
     var nextState: PianoComponentState
     var semanticEvents: [PianoSemanticEvent]
+    var presentationCommand: PianoPresentationCommand?
     var needsDisplay: Bool
 
     init(
         previousState: PianoComponentState,
         nextState: PianoComponentState,
-        semanticEvents: [PianoSemanticEvent]
+        semanticEvents: [PianoSemanticEvent],
+        presentationCommand: PianoPresentationCommand? = nil
     ) {
         self.nextState = nextState
         self.semanticEvents = semanticEvents
-        self.needsDisplay = nextState != previousState || !semanticEvents.isEmpty
+        self.presentationCommand = presentationCommand
+        self.needsDisplay = nextState != previousState
+            || !semanticEvents.isEmpty
+            || presentationCommand != nil
     }
 
     static func unchanged(
@@ -419,14 +424,28 @@ private extension PianoInteractionReducer {
         finalRows: [PianoRowState]
     ) -> PianoReduction {
         let resolvedRows: [PianoRowState]
+        let presentationCommand: PianoPresentationCommand?
         if configuration.snapEnabled {
-            resolvedRows = normalizeRowsAfterScaleDrag(
+            let snappedRows = normalizeRowsAfterScaleDrag(
                 finalRows,
                 interaction: interaction,
                 configuration: configuration
             )
+            resolvedRows = finalRows
+            if snappedRows != finalRows {
+                presentationCommand = .animateScaleSnap(
+                    PianoScaleSnapAnimationPlan(
+                        fromRows: finalRows,
+                        toRows: snappedRows,
+                        affectedRowIndices: interaction.affectedRowIndices
+                    )
+                )
+            } else {
+                presentationCommand = nil
+            }
         } else {
             resolvedRows = finalRows
+            presentationCommand = nil
         }
 
         var nextState = state
@@ -441,7 +460,8 @@ private extension PianoInteractionReducer {
         return PianoReduction(
             previousState: state,
             nextState: nextState,
-            semanticEvents: semanticEvents
+            semanticEvents: semanticEvents,
+            presentationCommand: presentationCommand
         )
     }
 

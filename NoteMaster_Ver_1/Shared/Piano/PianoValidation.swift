@@ -181,8 +181,12 @@ private extension PianoValidationRunner {
                 validate: validateButtonStepPropagation
             ),
             PianoValidationFixture(
-                name: "scale_drag_updates_rows_and_snaps_on_finish",
+                name: "scale_drag_updates_rows_and_emits_snap_animation_on_finish",
                 validate: validateScaleDragLifecycle
+            ),
+            PianoValidationFixture(
+                name: "scale_snap_presentation_interpolates_anchor_positions",
+                validate: validateScaleSnapPresentationInterpolation
             ),
             PianoValidationFixture(
                 name: "scale_drag_exit_does_not_switch_into_key_preview",
@@ -210,7 +214,7 @@ private extension PianoValidationRunner {
     static func manualChecklist(for platform: PianoValidationPlatform) -> [String] {
         [
             "在 \(platform.displayName) 上确认 A 区按钮按下/抬起高亮与步进触发边界一致。",
-            "确认 B 区连续拖动离开区域后会立即停止，且吸附开关开闭语义正确。",
+            "确认 B 区连续拖动离开区域后会立即停止；开启吸附时应先保留连续位置，再以短动画收口到最近锚点。",
             "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
             "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。",
@@ -967,7 +971,7 @@ private extension PianoValidationRunner {
     }
 
     static func validateScaleDragLifecycle() -> [PianoValidationIssue] {
-        let fixtureName = "scale_drag_updates_rows_and_snaps_on_finish"
+        let fixtureName = "scale_drag_updates_rows_and_emits_snap_animation_on_finish"
         let configuration = PianoConfiguration(whiteKeyWidth: 40, snapEnabled: true)
         let initialState = PianoComponentState(
             rows: [
@@ -1046,16 +1050,116 @@ private extension PianoValidationRunner {
             ),
             configuration: configuration
         )
-        if endedReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .b, octave: 3)
-            || endedReduction.nextState.rows[0].offsetX != 0 {
-            issues.append(issue(fixtureName, "snapEnabled 开启时，第一行右拖结束后应归一化到 B3 且 offsetX 为 0。"))
+        let expectedFinalRows = movedReduction.nextState.rows
+        if endedReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .c, octave: 4)
+            || endedReduction.nextState.rows[0].offsetX != -40 {
+            issues.append(issue(fixtureName, "吸附动画开始前，第一行应先保留连续拖动后的 C4 / offsetX=-40 位置。"))
         }
-        if endedReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .b, octave: 2)
-            || endedReduction.nextState.rows[1].offsetX != 0 {
-            issues.append(issue(fixtureName, "cascade 结束时第二行也应同步归一化到 B2。"))
+        if endedReduction.nextState.rows[0].startNote != NotePitch(pitchClass: .c, octave: 4)
+            || endedReduction.nextState.rows[1].startNote != NotePitch(pitchClass: .c, octave: 3)
+            || endedReduction.nextState.rows[1].offsetX != -40 {
+            issues.append(issue(fixtureName, "吸附动画开始前，cascade 行也应保留拖动结束时的连续位置。"))
         }
         if endedReduction.nextState.activeInteraction != nil {
             issues.append(issue(fixtureName, "scale drag 结束后应清空 activeInteraction。"))
+        }
+        if !endedReduction.semanticEvents.isEmpty {
+            issues.append(issue(fixtureName, "结束位置与上一次 moved 一致时，不应额外发出 rowsChanged。"))
+        }
+        guard case let .animateScaleSnap(plan)? = endedReduction.presentationCommand else {
+            issues.append(issue(fixtureName, "snapEnabled 开启时，scale 结束后应输出 animateScaleSnap 命令。"))
+            return issues
+        }
+        if plan.fromRows != expectedFinalRows {
+            issues.append(issue(fixtureName, "snap plan 的 fromRows 应等于拖动结束时的连续 rows。"))
+        }
+        if plan.toRows[0].startNote != NotePitch(pitchClass: .b, octave: 3)
+            || plan.toRows[0].offsetX != 0 {
+            issues.append(issue(fixtureName, "snap plan 第一行终点应归一化到 B3 且 offsetX 为 0。"))
+        }
+        if plan.toRows[1].startNote != NotePitch(pitchClass: .b, octave: 2)
+            || plan.toRows[1].offsetX != 0 {
+            issues.append(issue(fixtureName, "snap plan 第二行终点也应同步归一化到 B2。"))
+        }
+        if plan.affectedRowIndices != [0, 1] {
+            issues.append(issue(fixtureName, "cascade 吸附动画应覆盖所有受影响行。"))
+        }
+        if plan.duration < 0.10 || plan.duration > 0.12 {
+            issues.append(issue(fixtureName, "snap plan 时长应保持在 0.10 到 0.12 秒范围内。"))
+        }
+
+        return issues
+    }
+
+    static func validateScaleSnapPresentationInterpolation() -> [PianoValidationIssue] {
+        let fixtureName = "scale_snap_presentation_interpolates_anchor_positions"
+        let configuration = PianoConfiguration(whiteKeyWidth: 40)
+        let plan = PianoScaleSnapAnimationPlan(
+            fromRows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    offsetX: -40,
+                    movementScope: .cascade
+                )
+            ],
+            toRows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .b, octave: 3),
+                    offsetX: 0,
+                    movementScope: .cascade
+                )
+            ],
+            affectedRowIndices: [0]
+        )
+        var issues: [PianoValidationIssue] = []
+
+        let startRows = PianoPresentationMath.rows(
+            for: plan,
+            progress: 0,
+            configuration: configuration
+        )
+        let middleRows = PianoPresentationMath.rows(
+            for: plan,
+            progress: 0.5,
+            configuration: configuration
+        )
+        let endRows = PianoPresentationMath.rows(
+            for: plan,
+            progress: 1,
+            configuration: configuration
+        )
+
+        if startRows != plan.fromRows {
+            issues.append(issue(fixtureName, "progress=0 时应返回原始连续位置。"))
+        }
+        if endRows != plan.toRows {
+            issues.append(issue(fixtureName, "progress=1 时应返回最终 snap 目标。"))
+        }
+
+        let expectedMiddleProgress = PianoPresentationMath.easeOutCubic(0.5)
+        let fromAnchorX = PianoLayoutMath.noteLeadingX(
+            plan.fromRows[0].startNote,
+            configuration: configuration
+        ) + plan.fromRows[0].offsetX
+        let toAnchorX = PianoLayoutMath.noteLeadingX(
+            plan.toRows[0].startNote,
+            configuration: configuration
+        ) + plan.toRows[0].offsetX
+        let expectedMiddleAnchorX = fromAnchorX
+            + ((toAnchorX - fromAnchorX) * expectedMiddleProgress)
+        let actualMiddleAnchorX = PianoLayoutMath.noteLeadingX(
+            middleRows[0].startNote,
+            configuration: configuration
+        ) + middleRows[0].offsetX
+
+        if middleRows[0].startNote != plan.fromRows[0].startNote {
+            issues.append(issue(fixtureName, "插值过程中应保留 fromRow 的 startNote 作为渲染参考锚点。"))
+        }
+        if abs(actualMiddleAnchorX - expectedMiddleAnchorX) > 0.001 {
+            issues.append(issue(fixtureName, "progress=0.5 时应按 easeOutCubic 在 from / to anchorX 之间插值。"))
+        }
+        if middleRows[0].movementScope != .cascade {
+            issues.append(issue(fixtureName, "插值后的 row 应保留目标 movementScope。"))
         }
 
         return issues
