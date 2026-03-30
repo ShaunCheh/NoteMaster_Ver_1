@@ -197,6 +197,10 @@ private extension PianoValidationRunner {
                 validate: validateScaleSnapPresentationInterpolation
             ),
             PianoValidationFixture(
+                name: "button_transition_reuses_shared_anchor_interpolation",
+                validate: validateButtonTransitionPresentationInterpolation
+            ),
+            PianoValidationFixture(
                 name: "scale_drag_exit_does_not_switch_into_key_preview",
                 validate: validateScaleDragExitDoesNotStartPreview
             ),
@@ -1377,6 +1381,89 @@ private extension PianoValidationRunner {
         }
         if middleRows[0].movementScope != .cascade {
             issues.append(issue(fixtureName, "插值后的 row 应保留目标 movementScope。"))
+        }
+
+        return issues
+    }
+
+    static func validateButtonTransitionPresentationInterpolation() -> [PianoValidationIssue] {
+        let fixtureName = "button_transition_reuses_shared_anchor_interpolation"
+        let configuration = PianoConfiguration(whiteKeyWidth: 40)
+        let plan = PianoRowsTransitionPlan(
+            fromRows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .c, octave: 4),
+                    movementScope: .rowOnly
+                ),
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .g, octave: 3),
+                    movementScope: .rowOnly
+                )
+            ],
+            toRows: [
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .cSharp, octave: 4),
+                    movementScope: .rowOnly
+                ),
+                PianoRowState(
+                    startNote: NotePitch(pitchClass: .g, octave: 3),
+                    movementScope: .rowOnly
+                )
+            ],
+            affectedRowIndices: [0]
+        )
+        var issues: [PianoValidationIssue] = []
+
+        let startRows = PianoPresentationMath.rows(
+            for: plan,
+            progress: 0,
+            configuration: configuration
+        )
+        let middleRows = PianoPresentationMath.rows(
+            for: plan,
+            progress: 0.5,
+            configuration: configuration
+        )
+        let endRows = PianoPresentationMath.rows(
+            for: plan,
+            progress: 1,
+            configuration: configuration
+        )
+
+        if startRows != plan.fromRows {
+            issues.append(issue(fixtureName, "按钮过渡 progress=0 时应返回按钮触发前的原始 rows。"))
+        }
+        if endRows != plan.toRows {
+            issues.append(issue(fixtureName, "按钮过渡 progress=1 时应返回按钮步进后的目标 rows。"))
+        }
+        if middleRows[1] != plan.toRows[1] {
+            issues.append(issue(fixtureName, "rowOnly 按钮过渡中，未受影响行应直接保持 toRows。"))
+        }
+
+        let expectedMiddleProgress = PianoPresentationMath.easeOutCubic(0.5)
+        let fromAnchorX = PianoLayoutMath.noteLeadingX(
+            plan.fromRows[0].startNote,
+            configuration: configuration
+        ) + plan.fromRows[0].offsetX
+        let toAnchorX = PianoLayoutMath.noteLeadingX(
+            plan.toRows[0].startNote,
+            configuration: configuration
+        ) + plan.toRows[0].offsetX
+        let expectedMiddleAnchorX = fromAnchorX
+            + ((toAnchorX - fromAnchorX) * expectedMiddleProgress)
+        let actualMiddleAnchorX = PianoLayoutMath.noteLeadingX(
+            middleRows[0].startNote,
+            configuration: configuration
+        ) + middleRows[0].offsetX
+
+        if middleRows[0].startNote != plan.fromRows[0].startNote {
+            issues.append(issue(fixtureName, "按钮过渡插值过程中也应保留 fromRow.startNote 作为渲染参考锚点。"))
+        }
+        if abs(actualMiddleAnchorX - expectedMiddleAnchorX) > 0.001 {
+            issues.append(issue(fixtureName, "按钮过渡 progress=0.5 时应复用共享 anchor 插值，而不是单独使用另一套按钮数学。"))
+        }
+        if middleRows[0].movementScope != .rowOnly {
+            issues.append(issue(fixtureName, "按钮过渡插值后的目标行应保留 movementScope。"))
         }
 
         return issues
