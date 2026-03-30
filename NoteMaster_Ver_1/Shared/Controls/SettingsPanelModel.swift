@@ -89,6 +89,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
                 .toggle(.pianoVisible),
                 .slider(.pianoRowCount),
                 .choice(.pianoMovementScope),
+                .choice(.pianoWhiteKeyStyle),
                 .toggle(.pianoSnapEnabled)
             ]
         case .debug:
@@ -142,6 +143,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     case octave
     case clef
     case pianoMovementScope
+    case pianoWhiteKeyStyle
 
     var sectionID: SettingsSectionID {
         switch self {
@@ -154,6 +156,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         case .clef:
             return .staff
         case .pianoMovementScope:
+            return .piano
+        case .pianoWhiteKeyStyle:
             return .piano
         }
     }
@@ -180,6 +184,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Type"
         case .pianoMovementScope:
             return "Row Linking"
+        case .pianoWhiteKeyStyle:
+            return "White Keys"
         }
     }
 
@@ -205,6 +211,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Select clef"
         case .pianoMovementScope:
             return "Select whether piano movement affects the current row or cascades across rows"
+        case .pianoWhiteKeyStyle:
+            return "Select whether white keys use outlined borders, gap-only separation, or a glossy skeuomorphic highlight"
         }
     }
 
@@ -218,7 +226,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
              .labels,
              .spelling,
              .clef,
-             .pianoMovementScope:
+             .pianoMovementScope,
+             .pianoWhiteKeyStyle:
             return .singleSelection
         case .octave:
             return .independent
@@ -227,7 +236,12 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var presentationStyle: SettingsPresentationStyle {
         switch self {
-        case .topContent, .mainContent, .exerciseMode, .clef, .pianoMovementScope:
+        case .topContent,
+             .mainContent,
+             .exerciseMode,
+             .clef,
+             .pianoMovementScope,
+             .pianoWhiteKeyStyle:
             return .segmented
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .chips
@@ -290,6 +304,12 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
                 .setPianoMovementScopeCascade,
                 .setPianoMovementScopeRowOnly
             ]
+        case .pianoWhiteKeyStyle:
+            return [
+                .setPianoWhiteKeyStyleOutlined,
+                .setPianoWhiteKeyStyleGapOnly,
+                .setPianoWhiteKeyStyleSkeuomorphicHighlight
+            ]
         }
     }
 }
@@ -319,6 +339,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setClefBass
     case setPianoMovementScopeCascade
     case setPianoMovementScopeRowOnly
+    case setPianoWhiteKeyStyleOutlined
+    case setPianoWhiteKeyStyleGapOnly
+    case setPianoWhiteKeyStyleSkeuomorphicHighlight
 
     var rowID: SettingsChoiceRowID {
         switch self {
@@ -356,6 +379,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setPianoMovementScopeCascade,
              .setPianoMovementScopeRowOnly:
             return .pianoMovementScope
+        case .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
+            return .pianoWhiteKeyStyle
         }
     }
 
@@ -409,6 +436,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Cascade"
         case .setPianoMovementScopeRowOnly:
             return "Row Only"
+        case .setPianoWhiteKeyStyleOutlined:
+            return "Outlined"
+        case .setPianoWhiteKeyStyleGapOnly:
+            return "Gap Only"
+        case .setPianoWhiteKeyStyleSkeuomorphicHighlight:
+            return "Gloss"
         }
     }
 
@@ -462,6 +495,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Make piano movement cascade across all visible rows"
         case .setPianoMovementScopeRowOnly:
             return "Restrict piano movement to the active row only"
+        case .setPianoWhiteKeyStyleOutlined:
+            return "Render white keys with individual outlines"
+        case .setPianoWhiteKeyStyleGapOnly:
+            return "Render white keys without outlines, using gaps between keys instead"
+        case .setPianoWhiteKeyStyleSkeuomorphicHighlight:
+            return "Render white keys with a skeuomorphic highlight and beveled shading"
         }
     }
 
@@ -517,6 +556,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.pianoPanelState.movementScope == .cascade
         case .setPianoMovementScopeRowOnly:
             return stateContext.pianoPanelState.movementScope == .rowOnly
+        case .setPianoWhiteKeyStyleOutlined:
+            return stateContext.pianoPanelState.whiteKeyStyle == .outlined
+        case .setPianoWhiteKeyStyleGapOnly:
+            return stateContext.pianoPanelState.whiteKeyStyle == .borderlessSeparatedByGaps
+        case .setPianoWhiteKeyStyleSkeuomorphicHighlight:
+            return stateContext.pianoPanelState.whiteKeyStyle == .skeuomorphicHighlight
         }
     }
 
@@ -546,7 +591,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setClefTreble,
              .setClefBass,
              .setPianoMovementScopeCascade,
-             .setPianoMovementScopeRowOnly:
+             .setPianoMovementScopeRowOnly,
+             .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             return true
         case .setTopContentFretboard:
             return false
@@ -564,7 +612,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setPianoMovementScopeCascade,
-             .setPianoMovementScopeRowOnly:
+             .setPianoMovementScopeRowOnly,
+             .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             return
         case .setInstrumentGuitar6:
             displayState.configuration.tuning = .standard(for: .guitar6)
@@ -623,7 +674,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setSpellingFlat,
              .toggleShowsOctave,
              .setPianoMovementScopeCascade,
-             .setPianoMovementScopeRowOnly:
+             .setPianoMovementScopeRowOnly,
+             .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             return
         }
     }
@@ -658,7 +712,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setClefTreble,
              .setClefBass,
              .setPianoMovementScopeCascade,
-             .setPianoMovementScopeRowOnly:
+             .setPianoMovementScopeRowOnly,
+             .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             return
         }
     }
@@ -691,7 +748,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setClefTreble,
              .setClefBass,
              .setPianoMovementScopeCascade,
-             .setPianoMovementScopeRowOnly:
+             .setPianoMovementScopeRowOnly,
+             .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             return
         }
     }
@@ -702,6 +762,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             pianoPanelState.movementScope = .cascade
         case .setPianoMovementScopeRowOnly:
             pianoPanelState.movementScope = .rowOnly
+        case .setPianoWhiteKeyStyleOutlined:
+            pianoPanelState.whiteKeyStyle = .outlined
+        case .setPianoWhiteKeyStyleGapOnly:
+            pianoPanelState.whiteKeyStyle = .borderlessSeparatedByGaps
+        case .setPianoWhiteKeyStyleSkeuomorphicHighlight:
+            pianoPanelState.whiteKeyStyle = .skeuomorphicHighlight
         case .setTopContentStaff,
              .setTopContentTargetPrompt,
              .setTopContentFretboard,

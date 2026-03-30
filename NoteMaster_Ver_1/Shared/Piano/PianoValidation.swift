@@ -266,7 +266,10 @@ private extension PianoValidationRunner {
     static func validatePianoPanelStateInferenceAndClamp() -> [PianoValidationIssue] {
         let fixtureName = "piano_panel_state_infers_and_clamps_supported_values"
         let inferred = PianoPanelState.inferred(
-            configuration: PianoConfiguration(snapEnabled: false),
+            configuration: PianoConfiguration(
+                whiteKeyStyle: .skeuomorphicHighlight,
+                snapEnabled: false
+            ),
             rows: [
                 PianoRowState(
                     startNote: NotePitch(pitchClass: .c, octave: 5),
@@ -292,6 +295,9 @@ private extension PianoValidationRunner {
         if inferred.movementScope != .rowOnly {
             issues.append(issue(fixtureName, "inferred movementScope 应沿用首行 movementScope。"))
         }
+        if inferred.whiteKeyStyle != .skeuomorphicHighlight {
+            issues.append(issue(fixtureName, "inferred whiteKeyStyle 应沿用 configuration.whiteKeyStyle。"))
+        }
         if inferred.snapEnabled {
             issues.append(issue(fixtureName, "inferred snapEnabled 应沿用 configuration.snapEnabled。"))
         }
@@ -312,6 +318,7 @@ private extension PianoValidationRunner {
             buttonAreaWidth: 30,
             blackKeyWidthRatio: 0.62,
             blackKeyHeightRatio: 0.6,
+            whiteKeyStyle: .outlined,
             snapEnabled: true
         )
         let baseRows = [
@@ -330,6 +337,7 @@ private extension PianoValidationRunner {
             isVisible: false,
             rowCount: 4,
             movementScope: .cascade,
+            whiteKeyStyle: .skeuomorphicHighlight,
             snapEnabled: false
         )
         let resolvedConfiguration = PianoPanelProjection.resolvedConfiguration(
@@ -352,9 +360,12 @@ private extension PianoValidationRunner {
         if resolvedConfiguration.snapEnabled {
             issues.append(issue(fixtureName, "panel projection 应允许单独关闭 snapEnabled。"))
         }
+        if resolvedConfiguration.whiteKeyStyle != .skeuomorphicHighlight {
+            issues.append(issue(fixtureName, "panel projection 应允许单独切换 whiteKeyStyle。"))
+        }
         if resolvedConfiguration.whiteKeyWidth != baseConfiguration.whiteKeyWidth
             || resolvedConfiguration.rowHeight != baseConfiguration.rowHeight {
-            issues.append(issue(fixtureName, "panel projection 不应意外改动除 snapEnabled 外的 configuration 字段。"))
+            issues.append(issue(fixtureName, "panel projection 不应意外改动除 snapEnabled / whiteKeyStyle 外的 configuration 字段。"))
         }
         if resolvedRows.count != 4 {
             issues.append(issue(fixtureName, "rowCount 扩容后应返回 4 行。"))

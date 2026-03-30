@@ -1758,7 +1758,7 @@ final class iOSViewController: UIViewController {
         return [
             "event: \(pianoDemoLastEventText)",
             "preview: \(previewText)",
-            "panel: visible=\(pianoPanelState.isVisible) rows=\(resolvedPianoDemoRows.count) scope=\(pianoPanelState.movementScope.debugName) snap=\(resolvedPianoDemoConfiguration.snapEnabled)",
+            "panel: visible=\(pianoPanelState.isVisible) rows=\(resolvedPianoDemoRows.count) scope=\(pianoPanelState.movementScope.debugName) style=\(resolvedPianoDemoConfiguration.whiteKeyStyle.debugName) snap=\(resolvedPianoDemoConfiguration.snapEnabled)",
             "rows: \(pianoDemoRowsSummaryText(resolvedPianoDemoRows))"
         ].joined(separator: "\n")
     }

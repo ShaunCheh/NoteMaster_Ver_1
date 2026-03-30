@@ -401,20 +401,157 @@ private extension PianoRowLayer {
                 index: index,
                 totalCount: scene.whiteKeys.count
             )
-            let fillColor = renderState.previewedNote == whiteKey.note
-                ? PianoLayerPalette.previewWhiteKeyFill
-                : PianoLayerPalette.whiteKeyFill
-            context.setFillColor(fillColor)
-            context.fill(fillRect)
+            let isPreviewed = renderState.previewedNote == whiteKey.note
 
-            if configuration.whiteKeyStyle == .outlined {
-                context.setStrokeColor(PianoLayerPalette.whiteKeyStroke)
-                context.setLineWidth(1)
-                context.stroke(strokedRect(whiteKey.rect))
+            switch configuration.whiteKeyStyle {
+            case .outlined, .borderlessSeparatedByGaps:
+                let fillColor = isPreviewed
+                    ? PianoLayerPalette.previewWhiteKeyFill
+                    : PianoLayerPalette.whiteKeyFill
+                context.setFillColor(fillColor)
+                context.fill(fillRect)
+
+                if configuration.whiteKeyStyle == .outlined {
+                    context.setStrokeColor(PianoLayerPalette.whiteKeyStroke)
+                    context.setLineWidth(1)
+                    context.stroke(strokedRect(whiteKey.rect))
+                }
+            case .skeuomorphicHighlight:
+                drawSkeuomorphicWhiteKey(
+                    whiteKey.rect,
+                    isPreviewed: isPreviewed,
+                    in: context
+                )
             }
         }
 
         context.restoreGState()
+    }
+
+    func drawSkeuomorphicWhiteKey(
+        _ rect: CGRect,
+        isPreviewed: Bool,
+        in context: CGContext
+    ) {
+        guard !rect.isEmpty else {
+            return
+        }
+
+        let baseFill = isPreviewed
+            ? PianoLayerPalette.previewWhiteKeyGlossBase
+            : PianoLayerPalette.whiteKeyGlossBase
+        let topHighlight = isPreviewed
+            ? PianoLayerPalette.previewWhiteKeyGlossHighlight
+            : PianoLayerPalette.whiteKeyGlossHighlight
+        let midHighlight = isPreviewed
+            ? PianoLayerPalette.previewWhiteKeyGlossMidHighlight
+            : PianoLayerPalette.whiteKeyGlossMidHighlight
+        let rightShadow = isPreviewed
+            ? PianoLayerPalette.previewWhiteKeyGlossRightShadow
+            : PianoLayerPalette.whiteKeyGlossRightShadow
+        let bottomShadow = isPreviewed
+            ? PianoLayerPalette.previewWhiteKeyGlossBottomShadow
+            : PianoLayerPalette.whiteKeyGlossBottomShadow
+        let strokeColor = isPreviewed
+            ? PianoLayerPalette.previewWhiteKeyGlossStroke
+            : PianoLayerPalette.whiteKeyGlossStroke
+
+        context.setFillColor(baseFill)
+        context.fill(rect)
+
+        let topBandHeight = min(max(rect.height * 0.24, 2), rect.height)
+        if topBandHeight > 0 {
+            context.setFillColor(topHighlight)
+            context.fill(
+                CGRect(
+                    x: rect.minX,
+                    y: rect.minY,
+                    width: rect.width,
+                    height: topBandHeight
+                )
+            )
+        }
+
+        let midBandHeight = min(max(rect.height * 0.16, 1), rect.height)
+        if midBandHeight > 0 {
+            context.setFillColor(midHighlight)
+            context.fill(
+                CGRect(
+                    x: rect.minX + 1,
+                    y: rect.minY + topBandHeight,
+                    width: max(rect.width - 2, 0),
+                    height: min(midBandHeight, max(rect.height - topBandHeight, 0))
+                )
+            )
+        }
+
+        let leftHighlightWidth = min(max(rect.width * 0.06, 1), rect.width)
+        context.setFillColor(PianoLayerPalette.whiteKeyGlossEdgeHighlight)
+        context.fill(
+            CGRect(
+                x: rect.minX,
+                y: rect.minY,
+                width: leftHighlightWidth,
+                height: rect.height
+            )
+        )
+
+        let rightShadowWidth = min(max(rect.width * 0.08, 1), rect.width)
+        context.setFillColor(rightShadow)
+        context.fill(
+            CGRect(
+                x: rect.maxX - rightShadowWidth,
+                y: rect.minY,
+                width: rightShadowWidth,
+                height: rect.height
+            )
+        )
+
+        let bottomShadowHeight = min(max(rect.height * 0.12, 1.5), rect.height)
+        context.setFillColor(bottomShadow)
+        context.fill(
+            CGRect(
+                x: rect.minX,
+                y: rect.maxY - bottomShadowHeight,
+                width: rect.width,
+                height: bottomShadowHeight
+            )
+        )
+
+        context.setStrokeColor(strokeColor)
+        context.setLineWidth(1)
+        context.stroke(strokedRect(rect))
+
+        let innerRect = rect.insetBy(dx: 1, dy: 1)
+        if !innerRect.isEmpty {
+            context.setStrokeColor(PianoLayerPalette.whiteKeyGlossInnerHighlight)
+            context.setLineWidth(1)
+            context.move(
+                to: CGPoint(
+                    x: innerRect.minX,
+                    y: innerRect.minY + 0.5
+                )
+            )
+            context.addLine(
+                to: CGPoint(
+                    x: innerRect.maxX,
+                    y: innerRect.minY + 0.5
+                )
+            )
+            context.move(
+                to: CGPoint(
+                    x: innerRect.minX + 0.5,
+                    y: innerRect.minY
+                )
+            )
+            context.addLine(
+                to: CGPoint(
+                    x: innerRect.minX + 0.5,
+                    y: innerRect.maxY
+                )
+            )
+            context.strokePath()
+        }
     }
 
     func whiteKeyFillRect(
@@ -423,7 +560,7 @@ private extension PianoRowLayer {
         totalCount: Int
     ) -> CGRect {
         switch configuration.whiteKeyStyle {
-        case .outlined:
+        case .outlined, .skeuomorphicHighlight:
             return rect
         case .borderlessSeparatedByGaps:
             guard totalCount > 1, !rect.isEmpty else {
@@ -614,6 +751,20 @@ private enum PianoLayerPalette {
     static let whiteKeyFill = color(red: 0.99, green: 0.99, blue: 1)
     static let whiteKeyStroke = color(red: 0.65, green: 0.68, blue: 0.74)
     static let previewWhiteKeyFill = color(red: 0.81, green: 0.89, blue: 1)
+    static let whiteKeyGlossBase = color(red: 0.96, green: 0.97, blue: 0.99)
+    static let whiteKeyGlossHighlight = color(red: 1, green: 1, blue: 1, alpha: 0.84)
+    static let whiteKeyGlossMidHighlight = color(red: 1, green: 1, blue: 1, alpha: 0.32)
+    static let whiteKeyGlossEdgeHighlight = color(red: 1, green: 1, blue: 1, alpha: 0.45)
+    static let whiteKeyGlossRightShadow = color(red: 0.73, green: 0.76, blue: 0.82, alpha: 0.34)
+    static let whiteKeyGlossBottomShadow = color(red: 0.62, green: 0.65, blue: 0.71, alpha: 0.22)
+    static let whiteKeyGlossStroke = color(red: 0.69, green: 0.72, blue: 0.79)
+    static let whiteKeyGlossInnerHighlight = color(red: 1, green: 1, blue: 1, alpha: 0.48)
+    static let previewWhiteKeyGlossBase = color(red: 0.76, green: 0.86, blue: 0.99)
+    static let previewWhiteKeyGlossHighlight = color(red: 0.98, green: 0.99, blue: 1, alpha: 0.62)
+    static let previewWhiteKeyGlossMidHighlight = color(red: 0.98, green: 0.99, blue: 1, alpha: 0.20)
+    static let previewWhiteKeyGlossRightShadow = color(red: 0.20, green: 0.38, blue: 0.70, alpha: 0.24)
+    static let previewWhiteKeyGlossBottomShadow = color(red: 0.16, green: 0.32, blue: 0.60, alpha: 0.18)
+    static let previewWhiteKeyGlossStroke = color(red: 0.39, green: 0.57, blue: 0.86)
     static let blackKeyFill = color(red: 0.14, green: 0.16, blue: 0.20)
     static let blackKeyStroke = color(red: 0.04, green: 0.05, blue: 0.08)
     static let previewBlackKeyFill = color(red: 0.28, green: 0.56, blue: 0.98)

@@ -13,17 +13,20 @@ struct PianoPanelState: Equatable, Sendable {
     var isVisible: Bool
     var rowCount: Int
     var movementScope: PianoMovementScope
+    var whiteKeyStyle: PianoWhiteKeyStyle
     var snapEnabled: Bool
 
     init(
         isVisible: Bool = true,
         rowCount: Int = 3,
         movementScope: PianoMovementScope = .cascade,
+        whiteKeyStyle: PianoWhiteKeyStyle = .outlined,
         snapEnabled: Bool = true
     ) {
         self.isVisible = isVisible
         self.rowCount = rowCount
         self.movementScope = movementScope
+        self.whiteKeyStyle = whiteKeyStyle
         self.snapEnabled = snapEnabled
     }
 
@@ -45,6 +48,7 @@ struct PianoPanelState: Equatable, Sendable {
                 Self.supportedRowCountRange.upperBound
             ),
             movementScope: rows.first?.movementScope ?? .cascade,
+            whiteKeyStyle: configuration.whiteKeyStyle,
             snapEnabled: configuration.snapEnabled
         )
     }
@@ -62,6 +66,7 @@ enum PianoPanelProjection {
     ) -> PianoConfiguration {
         var configuration = baseConfiguration
         configuration.snapEnabled = panelState.snapEnabled
+        configuration.whiteKeyStyle = panelState.whiteKeyStyle
         return configuration
     }
 

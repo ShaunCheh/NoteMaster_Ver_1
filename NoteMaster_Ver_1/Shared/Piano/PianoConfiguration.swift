@@ -10,6 +10,18 @@ import CoreGraphics
 enum PianoWhiteKeyStyle: Equatable, Sendable {
     case outlined
     case borderlessSeparatedByGaps
+    case skeuomorphicHighlight
+
+    var debugName: String {
+        switch self {
+        case .outlined:
+            return "outlined"
+        case .borderlessSeparatedByGaps:
+            return "gapOnly"
+        case .skeuomorphicHighlight:
+            return "gloss"
+        }
+    }
 }
 
 struct PianoConfiguration: Equatable, Sendable {
