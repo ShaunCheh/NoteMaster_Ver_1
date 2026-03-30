@@ -13,7 +13,10 @@ enum TrainerExerciseMode: Equatable, Hashable, Sendable {
 
 struct TrainerPositionPromptConfiguration: Equatable, Sendable {
     static let supportedFretRange: ClosedRange<Int> = 1...12
-    static let defaultSelectedFrets = Set(supportedFretRange)
+    static let defaultSelectedFrets: Set<Int> = [
+        1, 2, 3, 4,
+        8, 9, 10, 11
+    ]
     static let `default` = TrainerPositionPromptConfiguration()
 
     private(set) var selectedFrets: Set<Int>
@@ -117,7 +120,9 @@ struct TrainerDisplayState: Equatable, Sendable {
     var sequenceConfiguration: TrainerSequenceConfiguration
     var positionPromptConfiguration: TrainerPositionPromptConfiguration
 
-    static let `default` = TrainerDisplayState()
+    static let `default` = TrainerDisplayState(
+        exerciseMode: .positionPrompt
+    )
 
     init(
         exerciseMode: TrainerExerciseMode = .single,

@@ -21,10 +21,11 @@ struct FretboardDisplayState: Equatable, Sendable {
 
     static let `default` = FretboardDisplayState(
         configuration: FretboardConfiguration(
-            displayMode: .horizontal,
+            displayMode: .vertical,
             tuning: .standard(for: .guitar6),
             maxFret: 12
         ),
+        visibility: .none,
         verticalHostHeightRatio: defaultVerticalHostHeightRatio
     )
 

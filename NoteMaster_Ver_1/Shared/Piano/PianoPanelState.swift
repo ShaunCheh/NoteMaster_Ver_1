@@ -17,7 +17,7 @@ struct PianoPanelState: Equatable, Sendable {
     var snapEnabled: Bool
 
     init(
-        isVisible: Bool = true,
+        isVisible: Bool = false,
         rowCount: Int = 3,
         movementScope: PianoMovementScope = .cascade,
         whiteKeyStyle: PianoWhiteKeyStyle = .outlined,
@@ -42,7 +42,7 @@ struct PianoPanelState: Equatable, Sendable {
         rows: [PianoRowState]
     ) -> PianoPanelState {
         PianoPanelState(
-            isVisible: true,
+            isVisible: false,
             rowCount: min(
                 max(rows.count, Self.supportedRowCountRange.lowerBound),
                 Self.supportedRowCountRange.upperBound
