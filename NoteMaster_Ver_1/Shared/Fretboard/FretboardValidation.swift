@@ -1617,7 +1617,7 @@ private extension FretboardValidationRunner {
         )
         if let startupTrainerSection = startupSettingsModel.sections.first(where: {
             $0.id == .trainer
-        ) {
+        }) {
             let expectedStartupTrainerRowIDs: [SettingsRowID] = [
                 .choice(.exerciseMode),
                 .choice(.positionPromptFilterMode),
