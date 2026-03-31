@@ -151,6 +151,10 @@ private extension SettingsNavigationValidationRunner {
             SettingsNavigationValidationFixture(
                 name: "reserved_route_titles_remain_stable",
                 validate: validateReservedRouteTitlesRemainStable
+            ),
+            SettingsNavigationValidationFixture(
+                name: "reserved_accessibility_identifiers_remain_stable",
+                validate: validateReservedAccessibilityIdentifiersRemainStable
             )
         ]
     }
@@ -159,10 +163,12 @@ private extension SettingsNavigationValidationRunner {
         for platform: SettingsNavigationValidationPlatform
     ) -> [String] {
         [
-            "在 \(platform.displayName) 上确认 settings root 页展示顺序与共享层 section 顺序一致，不会因平台实现自行重排。",
-            "确认从 root 进入任一 section detail page 后，标题与内容都与该 section 对齐，没有串页或丢行。",
-            "确认切换到 horizontal 指板布局时，Layout route 会消失；切回 vertical 后 Layout route 会恢复。",
-            "确认当当前深层 route 因状态变化失效时，卡片内导航会回到最近仍有效的父级，无法保留时兜底 root。"
+            "在 \(platform.displayName) 上确认 close 永远关闭整个 settings card，而不是只关闭当前子页。",
+            "确认在 root 页隐藏返回按钮；进入 section 或更深页面后显示返回按钮，点击后只回退卡片内一层。",
+            "确认 root -> Trainer / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
+            "确认当停留在 Trainer Position Filter 深层页时切换 exercise mode，卡片会自动退回最近仍有效的 Trainer 父页，而不会停留在失效子页。",
+            "确认切换到 horizontal 指板布局时 Layout route 会消失；切回 vertical 后 Layout route 会恢复。",
+            "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
     }
 
@@ -669,6 +675,42 @@ private extension SettingsNavigationValidationRunner {
         }
         if SettingsRouteID.pianoAppearance.fallbackTitle != "Appearance" {
             issues.append(issue(fixtureName, "pianoAppearance fallbackTitle 应为 Appearance。"))
+        }
+
+        return issues
+    }
+
+    static func validateReservedAccessibilityIdentifiersRemainStable()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "reserved_accessibility_identifiers_remain_stable"
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        if SettingsNavigationAccessibility.navigatorIdentifier != "settings-navigation" {
+            issues.append(
+                issue(fixtureName, "navigatorIdentifier 应为 settings-navigation。")
+            )
+        }
+        if SettingsNavigationAccessibility.titleIdentifier != "settings-navigation-title" {
+            issues.append(
+                issue(fixtureName, "titleIdentifier 应为 settings-navigation-title。")
+            )
+        }
+        if SettingsNavigationAccessibility.backButtonIdentifier != "settings-navigation-back-button" {
+            issues.append(
+                issue(fixtureName, "backButtonIdentifier 应为 settings-navigation-back-button。")
+            )
+        }
+        if SettingsNavigationAccessibility.routeItemIdentifier(for: .trainerPositionFilter)
+            != "settings-navigation-route-trainer-position-filter" {
+            issues.append(
+                issue(fixtureName, "trainerPositionFilter route item identifier 应保持稳定。")
+            )
+        }
+        if SettingsNavigationAccessibility.pageIdentifier(for: .section(.trainer))
+            != "settings-navigation-page-section-trainer" {
+            issues.append(
+                issue(fixtureName, "section(.trainer) page identifier 应保持稳定。")
+            )
         }
 
         return issues

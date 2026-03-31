@@ -69,8 +69,11 @@ final class macOSSettingsContainerView: NSView {
         )
         button.imageScaling = .scaleProportionallyDown
         button.contentTintColor = .labelColor
-        button.identifier = NSUserInterfaceItemIdentifier("settings-container-back-button")
-        button.toolTip = "Back"
+        button.identifier = NSUserInterfaceItemIdentifier(
+            SettingsNavigationAccessibility.backButtonIdentifier
+        )
+        button.setAccessibilityLabel("Back to previous settings page")
+        button.toolTip = "Back to previous settings page"
         button.target = self
         button.action = #selector(handleBackButtonTap)
         button.isHidden = true
@@ -82,7 +85,10 @@ final class macOSSettingsContainerView: NSView {
         label.textColor = .labelColor
         label.alignment = .center
         label.lineBreakMode = .byTruncatingTail
-        label.identifier = NSUserInterfaceItemIdentifier("settings-container-title")
+        label.identifier = NSUserInterfaceItemIdentifier(
+            SettingsNavigationAccessibility.titleIdentifier
+        )
+        label.setAccessibilityLabel(SettingsRouteID.root.fallbackTitle)
         return label
     }()
     private lazy var closeButton: NSButton = {
@@ -333,6 +339,7 @@ final class macOSSettingsContainerView: NSView {
 
     private func updateNavigationHeaderState() {
         titleLabel.stringValue = navigationTitle
+        titleLabel.setAccessibilityLabel(navigationTitle)
         titleLabel.isHidden = navigationTitle.isEmpty
         backButton.isHidden = !showsBackButton
     }

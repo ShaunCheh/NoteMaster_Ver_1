@@ -162,7 +162,9 @@ private final class RouteButton: UIButton {
 
     func apply(routeItem: SettingsRouteItem) {
         route = routeItem.route
-        accessibilityIdentifier = "settings-index-route-\(routeItem.route.accessibilityIdentifierComponent)"
+        accessibilityIdentifier = SettingsNavigationAccessibility.routeItemIdentifier(
+            for: routeItem.route
+        )
         accessibilityLabel = routeItem.subtitle.map {
             "\(routeItem.title), \($0)"
         } ?? routeItem.title

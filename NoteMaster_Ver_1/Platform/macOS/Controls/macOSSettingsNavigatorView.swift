@@ -125,7 +125,9 @@ final class macOSSettingsNavigatorView: NSView {
     }
 
     private func configureView() {
-        identifier = NSUserInterfaceItemIdentifier("settings-navigator")
+        identifier = NSUserInterfaceItemIdentifier(
+            SettingsNavigationAccessibility.navigatorIdentifier
+        )
         wantsLayer = true
         layer?.masksToBounds = true
         setContentHuggingPriority(.required, for: .vertical)
@@ -146,11 +148,19 @@ final class macOSSettingsNavigatorView: NSView {
     }
 
     private func applyModelUpdate() {
-        routeStack = model.reconciledPath(routeStack)
+        let previousPath = routeStack
+        let reconciledPath = model.reconciledPath(routeStack)
+        let transitionDirection = transitionDirection(
+            from: previousPath,
+            to: reconciledPath
+        )
+        let didCurrentRouteChange = previousPath.last != reconciledPath.last
+
+        routeStack = reconciledPath
         replaceCurrentPage(
             with: makePageView(for: routeStack.last ?? model.rootRoute),
-            transitionDirection: .none,
-            animated: false
+            transitionDirection: transitionDirection,
+            animated: didCurrentRouteChange && transitionDirection != .none
         )
     }
 
@@ -269,6 +279,11 @@ final class macOSSettingsNavigatorView: NSView {
         ]
         NSLayoutConstraint.activate(currentPageConstraints)
         currentPageView = pageView
+        pageHostView.identifier = NSUserInterfaceItemIdentifier(
+            SettingsNavigationAccessibility.pageIdentifier(
+                for: routeStack.last ?? model.rootRoute
+            )
+        )
         invalidateIntrinsicContentSize()
         needsLayout = true
         layoutSubtreeIfNeeded()
@@ -315,6 +330,19 @@ final class macOSSettingsNavigatorView: NSView {
                 showsBackButton: routeStack.count > 1
             )
         )
+    }
+
+    private func transitionDirection(
+        from previousPath: [SettingsRouteID],
+        to nextPath: [SettingsRouteID]
+    ) -> TransitionDirection {
+        if nextPath.count < previousPath.count {
+            return .pop
+        }
+        if nextPath.count > previousPath.count {
+            return .push
+        }
+        return .none
     }
 }
 

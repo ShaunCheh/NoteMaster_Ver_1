@@ -124,7 +124,7 @@ final class iOSSettingsNavigatorView: UIView {
     }
 
     private func configureView() {
-        accessibilityIdentifier = "settings-navigator"
+        accessibilityIdentifier = SettingsNavigationAccessibility.navigatorIdentifier
         clipsToBounds = true
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
@@ -143,11 +143,19 @@ final class iOSSettingsNavigatorView: UIView {
     }
 
     private func applyModelUpdate() {
-        routeStack = model.reconciledPath(routeStack)
+        let previousPath = routeStack
+        let reconciledPath = model.reconciledPath(routeStack)
+        let transitionDirection = transitionDirection(
+            from: previousPath,
+            to: reconciledPath
+        )
+        let didCurrentRouteChange = previousPath.last != reconciledPath.last
+
+        routeStack = reconciledPath
         replaceCurrentPage(
             with: makePageView(for: routeStack.last ?? model.rootRoute),
-            transitionDirection: .none,
-            animated: false
+            transitionDirection: transitionDirection,
+            animated: didCurrentRouteChange && transitionDirection != .none
         )
     }
 
@@ -261,9 +269,25 @@ final class iOSSettingsNavigatorView: UIView {
         ]
         NSLayoutConstraint.activate(currentPageConstraints)
         currentPageView = pageView
+        pageHostView.accessibilityIdentifier = SettingsNavigationAccessibility.pageIdentifier(
+            for: routeStack.last ?? model.rootRoute
+        )
         invalidateIntrinsicContentSize()
         setNeedsLayout()
         layoutIfNeeded()
+    }
+
+    private func transitionDirection(
+        from previousPath: [SettingsRouteID],
+        to nextPath: [SettingsRouteID]
+    ) -> TransitionDirection {
+        if nextPath.count < previousPath.count {
+            return .pop
+        }
+        if nextPath.count > previousPath.count {
+            return .push
+        }
+        return .none
     }
 
     private func notifyPresentationStateChange() {

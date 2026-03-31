@@ -185,8 +185,11 @@ private final class RouteButton: NSButton {
     func apply(routeItem: SettingsRouteItem) {
         route = routeItem.route
         identifier = NSUserInterfaceItemIdentifier(
-            "settings-index-route-\(routeItem.route.accessibilityIdentifierComponent)"
+            SettingsNavigationAccessibility.routeItemIdentifier(
+                for: routeItem.route
+            )
         )
+        setAccessibilityLabel(routeItem.title)
         toolTip = routeItem.subtitle.map {
             "\(routeItem.title) - \($0)"
         } ?? routeItem.title

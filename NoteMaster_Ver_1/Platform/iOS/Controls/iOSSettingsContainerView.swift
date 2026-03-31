@@ -71,8 +71,8 @@ final class iOSSettingsContainerView: UIView {
             trailing: 10
         )
         button.configuration = configuration
-        button.accessibilityIdentifier = "settings-container-back-button"
-        button.accessibilityLabel = "Back"
+        button.accessibilityIdentifier = SettingsNavigationAccessibility.backButtonIdentifier
+        button.accessibilityLabel = "Back to previous settings page"
         button.isHidden = true
         button.addTarget(
             self,
@@ -88,7 +88,8 @@ final class iOSSettingsContainerView: UIView {
         label.textAlignment = .center
         label.adjustsFontForContentSizeCategory = true
         label.lineBreakMode = .byTruncatingTail
-        label.accessibilityIdentifier = "settings-container-title"
+        label.isAccessibilityElement = true
+        label.accessibilityIdentifier = SettingsNavigationAccessibility.titleIdentifier
         label.accessibilityTraits = [.header]
         return label
     }()
@@ -339,6 +340,7 @@ final class iOSSettingsContainerView: UIView {
 
     private func updateNavigationHeaderState() {
         titleLabel.text = navigationTitle
+        titleLabel.accessibilityLabel = navigationTitle
         titleLabel.isHidden = navigationTitle.isEmpty
         backButton.isHidden = !showsBackButton
     }

@@ -9,6 +9,8 @@
 import Foundation
 import AppKit
 
+// 在 card 内导航落地后，这个 view 只承担“单页表单渲染器”职责；
+// navigator 负责路由、标题、返回与页面切换。
 final class macOSSettingsPanelView: NSView {
     var model: SettingsPanelModel {
         didSet {
