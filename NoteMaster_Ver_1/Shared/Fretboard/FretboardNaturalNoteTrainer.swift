@@ -516,39 +516,57 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     func makePositionPromptSession(
         configuration: FretboardConfiguration,
-        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets
+        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter
     ) -> PositionPromptSession {
         var generator = SystemRandomNumberGenerator()
         return makePositionPromptSession(
             configuration: configuration,
-            allowedFrets: allowedFrets,
+            filter: filter,
             using: &generator
+        )
+    }
+
+    func makePositionPromptSession(
+        configuration: FretboardConfiguration,
+        allowedFrets: Set<Int>
+    ) -> PositionPromptSession {
+        makePositionPromptSession(
+            configuration: configuration,
+            filter: .frets(allowedFrets)
         )
     }
 
     func makePositionPromptSession<R: RandomNumberGenerator>(
         configuration: FretboardConfiguration,
-        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets,
+        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
         using generator: inout R
     ) -> PositionPromptSession {
-        let normalizedAllowedFrets = Self.normalizedPositionPromptAllowedFrets(
-            allowedFrets
-        )
-        let allowedFretsText = normalizedAllowedFrets.sorted().map(String.init).joined(
-            separator: ","
-        )
-        print("[PositionPrompt][Trainer] makePositionPromptSession begin")
+        let normalizedFilter = Self.normalizedPositionPromptFilter(filter)
+        let filterText = Self.positionPromptFilterDebugText(normalizedFilter)
+        print("[PositionPrompt][Trainer] makePositionPromptSession begin \(filterText)")
         requirePositionPromptMode()
         let session = Self.makePositionPromptSession(
             configuration: configuration,
-            allowedFrets: normalizedAllowedFrets,
+            filter: normalizedFilter,
             excluding: nil,
             using: &generator
         )
         print(
-            "[PositionPrompt][Trainer] makePositionPromptSession end allowedFrets=\(allowedFretsText) prompt=string=\(session.promptCell.stringIndex) fret=\(session.promptCell.fret) pitch=\(session.promptPitchClass.displayText())"
+            "[PositionPrompt][Trainer] makePositionPromptSession end \(filterText) prompt=string=\(session.promptCell.stringIndex) fret=\(session.promptCell.fret) pitch=\(session.promptPitchClass.displayText())"
         )
         return session
+    }
+
+    func makePositionPromptSession<R: RandomNumberGenerator>(
+        configuration: FretboardConfiguration,
+        allowedFrets: Set<Int>,
+        using generator: inout R
+    ) -> PositionPromptSession {
+        makePositionPromptSession(
+            configuration: configuration,
+            filter: .frets(allowedFrets),
+            using: &generator
+        )
     }
 
     mutating func handleSingleCoverageHit(
@@ -666,23 +684,37 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     mutating func handlePositionPromptAnswer(
         _ pitchClass: PitchClass,
         configuration: FretboardConfiguration,
-        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets,
+        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
         session: inout PositionPromptSession
     ) -> PositionPromptAnswerResult {
         var generator = SystemRandomNumberGenerator()
         return handlePositionPromptAnswer(
             pitchClass,
             configuration: configuration,
-            allowedFrets: allowedFrets,
+            filter: filter,
             session: &session,
             using: &generator
+        )
+    }
+
+    mutating func handlePositionPromptAnswer(
+        _ pitchClass: PitchClass,
+        configuration: FretboardConfiguration,
+        allowedFrets: Set<Int>,
+        session: inout PositionPromptSession
+    ) -> PositionPromptAnswerResult {
+        handlePositionPromptAnswer(
+            pitchClass,
+            configuration: configuration,
+            filter: .frets(allowedFrets),
+            session: &session
         )
     }
 
     mutating func handlePositionPromptAnswer<R: RandomNumberGenerator>(
         _ pitchClass: PitchClass,
         configuration: FretboardConfiguration,
-        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets,
+        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
         session: inout PositionPromptSession,
         using generator: inout R
     ) -> PositionPromptAnswerResult {
@@ -700,7 +732,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         if isCorrect {
             nextSession = Self.makePositionPromptSession(
                 configuration: configuration,
-                allowedFrets: allowedFrets,
+                filter: filter,
                 excluding: promptCell,
                 using: &generator
             )
@@ -717,6 +749,22 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                 nextPromptCell: nextSession.promptCell,
                 nextPromptPitchClass: nextSession.promptPitchClass
             )
+        )
+    }
+
+    mutating func handlePositionPromptAnswer<R: RandomNumberGenerator>(
+        _ pitchClass: PitchClass,
+        configuration: FretboardConfiguration,
+        allowedFrets: Set<Int>,
+        session: inout PositionPromptSession,
+        using generator: inout R
+    ) -> PositionPromptAnswerResult {
+        handlePositionPromptAnswer(
+            pitchClass,
+            configuration: configuration,
+            filter: .frets(allowedFrets),
+            session: &session,
+            using: &generator
         )
     }
 
@@ -808,28 +856,24 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     private static func makePositionPromptSession<R: RandomNumberGenerator>(
         configuration: FretboardConfiguration,
-        allowedFrets: Set<Int>,
+        filter: PositionPromptCandidateFilter,
         excluding excludedCell: FretboardCell?,
         using generator: inout R
     ) -> PositionPromptSession {
-        let normalizedAllowedFrets = normalizedPositionPromptAllowedFrets(
-            allowedFrets
-        )
+        let normalizedFilter = normalizedPositionPromptFilter(filter)
         let excludedCellText: String
         if let excludedCell {
             excludedCellText = "string=\(excludedCell.stringIndex) fret=\(excludedCell.fret)"
         } else {
             excludedCellText = "nil"
         }
-        let allowedFretsText = normalizedAllowedFrets.sorted().map(String.init).joined(
-            separator: ","
-        )
+        let filterText = positionPromptFilterDebugText(normalizedFilter)
         print(
-            "[PositionPrompt][Trainer] selectPrompt begin allowedFrets=\(allowedFretsText) excluded=\(excludedCellText)"
+            "[PositionPrompt][Trainer] selectPrompt begin \(filterText) excluded=\(excludedCellText)"
         )
         let candidates = positionPromptCandidateCells(
             in: configuration,
-            allowedFrets: normalizedAllowedFrets
+            filter: normalizedFilter
         )
         print(
             "[PositionPrompt][Trainer] selectPrompt candidates count=\(candidates.count)"
@@ -878,19 +922,14 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     private static func positionPromptCandidateCells(
         in configuration: FretboardConfiguration,
-        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets
+        filter: PositionPromptCandidateFilter
     ) -> [FretboardCell] {
-        let normalizedAllowedFrets = normalizedPositionPromptAllowedFrets(
-            allowedFrets
-        )
+        let normalizedFilter = normalizedPositionPromptFilter(filter)
         var cells: [FretboardCell] = []
         cells.reserveCapacity(configuration.stringCount * configuration.displayPositionCount)
 
         for stringIndex in 0..<configuration.stringCount {
             for fret in configuration.fretRange {
-                guard normalizedAllowedFrets.contains(fret) else {
-                    continue
-                }
                 let cell = FretboardCell(
                     stringIndex: stringIndex,
                     fret: fret
@@ -899,6 +938,16 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                       pitchClass.isNatural else {
                     continue
                 }
+                switch normalizedFilter {
+                case let .noteNames(selectedPitchClasses):
+                    guard selectedPitchClasses.contains(pitchClass) else {
+                        continue
+                    }
+                case let .frets(selectedFrets):
+                    guard selectedFrets.contains(fret) else {
+                        continue
+                    }
+                }
                 cells.append(cell)
             }
         }
@@ -906,12 +955,42 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return cells
     }
 
-    private static func normalizedPositionPromptAllowedFrets(
-        _ allowedFrets: Set<Int>
-    ) -> Set<Int> {
-        TrainerPositionPromptConfiguration(
-            selectedFrets: allowedFrets
-        ).selectedFrets
+    private static func normalizedPositionPromptFilter(
+        _ filter: PositionPromptCandidateFilter
+    ) -> PositionPromptCandidateFilter {
+        switch filter {
+        case let .noteNames(selectedPitchClasses):
+            let normalizedConfiguration = TrainerPositionPromptConfiguration(
+                filterMode: .noteName,
+                selectedPitchClasses: selectedPitchClasses
+            )
+            return .noteNames(normalizedConfiguration.selectedPitchClasses)
+        case let .frets(selectedFrets):
+            let normalizedConfiguration = TrainerPositionPromptConfiguration(
+                filterMode: .fret,
+                selectedFrets: selectedFrets
+            )
+            return .frets(normalizedConfiguration.selectedFrets)
+        }
+    }
+
+    private static func positionPromptFilterDebugText(
+        _ filter: PositionPromptCandidateFilter
+    ) -> String {
+        switch normalizedPositionPromptFilter(filter) {
+        case let .noteNames(selectedPitchClasses):
+            let orderedPitchClasses =
+                TrainerPositionPromptConfiguration.supportedPitchClasses
+                .filter { selectedPitchClasses.contains($0) }
+                .map { $0.displayText() }
+                .joined(separator: ",")
+            return "filterMode=noteName noteNames=\(orderedPitchClasses)"
+        case let .frets(selectedFrets):
+            let orderedFrets = selectedFrets.sorted().map(String.init).joined(
+                separator: ","
+            )
+            return "filterMode=fret frets=\(orderedFrets)"
+        }
     }
 
     private func requireSingleNaturalTargetMode(

@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase4-shared-trainer
     content: 重构 shared trainer 候选池接口，统一走 `activeFilter -> candidateCells -> randomElement`
-    status: pending
+    status: completed
   - id: phase5-controller-sync
     content: 更新 iOS/macOS controller 的建题、答题换题、settings diff 与 session 重建逻辑
     status: pending
