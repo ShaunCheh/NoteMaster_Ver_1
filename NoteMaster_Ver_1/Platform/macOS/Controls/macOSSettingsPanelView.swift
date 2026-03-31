@@ -159,14 +159,14 @@ final class macOSSettingsPanelView: NSView {
             return rowView
         case let .positionFilter(item):
             let rowID = row.id
-            if let existingRow = controlViewsByID[rowID] as? FretFilterRowView {
+            if let existingRow = controlViewsByID[rowID] as? PositionFilterRowView {
                 existingRow.apply(item: item)
                 return existingRow
             }
 
             detachControlViewIfNeeded(for: rowID)
 
-            let rowView = FretFilterRowView(frame: .zero)
+            let rowView = PositionFilterRowView(frame: .zero)
             rowView.onEvent = { [weak self] event in
                 self?.onEvent?(event)
             }
@@ -758,14 +758,14 @@ private final class ToggleRowView: NSView {
     }
 }
 
-private final class FretFilterRowView: NSView {
+private final class PositionFilterRowView: NSView {
     var onEvent: ((SettingsPanelEvent) -> Void)?
 
-    private var buttonsByOptionID: [SettingsPositionFilterOptionID: FretFilterButton] = [:]
+    private var buttonsByOptionID: [SettingsPositionFilterOptionID: PositionFilterButton] = [:]
 
     private let contentStackView = NSStackView()
     private let titleLabel = NSTextField(labelWithString: "")
-    private let fretsStackView = NSStackView()
+    private let optionsStackView = NSStackView()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -785,12 +785,12 @@ private final class FretFilterRowView: NSView {
         titleLabel.stringValue = item.title
         removeObsoleteButtons(notIn: Set(item.options.map(\.id)))
 
-        let orderedButtons = item.options.map { fret -> NSView in
-            fretButton(for: fret)
+        let orderedButtons = item.options.map { option -> NSView in
+            optionButton(for: option)
         }
 
         replaceArrangedSubviews(
-            in: fretsStackView,
+            in: optionsStackView,
             with: orderedButtons
         )
     }
@@ -799,7 +799,7 @@ private final class FretFilterRowView: NSView {
         contentStackView.orientation = .vertical
         contentStackView.alignment = .leading
         contentStackView.distribution = .fill
-        contentStackView.spacing = Style.fretFilterContentSpacing
+        contentStackView.spacing = Style.positionFilterContentSpacing
         contentStackView.translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel.font = .systemFont(ofSize: Style.bodyFontSize, weight: .medium)
@@ -807,14 +807,14 @@ private final class FretFilterRowView: NSView {
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.setContentCompressionResistancePriority(.required, for: .vertical)
 
-        fretsStackView.orientation = .horizontal
-        fretsStackView.alignment = .centerY
-        fretsStackView.distribution = .fillEqually
-        fretsStackView.spacing = Style.fretFilterSpacing
+        optionsStackView.orientation = .horizontal
+        optionsStackView.alignment = .centerY
+        optionsStackView.distribution = .fillEqually
+        optionsStackView.spacing = Style.positionFilterSpacing
 
         addSubview(contentStackView)
         contentStackView.addArrangedSubview(titleLabel)
-        contentStackView.addArrangedSubview(fretsStackView)
+        contentStackView.addArrangedSubview(optionsStackView)
 
         NSLayoutConstraint.activate([
             contentStackView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -824,15 +824,15 @@ private final class FretFilterRowView: NSView {
         ])
     }
 
-    private func fretButton(for item: SettingsPositionFilterItem) -> FretFilterButton {
+    private func optionButton(for item: SettingsPositionFilterItem) -> PositionFilterButton {
         if let existingButton = buttonsByOptionID[item.id] {
             existingButton.apply(item: item)
             return existingButton
         }
 
-        let button = FretFilterButton(frame: .zero)
+        let button = PositionFilterButton(frame: .zero)
         button.target = self
-        button.action = #selector(handleFretButtonTap(_:))
+        button.action = #selector(handleOptionButtonTap(_:))
         button.apply(item: item)
         buttonsByOptionID[item.id] = button
         return button
@@ -876,7 +876,7 @@ private final class FretFilterRowView: NSView {
     }
 
     @objc
-    private func handleFretButtonTap(_ sender: FretFilterButton) {
+    private func handleOptionButtonTap(_ sender: PositionFilterButton) {
         guard
             let optionID = sender.optionID,
             sender.isEnabled
@@ -888,7 +888,7 @@ private final class FretFilterRowView: NSView {
     }
 }
 
-private final class FretFilterButton: NSButton {
+private final class PositionFilterButton: NSButton {
     var optionID: SettingsPositionFilterOptionID?
 
     private var isPressed = false
@@ -897,12 +897,12 @@ private final class FretFilterButton: NSButton {
         let size = super.intrinsicContentSize
         return NSSize(
             width: max(
-                Style.minimumFretFilterButtonWidth,
-                size.width + Style.fretFilterButtonContentInsets.left + Style.fretFilterButtonContentInsets.right
+                Style.minimumPositionFilterButtonWidth,
+                size.width + Style.positionFilterButtonContentInsets.left + Style.positionFilterButtonContentInsets.right
             ),
             height: max(
-                Style.minimumFretFilterButtonHeight,
-                size.height + Style.fretFilterButtonContentInsets.top + Style.fretFilterButtonContentInsets.bottom
+                Style.minimumPositionFilterButtonHeight,
+                size.height + Style.positionFilterButtonContentInsets.top + Style.positionFilterButtonContentInsets.bottom
             )
         )
     }
@@ -944,7 +944,7 @@ private final class FretFilterButton: NSButton {
         isBordered = false
         focusRingType = .default
         wantsLayer = true
-        layer?.cornerRadius = Style.fretFilterButtonCornerRadius
+        layer?.cornerRadius = Style.positionFilterButtonCornerRadius
         layer?.masksToBounds = true
 
         if let buttonCell = cell as? NSButtonCell {
@@ -961,8 +961,8 @@ private final class FretFilterButton: NSButton {
         attributedTitle = NSAttributedString(
             string: title,
             attributes: [
-                .font: NSFont.monospacedDigitSystemFont(
-                    ofSize: Style.fretFilterButtonFontSize,
+                .font: NSFont.monospacedSystemFont(
+                    ofSize: Style.positionFilterButtonFontSize,
                     weight: .semibold
                 ),
                 .foregroundColor: resolvedForegroundColor()
@@ -1093,14 +1093,14 @@ private enum Style {
     static let panelCornerRadius: CGFloat = 14
     static let buttonCornerRadius: CGFloat = 11
     static let minimumButtonHeight: CGFloat = 30
-    static let minimumFretFilterButtonWidth: CGFloat = 24
-    static let minimumFretFilterButtonHeight: CGFloat = 28
+    static let minimumPositionFilterButtonWidth: CGFloat = 24
+    static let minimumPositionFilterButtonHeight: CGFloat = 28
     static let sectionSpacing: CGFloat = 12
     static let sectionContentSpacing: CGFloat = 6
     static let rowSpacing: CGFloat = 12
     static let choiceContentSpacing: CGFloat = 8
-    static let fretFilterContentSpacing: CGFloat = 8
-    static let fretFilterSpacing: CGFloat = 4
+    static let positionFilterContentSpacing: CGFloat = 8
+    static let positionFilterSpacing: CGFloat = 4
     static let sliderContentSpacing: CGFloat = 8
     static let headerSpacing: CGFloat = 8
     static let toggleSpacing: CGFloat = 12
@@ -1109,15 +1109,15 @@ private enum Style {
     static let captionFontSize: CGFloat = 12
     static let bodyFontSize: CGFloat = 13
     static let valueFontSize: CGFloat = 13
-    static let fretFilterButtonCornerRadius: CGFloat = 8
-    static let fretFilterButtonFontSize: CGFloat = 12
+    static let positionFilterButtonCornerRadius: CGFloat = 8
+    static let positionFilterButtonFontSize: CGFloat = 12
     static let buttonContentInsets = NSEdgeInsets(
         top: 7,
         left: 12,
         bottom: 7,
         right: 12
     )
-    static let fretFilterButtonContentInsets = NSEdgeInsets(
+    static let positionFilterButtonContentInsets = NSEdgeInsets(
         top: 5,
         left: 0,
         bottom: 5,

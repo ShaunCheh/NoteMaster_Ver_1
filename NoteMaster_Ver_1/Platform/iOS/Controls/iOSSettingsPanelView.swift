@@ -147,14 +147,14 @@ final class iOSSettingsPanelView: UIView {
             return rowView
         case let .positionFilter(item):
             let rowID = row.id
-            if let existingRow = controlViewsByID[rowID] as? FretFilterRowView {
+            if let existingRow = controlViewsByID[rowID] as? PositionFilterRowView {
                 existingRow.apply(item: item)
                 return existingRow
             }
 
             detachControlViewIfNeeded(for: rowID)
 
-            let rowView = FretFilterRowView()
+            let rowView = PositionFilterRowView()
             rowView.onEvent = { [weak self] event in
                 self?.onEvent?(event)
             }
@@ -715,14 +715,14 @@ private final class ToggleRowView: UIView {
     }
 }
 
-private final class FretFilterRowView: UIView {
+private final class PositionFilterRowView: UIView {
     var onEvent: ((SettingsPanelEvent) -> Void)?
 
-    private var buttonsByOptionID: [SettingsPositionFilterOptionID: FretFilterButton] = [:]
+    private var buttonsByOptionID: [SettingsPositionFilterOptionID: PositionFilterButton] = [:]
 
     private let contentStackView = UIStackView()
     private let titleLabel = UILabel()
-    private let fretsStackView = UIStackView()
+    private let optionsStackView = UIStackView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -740,12 +740,12 @@ private final class FretFilterRowView: UIView {
         titleLabel.text = item.title
         removeObsoleteButtons(notIn: Set(item.options.map(\.id)))
 
-        let orderedButtons = item.options.map { fret -> UIView in
-            fretButton(for: fret)
+        let orderedButtons = item.options.map { option -> UIView in
+            optionButton(for: option)
         }
 
         replaceArrangedSubviews(
-            in: fretsStackView,
+            in: optionsStackView,
             with: orderedButtons
         )
         isUserInteractionEnabled = item.options.contains(where: { $0.isEnabled })
@@ -755,21 +755,21 @@ private final class FretFilterRowView: UIView {
         contentStackView.axis = .vertical
         contentStackView.alignment = .fill
         contentStackView.distribution = .fill
-        contentStackView.spacing = Style.fretFilterContentSpacing
+        contentStackView.spacing = Style.positionFilterContentSpacing
         contentStackView.translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel.font = .preferredFont(forTextStyle: .subheadline)
         titleLabel.textColor = .label
         titleLabel.adjustsFontForContentSizeCategory = true
 
-        fretsStackView.axis = .horizontal
-        fretsStackView.alignment = .fill
-        fretsStackView.distribution = .fillEqually
-        fretsStackView.spacing = Style.fretFilterSpacing
+        optionsStackView.axis = .horizontal
+        optionsStackView.alignment = .fill
+        optionsStackView.distribution = .fillEqually
+        optionsStackView.spacing = Style.positionFilterSpacing
 
         addSubview(contentStackView)
         contentStackView.addArrangedSubview(titleLabel)
-        contentStackView.addArrangedSubview(fretsStackView)
+        contentStackView.addArrangedSubview(optionsStackView)
 
         NSLayoutConstraint.activate([
             contentStackView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -779,16 +779,16 @@ private final class FretFilterRowView: UIView {
         ])
     }
 
-    private func fretButton(for item: SettingsPositionFilterItem) -> FretFilterButton {
+    private func optionButton(for item: SettingsPositionFilterItem) -> PositionFilterButton {
         if let existingButton = buttonsByOptionID[item.id] {
             existingButton.apply(item: item)
             return existingButton
         }
 
-        let button = FretFilterButton(frame: .zero)
+        let button = PositionFilterButton(frame: .zero)
         button.addTarget(
             self,
-            action: #selector(handleFretButtonTap(_:)),
+            action: #selector(handleOptionButtonTap(_:)),
             for: .touchUpInside
         )
         button.apply(item: item)
@@ -834,7 +834,7 @@ private final class FretFilterRowView: UIView {
     }
 
     @objc
-    private func handleFretButtonTap(_ sender: FretFilterButton) {
+    private func handleOptionButtonTap(_ sender: PositionFilterButton) {
         guard
             let optionID = sender.optionID,
             sender.isEnabled
@@ -846,7 +846,7 @@ private final class FretFilterRowView: UIView {
     }
 }
 
-private final class FretFilterButton: UIButton {
+private final class PositionFilterButton: UIButton {
     var optionID: SettingsPositionFilterOptionID?
 
     override init(frame: CGRect) {
@@ -878,14 +878,14 @@ private final class FretFilterButton: UIButton {
 
         var nextConfiguration = configuration ?? UIButton.Configuration.filled()
         var attributedTitle = AttributedString(title(for: .normal) ?? "")
-        attributedTitle.font = UIFont.monospacedDigitSystemFont(
-            ofSize: Style.fretFilterButtonFontSize,
+        attributedTitle.font = UIFont.monospacedSystemFont(
+            ofSize: Style.positionFilterButtonFontSize,
             weight: .semibold
         )
         nextConfiguration.attributedTitle = attributedTitle
         nextConfiguration.buttonSize = .small
         nextConfiguration.cornerStyle = .medium
-        nextConfiguration.contentInsets = Style.fretFilterButtonContentInsets
+        nextConfiguration.contentInsets = Style.positionFilterButtonContentInsets
         nextConfiguration.baseBackgroundColor = resolvedBackgroundColor()
         nextConfiguration.baseForegroundColor = resolvedForegroundColor()
         configuration = nextConfiguration
@@ -899,7 +899,7 @@ private final class FretFilterButton: UIButton {
         configuration = .filled()
         configuration?.buttonSize = .small
         configuration?.cornerStyle = .medium
-        configuration?.contentInsets = Style.fretFilterButtonContentInsets
+        configuration?.contentInsets = Style.positionFilterButtonContentInsets
 
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -1025,20 +1025,20 @@ private enum Style {
     static let sectionContentSpacing: CGFloat = 6
     static let rowSpacing: CGFloat = 12
     static let choiceContentSpacing: CGFloat = 8
-    static let fretFilterContentSpacing: CGFloat = 8
-    static let fretFilterSpacing: CGFloat = 4
+    static let positionFilterContentSpacing: CGFloat = 8
+    static let positionFilterSpacing: CGFloat = 4
     static let sliderContentSpacing: CGFloat = 8
     static let headerSpacing: CGFloat = 8
     static let toggleSpacing: CGFloat = 12
     static let chipSpacing: CGFloat = 8
-    static let fretFilterButtonFontSize: CGFloat = 12
+    static let positionFilterButtonFontSize: CGFloat = 12
     static let buttonContentInsets = NSDirectionalEdgeInsets(
         top: 8,
         leading: 12,
         bottom: 8,
         trailing: 12
     )
-    static let fretFilterButtonContentInsets = NSDirectionalEdgeInsets(
+    static let positionFilterButtonContentInsets = NSDirectionalEdgeInsets(
         top: 6,
         leading: 0,
         bottom: 6,
