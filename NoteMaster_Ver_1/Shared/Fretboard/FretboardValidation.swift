@@ -1553,9 +1553,40 @@ private extension FretboardValidationRunner {
             }
         }
 
+        func resolveChoiceRow(
+            _ rowID: SettingsChoiceRowID,
+            in section: SettingsSection
+        ) -> SettingsChoiceRow? {
+            for row in section.rows {
+                guard case let .choice(choiceRow) = row,
+                      choiceRow.id == rowID else {
+                    continue
+                }
+                return choiceRow
+            }
+            return nil
+        }
+
+        func resolvePositionFilterRow(
+            _ rowID: SettingsPositionFilterRowID,
+            in section: SettingsSection
+        ) -> SettingsPositionFilterRow? {
+            for row in section.rows {
+                guard case let .positionFilter(positionFilterRow) = row,
+                      positionFilterRow.id == rowID else {
+                    continue
+                }
+                return positionFilterRow
+            }
+            return nil
+        }
+
         logStage("defaultConfiguration")
         let defaultPositionPromptConfiguration =
             TrainerPositionPromptConfiguration.default
+        if TrainerDisplayState.default.exerciseMode != .positionPrompt {
+            record("TrainerDisplayState.default 应继续默认进入 .positionPrompt。")
+        }
         if defaultPositionPromptConfiguration.filterMode != .noteName {
             record("position prompt 默认 filterMode 应为 .noteName。")
         }
@@ -1575,6 +1606,110 @@ private extension FretboardValidationRunner {
             }
         case .frets:
             record("position prompt 默认 activeFilter 不应落在 fret 模式。")
+        }
+
+        logStage("startupSettingsProjection")
+        let startupSettingsModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: SettingsPanelStateContext(
+                pageDisplayState: .positionPrompt,
+                trainerDisplayState: .default
+            )
+        )
+        if let startupTrainerSection = startupSettingsModel.sections.first(where: {
+            $0.id == .trainer
+        ) {
+            let expectedStartupTrainerRowIDs: [SettingsRowID] = [
+                .choice(.exerciseMode),
+                .choice(.positionPromptFilterMode),
+                .positionFilter(.positionPromptFilterOptions)
+            ]
+            if startupTrainerSection.rows.map(\.id) != expectedStartupTrainerRowIDs {
+                record("startup settings model 的 Trainer row 顺序未对齐 Exercise Mode / Filter / Position Filter。")
+            }
+            if let exerciseModeRow = resolveChoiceRow(
+                .exerciseMode,
+                in: startupTrainerSection
+            ) {
+                if let positionPromptChoice = exerciseModeRow.choices.first(where: {
+                    $0.id == .setExerciseModePositionPrompt
+                }) {
+                    if !positionPromptChoice.isSelected {
+                        record("startup settings model 的 Exercise Mode 默认不应偏离 Position Prompt。")
+                    }
+                } else {
+                    record("startup settings model 的 Exercise Mode row 缺少 Position Prompt 选项。")
+                }
+            } else {
+                record("startup settings model 缺少 Exercise Mode row。")
+            }
+
+            if let filterModeRow = resolveChoiceRow(
+                .positionPromptFilterMode,
+                in: startupTrainerSection
+            ) {
+                if filterModeRow.title != "Filter" {
+                    record("startup settings model 的 position prompt filter mode row 标题应为 Filter。")
+                }
+                let expectedFilterModeChoiceIDs: [SettingsActionID] = [
+                    .setPositionPromptFilterModeNoteName,
+                    .setPositionPromptFilterModeFret
+                ]
+                if filterModeRow.choices.map(\.id) != expectedFilterModeChoiceIDs {
+                    record("startup settings model 的 Filter row 选项顺序未对齐 Note Names / Frets。")
+                }
+                if let noteNameChoice = filterModeRow.choices.first(where: {
+                    $0.id == .setPositionPromptFilterModeNoteName
+                }) {
+                    if !noteNameChoice.isSelected {
+                        record("startup settings model 的 Filter 默认应选中 Note Names。")
+                    }
+                } else {
+                    record("startup settings model 的 Filter row 缺少 Note Names 选项。")
+                }
+                if let fretChoice = filterModeRow.choices.first(where: {
+                    $0.id == .setPositionPromptFilterModeFret
+                }) {
+                    if fretChoice.isSelected {
+                        record("startup settings model 的 Filter 默认不应选中 Frets。")
+                    }
+                } else {
+                    record("startup settings model 的 Filter row 缺少 Frets 选项。")
+                }
+            } else {
+                record("startup settings model 缺少 Filter row。")
+            }
+
+            if let startupPositionFilterRow = resolvePositionFilterRow(
+                .positionPromptFilterOptions,
+                in: startupTrainerSection
+            ) {
+                if startupPositionFilterRow.title != "Note Names" {
+                    record("startup settings model 的 Position Filter row 默认标题应为 Note Names。")
+                }
+                let expectedOptionIDs = TrainerPositionPromptConfiguration.supportedPitchClasses.map {
+                    SettingsPositionFilterOptionID.pitchClass($0)
+                }
+                if startupPositionFilterRow.options.map(\.id) != expectedOptionIDs {
+                    record("startup settings model 的音名过滤按钮顺序未对齐 C/D/E/F/G/A/B。")
+                }
+                let expectedSelectedOptionIDs = Set(
+                    TrainerPositionPromptConfiguration.defaultSelectedPitchClasses.map {
+                        SettingsPositionFilterOptionID.pitchClass($0)
+                    }
+                )
+                let actualSelectedOptionIDs = Set(
+                    startupPositionFilterRow.options
+                        .filter(\.isSelected)
+                        .map(\.id)
+                )
+                if actualSelectedOptionIDs != expectedSelectedOptionIDs {
+                    record("startup settings model 的音名过滤按钮默认选中集合未对齐 C/E/F/B。")
+                }
+            } else {
+                record("startup settings model 缺少 Position Filter options row。")
+            }
+        } else {
+            record("startup settings model 缺少 Trainer section，无法验证 position prompt 默认回显。")
         }
 
         logStage("lastSelectedPitchClassGuard")
@@ -2037,6 +2172,7 @@ private extension FretboardValidationRunner {
             "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",
             "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
             "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。",
+            "应用启动后不做额外切换，直接打开设置面板；确认 `Trainer` 分区第一眼看到 `Exercise Mode = Position Prompt`、`Filter = Note Names`，并且多选按钮默认回显 `C / E / F / B`。",
             "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Filter` 与位置题多选过滤行；切到 `positionPrompt` 后确认出现 `Filter = Note Names`，且默认选中 `C / E / F / B`。",
             "在 `positionPrompt` 默认 `Filter = Note Names`、默认 `C / E / F / B` 状态下连续答对多次，确认当前题与下一题都只落在这些音名，且会从当前指板全部合法位置出题（包含命中这些音名的空弦）。",
             "把 `positionPrompt` 的 `Filter` 切到 `Frets`，确认会回显当前品位集合；连续答对多次，确认当前题与下一题都只落在当前已选品位。",
