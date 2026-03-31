@@ -23,6 +23,8 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         FretboardValidationRunner.runAndReportIfNeeded(platform: .iOS)
         print("[Startup][iOSApp] run staff validation")
         StaffValidationRunner.runAndReportIfNeeded(platform: .iOS)
+        print("[Startup][iOSApp] run settings navigation validation")
+        SettingsNavigationValidationRunner.runAndReportIfNeeded(platform: .iOS)
 
         print("[Startup][iOSApp] create window")
         let window = UIWindow(frame: UIScreen.main.bounds)

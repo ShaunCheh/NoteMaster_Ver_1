@@ -90,4 +90,45 @@ struct SettingsNavigationModel: Equatable, Sendable {
     func page(for route: SettingsRouteID) -> SettingsPageModel? {
         pages[route]
     }
+
+    // 路由栈规范化属于共享导航契约；
+    // 当请求的深层 route 当前不存在时，统一退回到最近仍有效的父级，最后兜底 root。
+    func reconciledPath(_ preferredPath: [SettingsRouteID]) -> [SettingsRouteID] {
+        let candidatePath = normalizedCandidatePath(preferredPath)
+        var reconciledPath: [SettingsRouteID] = [rootRoute]
+
+        for route in candidatePath.dropFirst() {
+            guard page(for: route) != nil else {
+                break
+            }
+
+            if reconciledPath.last != route {
+                reconciledPath.append(route)
+            }
+        }
+
+        return reconciledPath
+    }
+
+    private func normalizedCandidatePath(
+        _ preferredPath: [SettingsRouteID]
+    ) -> [SettingsRouteID] {
+        guard !preferredPath.isEmpty else {
+            return [rootRoute]
+        }
+
+        var normalizedPath: [SettingsRouteID] = []
+
+        for route in preferredPath {
+            if normalizedPath.last != route {
+                normalizedPath.append(route)
+            }
+        }
+
+        if normalizedPath.first == rootRoute {
+            return normalizedPath
+        }
+
+        return [rootRoute] + normalizedPath.filter { $0 != rootRoute }
+    }
 }
