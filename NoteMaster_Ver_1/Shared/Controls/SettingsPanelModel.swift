@@ -20,7 +20,7 @@ enum SettingsPresentationStyle: Equatable, Sendable {
 
 enum SettingsRowID: Equatable, Hashable, Sendable {
     case choice(SettingsChoiceRowID)
-    case fretFilter(SettingsFretFilterRowID)
+    case positionFilter(SettingsPositionFilterRowID)
     case slider(SettingsSliderID)
     case toggle(SettingsToggleID)
 }
@@ -63,7 +63,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         case .trainer:
             return [
                 .choice(.exerciseMode),
-                .fretFilter(.positionPromptFrets)
+                .positionFilter(.positionPromptFilterOptions)
             ]
         case .fretboard:
             return [
@@ -100,34 +100,41 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     }
 }
 
-enum SettingsFretFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
-    case positionPromptFrets
+enum SettingsPositionFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
+    case positionPromptFilterOptions
 
     var sectionID: SettingsSectionID {
         switch self {
-        case .positionPromptFrets:
+        case .positionPromptFilterOptions:
             return .trainer
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .positionPromptFrets:
-            return "Frets"
-        }
-    }
-
-    var accessibilityLabel: String {
-        switch self {
-        case .positionPromptFrets:
-            return "Select the frets used when generating position prompt questions"
         }
     }
 
     var supportedFrets: ClosedRange<Int> {
         switch self {
-        case .positionPromptFrets:
+        case .positionPromptFilterOptions:
             return TrainerPositionPromptConfiguration.supportedFretRange
+        }
+    }
+
+    var supportedPitchClasses: [PitchClass] {
+        switch self {
+        case .positionPromptFilterOptions:
+            return TrainerPositionPromptConfiguration.supportedPitchClasses
+        }
+    }
+}
+
+enum SettingsPositionFilterOptionID: Equatable, Hashable, Sendable {
+    case pitchClass(PitchClass)
+    case fret(Int)
+
+    var accessibilityIdentifierComponent: String {
+        switch self {
+        case let .pitchClass(pitchClass):
+            return "pitch-\(pitchClass.displayText().lowercased())"
+        case let .fret(fret):
+            return "fret-\(fret)"
         }
     }
 }
@@ -136,6 +143,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     case topContent
     case mainContent
     case exerciseMode
+    case positionPromptFilterMode
     case instrument
     case displayMode
     case labels
@@ -149,7 +157,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .topContent, .mainContent:
             return .page
-        case .exerciseMode:
+        case .exerciseMode, .positionPromptFilterMode:
             return .trainer
         case .instrument, .displayMode, .labels, .spelling, .octave:
             return .fretboard
@@ -170,6 +178,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Main Content"
         case .exerciseMode:
             return "Exercise Mode"
+        case .positionPromptFilterMode:
+            return "Filter"
         case .instrument:
             return "Instrument"
         case .displayMode:
@@ -197,6 +207,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Select main content"
         case .exerciseMode:
             return "Select exercise mode"
+        case .positionPromptFilterMode:
+            return "Select which position filter mode is active"
         case .instrument:
             return "Select instrument"
         case .displayMode:
@@ -221,6 +233,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         case .topContent,
              .mainContent,
              .exerciseMode,
+             .positionPromptFilterMode,
              .instrument,
              .displayMode,
              .labels,
@@ -239,6 +252,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         case .topContent,
              .mainContent,
              .exerciseMode,
+             .positionPromptFilterMode,
              .clef,
              .pianoMovementScope,
              .pianoWhiteKeyStyle:
@@ -266,6 +280,11 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
                 .setExerciseModeSingle,
                 .setExerciseModeSequence,
                 .setExerciseModePositionPrompt
+            ]
+        case .positionPromptFilterMode:
+            return [
+                .setPositionPromptFilterModeNoteName,
+                .setPositionPromptFilterModeFret
             ]
         case .instrument:
             return [
@@ -323,6 +342,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setExerciseModeSingle
     case setExerciseModeSequence
     case setExerciseModePositionPrompt
+    case setPositionPromptFilterModeNoteName
+    case setPositionPromptFilterModeFret
     case setInstrumentGuitar6
     case setInstrumentBass4
     case setInstrumentBass5
@@ -356,6 +377,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt:
             return .exerciseMode
+        case .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret:
+            return .positionPromptFilterMode
         case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5:
@@ -404,6 +428,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Sequence"
         case .setExerciseModePositionPrompt:
             return "Position"
+        case .setPositionPromptFilterModeNoteName:
+            return "Note Names"
+        case .setPositionPromptFilterModeFret:
+            return "Frets"
         case .setInstrumentGuitar6:
             return "Guitar 6"
         case .setInstrumentBass4:
@@ -463,6 +491,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Train a generated note sequence"
         case .setExerciseModePositionPrompt:
             return "Train note names from a highlighted fretboard position"
+        case .setPositionPromptFilterModeNoteName:
+            return "Filter highlighted fretboard positions by note name"
+        case .setPositionPromptFilterModeFret:
+            return "Filter highlighted fretboard positions by fret number"
         case .setInstrumentGuitar6:
             return "Use 6-string guitar standard tuning"
         case .setInstrumentBass4:
@@ -524,6 +556,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.trainerDisplayState.exerciseMode == .sequence
         case .setExerciseModePositionPrompt:
             return stateContext.trainerDisplayState.exerciseMode == .positionPrompt
+        case .setPositionPromptFilterModeNoteName:
+            return stateContext.trainerDisplayState.positionPromptConfiguration.filterMode == .noteName
+        case .setPositionPromptFilterModeFret:
+            return stateContext.trainerDisplayState.positionPromptConfiguration.filterMode == .fret
         case .setInstrumentGuitar6:
             return stateContext.fretboardDisplayState.configuration.instrument == .guitar6
         case .setInstrumentBass4:
@@ -576,6 +612,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -611,6 +649,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret,
              .setPianoMovementScopeCascade,
              .setPianoMovementScopeRowOnly,
              .setPianoWhiteKeyStyleOutlined,
@@ -661,6 +701,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -697,6 +739,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -728,6 +772,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.setExerciseMode(.sequence)
         case .setExerciseModePositionPrompt:
             displayState.setExerciseMode(.positionPrompt)
+        case .setPositionPromptFilterModeNoteName:
+            displayState.setPositionPromptFilterMode(.noteName)
+        case .setPositionPromptFilterModeFret:
+            displayState.setPositionPromptFilterMode(.fret)
         case .setTopContentStaff,
              .setTopContentTargetPrompt,
              .setTopContentFretboard,
@@ -776,6 +824,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -820,19 +870,19 @@ struct SettingsChoiceRow: Equatable, Sendable {
     var choices: [SettingsChoiceItem]
 }
 
-struct SettingsFretFilterItem: Equatable, Hashable, Sendable {
-    var fret: Int
+struct SettingsPositionFilterItem: Equatable, Hashable, Sendable {
+    var id: SettingsPositionFilterOptionID
     var title: String
     var accessibilityLabel: String
     var isSelected: Bool
     var isEnabled: Bool
 }
 
-struct SettingsFretFilterRow: Equatable, Sendable {
-    var id: SettingsFretFilterRowID
+struct SettingsPositionFilterRow: Equatable, Sendable {
+    var id: SettingsPositionFilterRowID
     var title: String
     var accessibilityLabel: String
-    var frets: [SettingsFretFilterItem]
+    var options: [SettingsPositionFilterItem]
 }
 
 enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
@@ -1110,7 +1160,7 @@ struct SettingsSliderRow: Equatable, Sendable {
 
 enum SettingsRow: Equatable, Sendable {
     case choice(SettingsChoiceRow)
-    case fretFilter(SettingsFretFilterRow)
+    case positionFilter(SettingsPositionFilterRow)
     case slider(SettingsSliderRow)
     case toggle(SettingsToggleRow)
 
@@ -1118,8 +1168,8 @@ enum SettingsRow: Equatable, Sendable {
         switch self {
         case let .choice(row):
             return .choice(row.id)
-        case let .fretFilter(row):
-            return .fretFilter(row.id)
+        case let .positionFilter(row):
+            return .positionFilter(row.id)
         case let .slider(row):
             return .slider(row.id)
         case let .toggle(row):
@@ -1153,13 +1203,15 @@ struct SettingsPanelModel: Equatable, Sendable {
         }.first { $0.id == id }
     }
 
-    func fretFilterRow(for id: SettingsFretFilterRowID) -> SettingsFretFilterRow? {
+    func positionFilterRow(
+        for id: SettingsPositionFilterRowID
+    ) -> SettingsPositionFilterRow? {
         rows.compactMap { row in
-            guard case let .fretFilter(fretFilterRow) = row else {
+            guard case let .positionFilter(positionFilterRow) = row else {
                 return nil
             }
 
-            return fretFilterRow
+            return positionFilterRow
         }.first { $0.id == id }
     }
 
@@ -1186,7 +1238,7 @@ struct SettingsPanelModel: Equatable, Sendable {
 
 enum SettingsPanelEvent: Equatable, Sendable {
     case triggerAction(SettingsActionID)
-    case togglePositionPromptFret(Int)
+    case togglePositionPromptFilterOption(SettingsPositionFilterOptionID)
     case setSliderValue(SettingsSliderID, CGFloat)
     case setToggleValue(SettingsToggleID, Bool)
 
@@ -1196,8 +1248,15 @@ enum SettingsPanelEvent: Equatable, Sendable {
         switch self {
         case let .triggerAction(actionID):
             actionID.apply(to: &stateContext)
-        case let .togglePositionPromptFret(fret):
-            stateContext.trainerDisplayState.togglePositionPromptFret(fret)
+        case let .togglePositionPromptFilterOption(optionID):
+            switch optionID {
+            case let .pitchClass(pitchClass):
+                stateContext.trainerDisplayState.togglePositionPromptPitchClass(
+                    pitchClass
+                )
+            case let .fret(fret):
+                stateContext.trainerDisplayState.togglePositionPromptFret(fret)
+            }
         case let .setSliderValue(sliderID, value):
             sliderID.apply(value: value, to: &stateContext)
         case let .setToggleValue(toggleID, value):

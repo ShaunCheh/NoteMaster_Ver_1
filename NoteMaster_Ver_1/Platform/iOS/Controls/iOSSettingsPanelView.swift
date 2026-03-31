@@ -145,7 +145,7 @@ final class iOSSettingsPanelView: UIView {
             rowView.apply(item: item)
             controlViewsByID[rowID] = rowView
             return rowView
-        case let .fretFilter(item):
+        case let .positionFilter(item):
             let rowID = row.id
             if let existingRow = controlViewsByID[rowID] as? FretFilterRowView {
                 existingRow.apply(item: item)
@@ -718,7 +718,7 @@ private final class ToggleRowView: UIView {
 private final class FretFilterRowView: UIView {
     var onEvent: ((SettingsPanelEvent) -> Void)?
 
-    private var buttonsByFret: [Int: FretFilterButton] = [:]
+    private var buttonsByOptionID: [SettingsPositionFilterOptionID: FretFilterButton] = [:]
 
     private let contentStackView = UIStackView()
     private let titleLabel = UILabel()
@@ -734,13 +734,13 @@ private final class FretFilterRowView: UIView {
         configureView()
     }
 
-    func apply(item: SettingsFretFilterRow) {
-        accessibilityIdentifier = "settings-panel-fret-filter-row-\(String(describing: item.id))"
+    func apply(item: SettingsPositionFilterRow) {
+        accessibilityIdentifier = "settings-panel-position-filter-row-\(String(describing: item.id))"
         accessibilityLabel = item.accessibilityLabel
         titleLabel.text = item.title
-        removeObsoleteButtons(notIn: Set(item.frets.map(\.fret)))
+        removeObsoleteButtons(notIn: Set(item.options.map(\.id)))
 
-        let orderedButtons = item.frets.map { fret -> UIView in
+        let orderedButtons = item.options.map { fret -> UIView in
             fretButton(for: fret)
         }
 
@@ -748,7 +748,7 @@ private final class FretFilterRowView: UIView {
             in: fretsStackView,
             with: orderedButtons
         )
-        isUserInteractionEnabled = item.frets.contains(where: { $0.isEnabled })
+        isUserInteractionEnabled = item.options.contains(where: { $0.isEnabled })
     }
 
     private func configureView() {
@@ -779,8 +779,8 @@ private final class FretFilterRowView: UIView {
         ])
     }
 
-    private func fretButton(for item: SettingsFretFilterItem) -> FretFilterButton {
-        if let existingButton = buttonsByFret[item.fret] {
+    private func fretButton(for item: SettingsPositionFilterItem) -> FretFilterButton {
+        if let existingButton = buttonsByOptionID[item.id] {
             existingButton.apply(item: item)
             return existingButton
         }
@@ -792,15 +792,19 @@ private final class FretFilterRowView: UIView {
             for: .touchUpInside
         )
         button.apply(item: item)
-        buttonsByFret[item.fret] = button
+        buttonsByOptionID[item.id] = button
         return button
     }
 
-    private func removeObsoleteButtons(notIn validFrets: Set<Int>) {
-        let obsoleteFrets = buttonsByFret.keys.filter { !validFrets.contains($0) }
+    private func removeObsoleteButtons(
+        notIn validOptionIDs: Set<SettingsPositionFilterOptionID>
+    ) {
+        let obsoleteOptionIDs = buttonsByOptionID.keys.filter {
+            !validOptionIDs.contains($0)
+        }
 
-        for fret in obsoleteFrets {
-            guard let button = buttonsByFret.removeValue(forKey: fret) else {
+        for optionID in obsoleteOptionIDs {
+            guard let button = buttonsByOptionID.removeValue(forKey: optionID) else {
                 continue
             }
 
@@ -832,18 +836,18 @@ private final class FretFilterRowView: UIView {
     @objc
     private func handleFretButtonTap(_ sender: FretFilterButton) {
         guard
-            let fret = sender.fret,
+            let optionID = sender.optionID,
             sender.isEnabled
         else {
             return
         }
 
-        onEvent?(.togglePositionPromptFret(fret))
+        onEvent?(.togglePositionPromptFilterOption(optionID))
     }
 }
 
 private final class FretFilterButton: UIButton {
-    var fret: Int?
+    var optionID: SettingsPositionFilterOptionID?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -855,12 +859,12 @@ private final class FretFilterButton: UIButton {
         configureButton()
     }
 
-    func apply(item: SettingsFretFilterItem) {
-        fret = item.fret
+    func apply(item: SettingsPositionFilterItem) {
+        optionID = item.id
         isSelected = item.isSelected
         isEnabled = item.isEnabled
         accessibilityLabel = item.accessibilityLabel
-        accessibilityIdentifier = "settings-panel-fret-\(item.fret)"
+        accessibilityIdentifier = "settings-panel-position-filter-\(item.id.accessibilityIdentifierComponent)"
         setTitle(item.title, for: .normal)
         setNeedsUpdateConfiguration()
     }
@@ -868,7 +872,7 @@ private final class FretFilterButton: UIButton {
     override func updateConfiguration() {
         super.updateConfiguration()
 
-        guard fret != nil else {
+        guard optionID != nil else {
             return
         }
 

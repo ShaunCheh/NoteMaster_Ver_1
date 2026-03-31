@@ -56,17 +56,17 @@ enum SettingsPanelSnapshotBuilder {
                     stateContext: stateContext
                 )
             )
-        case let .fretFilter(fretFilterRowID):
+        case let .positionFilter(positionFilterRowID):
             guard shouldInclude(
-                fretFilterRowID: fretFilterRowID,
+                positionFilterRowID: positionFilterRowID,
                 stateContext: stateContext
             ) else {
                 return nil
             }
 
-            return .fretFilter(
-                makeFretFilterRow(
-                    id: fretFilterRowID,
+            return .positionFilter(
+                makePositionFilterRow(
+                    id: positionFilterRowID,
                     stateContext: stateContext
                 )
             )
@@ -158,20 +158,20 @@ enum SettingsPanelSnapshotBuilder {
         )
     }
 
-    private static func makeFretFilterRow(
-        id: SettingsFretFilterRowID,
+    private static func makePositionFilterRow(
+        id: SettingsPositionFilterRowID,
         stateContext: SettingsPanelStateContext
-    ) -> SettingsFretFilterRow {
+    ) -> SettingsPositionFilterRow {
         let configuration = stateContext.trainerDisplayState.positionPromptConfiguration
 
-        return SettingsFretFilterRow(
+        return SettingsPositionFilterRow(
             id: id,
-            title: id.title,
-            accessibilityLabel: id.accessibilityLabel,
-            frets: id.supportedFrets.map { fret in
+            title: "Frets",
+            accessibilityLabel: "Select the frets used when generating position prompt questions",
+            options: id.supportedFrets.map { fret in
                 let isSelected = configuration.contains(fret)
-                return SettingsFretFilterItem(
-                    fret: fret,
+                return SettingsPositionFilterItem(
+                    id: .fret(fret),
                     title: "\(fret)",
                     accessibilityLabel: "Toggle fret \(fret) for position prompt questions",
                     isSelected: isSelected,
@@ -196,11 +196,11 @@ enum SettingsPanelSnapshotBuilder {
     }
 
     private static func shouldInclude(
-        fretFilterRowID: SettingsFretFilterRowID,
+        positionFilterRowID: SettingsPositionFilterRowID,
         stateContext: SettingsPanelStateContext
     ) -> Bool {
-        switch fretFilterRowID {
-        case .positionPromptFrets:
+        switch positionFilterRowID {
+        case .positionPromptFilterOptions:
             return stateContext.trainerDisplayState.isPositionPromptMode
         }
     }
