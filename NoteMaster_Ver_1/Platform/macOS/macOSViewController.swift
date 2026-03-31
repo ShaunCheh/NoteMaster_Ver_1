@@ -545,6 +545,31 @@ final class macOSViewController: NSViewController {
         return button
     }()
 
+    private lazy var labelVisibilityButton: NSButton = {
+        let button = NSButton()
+        button.isBordered = false
+        button.bezelStyle = .regularSquare
+        button.imagePosition = .imageOnly
+        button.image = NSImage(
+            systemSymbolName: "eye.slash.fill",
+            accessibilityDescription: "Show BCEF fretboard labels"
+        )
+        button.imageScaling = .scaleProportionallyDown
+        button.contentTintColor = .labelColor
+        button.identifier = NSUserInterfaceItemIdentifier(
+            "floating-fretboard-label-visibility-button"
+        )
+        button.target = self
+        button.action = #selector(handleLabelVisibilityButtonTap)
+        button.wantsLayer = true
+        button.layer?.cornerRadius = Layout.settingsButtonSize / 2
+        button.layer?.shadowColor = NSColor.black.cgColor
+        button.layer?.shadowOpacity = 0.12
+        button.layer?.shadowRadius = 12
+        button.layer?.shadowOffset = CGSize(width: 0, height: -4)
+        return button
+    }()
+
     private lazy var settingsContainerView: macOSSettingsContainerView = {
         let settingsContainerView = macOSSettingsContainerView(
             model: SettingsNavigationSnapshotBuilder.makeModel(
@@ -710,6 +735,7 @@ final class macOSViewController: NSViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        labelVisibilityButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         topContentHostView.translatesAutoresizingMaskIntoConstraints = false
         mainContentHostView.translatesAutoresizingMaskIntoConstraints = false
@@ -755,6 +781,7 @@ final class macOSViewController: NSViewController {
         fretboardHostView.addSubview(fretboardViewportScrollView)
         fretboardScrollContentView.addSubview(fretboardView)
         view.addSubview(settingsButton)
+        view.addSubview(labelVisibilityButton)
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
@@ -929,6 +956,16 @@ final class macOSViewController: NSViewController {
             ),
             settingsButton.widthAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
             settingsButton.heightAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
+            labelVisibilityButton.trailingAnchor.constraint(
+                equalTo: safeArea.trailingAnchor,
+                constant: -Layout.horizontalInset
+            ),
+            labelVisibilityButton.topAnchor.constraint(
+                equalTo: safeArea.topAnchor,
+                constant: Layout.topInset
+            ),
+            labelVisibilityButton.widthAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
+            labelVisibilityButton.heightAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
             settingsContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             settingsContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             settingsContainerView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -985,6 +1022,7 @@ final class macOSViewController: NSViewController {
         applyStaffDisplayState()
         applyPageDisplayState()
         applySequenceRegenerateButtonState()
+        applyLabelVisibilityButtonState()
         synchronizeTrainerPresentationState(reason: "initial")
         logLifecycle("applyDisplayState end")
     }
@@ -997,6 +1035,7 @@ final class macOSViewController: NSViewController {
         fretboardView.showsComponentBoundsOverlay = displayState.showsComponentBoundsOverlay
         rebuildVerticalFretboardHostHeightConstraint()
         applySettingsPanelState()
+        applyLabelVisibilityButtonState()
         updateFretboardLayoutModeConstraints()
 
         switch fretboardTrainerState.mode {
@@ -1041,6 +1080,7 @@ final class macOSViewController: NSViewController {
         applyTopContentMode()
         applyMainContentMode()
         applySettingsPanelState()
+        applyLabelVisibilityButtonState()
         updateLayoutIfNeeded()
 
         if isShowingFretboard {
@@ -1622,6 +1662,30 @@ final class macOSViewController: NSViewController {
         sequenceRegenerateButton.isHidden = !trainerDisplayState.isSequenceMode
     }
 
+    private func applyLabelVisibilityButtonState() {
+        labelVisibilityButton.isHidden = !isShowingFretboard || isSettingsPresented
+        updateLabelVisibilityButtonAppearance()
+    }
+
+    private func updateLabelVisibilityButtonAppearance() {
+        let showsBCEFLabels = displayState.visibility == .bcefOnly
+        let accessibilityLabel = showsBCEFLabels
+            ? "Hide BCEF fretboard labels"
+            : "Show BCEF fretboard labels"
+        labelVisibilityButton.image = NSImage(
+            systemSymbolName: showsBCEFLabels ? "eye.fill" : "eye.slash.fill",
+            accessibilityDescription: accessibilityLabel
+        )
+        labelVisibilityButton.contentTintColor = showsBCEFLabels ? .white : .labelColor
+        labelVisibilityButton.layer?.backgroundColor = (
+            showsBCEFLabels
+                ? NSColor.controlAccentColor
+                : NSColor.controlBackgroundColor
+        ).cgColor
+        labelVisibilityButton.toolTip = accessibilityLabel
+        labelVisibilityButton.setAccessibilityLabel(accessibilityLabel)
+    }
+
     private func regenerateQuarterNoteSequence(reason: String) {
         guard trainerDisplayState.isSequenceMode else {
             return
@@ -1706,6 +1770,7 @@ final class macOSViewController: NSViewController {
         settingsContainerView.setPresented(isSettingsPresented)
         settingsButton.isHidden = isSettingsPresented
         updateSettingsButtonAppearance()
+        applyLabelVisibilityButtonState()
     }
 
     private func updateSettingsButtonAppearance() {
@@ -1785,6 +1850,13 @@ final class macOSViewController: NSViewController {
     @objc
     private func handleSettingsButtonTap() {
         setSettingsPresented(!isSettingsPresented)
+    }
+
+    @objc
+    private func handleLabelVisibilityButtonTap() {
+        displayState.visibility = displayState.visibility == .bcefOnly
+            ? .none
+            : .bcefOnly
     }
 
     @objc

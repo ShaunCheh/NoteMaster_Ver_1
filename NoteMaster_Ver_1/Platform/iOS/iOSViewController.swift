@@ -548,6 +548,32 @@ final class iOSViewController: UIViewController {
         return button
     }()
 
+    private lazy var labelVisibilityButton: UIButton = {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.filled()
+        configuration.buttonSize = .medium
+        configuration.cornerStyle = .capsule
+        configuration.image = UIImage(systemName: "eye.slash.fill")
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 10,
+            leading: 10,
+            bottom: 10,
+            trailing: 10
+        )
+        button.configuration = configuration
+        button.accessibilityIdentifier = "floating-fretboard-label-visibility-button"
+        button.addTarget(
+            self,
+            action: #selector(handleLabelVisibilityButtonTap),
+            for: .touchUpInside
+        )
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.12
+        button.layer.shadowRadius = 12
+        button.layer.shadowOffset = CGSize(width: 0, height: 4)
+        return button
+    }()
+
     private lazy var settingsContainerView: iOSSettingsContainerView = {
         let settingsContainerView = iOSSettingsContainerView(
             model: SettingsNavigationSnapshotBuilder.makeModel(
@@ -707,6 +733,7 @@ final class iOSViewController: UIViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        labelVisibilityButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
         topContentHostView.translatesAutoresizingMaskIntoConstraints = false
         mainContentHostView.translatesAutoresizingMaskIntoConstraints = false
@@ -759,6 +786,7 @@ final class iOSViewController: UIViewController {
         fretboardViewportScrollView.addSubview(fretboardScrollContentView)
         fretboardScrollContentView.addSubview(fretboardView)
         view.addSubview(settingsButton)
+        view.addSubview(labelVisibilityButton)
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
@@ -928,6 +956,16 @@ final class iOSViewController: UIViewController {
             ),
             settingsButton.widthAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
             settingsButton.heightAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
+            labelVisibilityButton.trailingAnchor.constraint(
+                equalTo: safeArea.trailingAnchor,
+                constant: -Layout.horizontalInset
+            ),
+            labelVisibilityButton.topAnchor.constraint(
+                equalTo: safeArea.topAnchor,
+                constant: Layout.topInset
+            ),
+            labelVisibilityButton.widthAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
+            labelVisibilityButton.heightAnchor.constraint(equalToConstant: Layout.settingsButtonSize),
             settingsContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             settingsContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             settingsContainerView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -985,6 +1023,7 @@ final class iOSViewController: UIViewController {
         applyStaffDisplayState()
         applyPageDisplayState()
         applySequenceRegenerateButtonState()
+        applyLabelVisibilityButtonState()
         synchronizeTrainerPresentationState(reason: "initial")
         logLifecycle("applyDisplayState end")
     }
@@ -997,6 +1036,7 @@ final class iOSViewController: UIViewController {
         fretboardView.showsComponentBoundsOverlay = displayState.showsComponentBoundsOverlay
         rebuildVerticalFretboardHostHeightConstraint()
         applySettingsPanelState()
+        applyLabelVisibilityButtonState()
         updateFretboardLayoutModeConstraints()
 
         switch fretboardTrainerState.mode {
@@ -1041,6 +1081,7 @@ final class iOSViewController: UIViewController {
         applyTopContentMode()
         applyMainContentMode()
         applySettingsPanelState()
+        applyLabelVisibilityButtonState()
         updateLayoutIfNeeded()
 
         if isShowingFretboard {
@@ -1642,6 +1683,29 @@ final class iOSViewController: UIViewController {
         sequenceRegenerateButton.isHidden = !trainerDisplayState.isSequenceMode
     }
 
+    private func applyLabelVisibilityButtonState() {
+        labelVisibilityButton.isHidden = !isShowingFretboard || isSettingsPresented
+        updateLabelVisibilityButtonAppearance()
+    }
+
+    private func updateLabelVisibilityButtonAppearance() {
+        let showsBCEFLabels = displayState.visibility == .bcefOnly
+        var configuration = labelVisibilityButton.configuration ?? UIButton.Configuration.filled()
+        configuration.image = UIImage(
+            systemName: showsBCEFLabels ? "eye.fill" : "eye.slash.fill"
+        )
+        configuration.baseBackgroundColor = showsBCEFLabels
+            ? .systemBlue
+            : .secondarySystemBackground
+        configuration.baseForegroundColor = showsBCEFLabels
+            ? .white
+            : .label
+        labelVisibilityButton.configuration = configuration
+        labelVisibilityButton.accessibilityLabel = showsBCEFLabels
+            ? "Hide BCEF fretboard labels"
+            : "Show BCEF fretboard labels"
+    }
+
     private func regenerateQuarterNoteSequence(reason: String) {
         guard trainerDisplayState.isSequenceMode else {
             return
@@ -1726,6 +1790,7 @@ final class iOSViewController: UIViewController {
         settingsContainerView.setPresented(isSettingsPresented)
         settingsButton.isHidden = isSettingsPresented
         updateSettingsButtonAppearance()
+        applyLabelVisibilityButtonState()
     }
 
     private func updateSettingsButtonAppearance() {
@@ -1810,6 +1875,13 @@ final class iOSViewController: UIViewController {
     @objc
     private func handleSettingsButtonTap() {
         setSettingsPresented(!isSettingsPresented)
+    }
+
+    @objc
+    private func handleLabelVisibilityButtonTap() {
+        displayState.visibility = displayState.visibility == .bcefOnly
+            ? .none
+            : .bcefOnly
     }
 
     @objc
