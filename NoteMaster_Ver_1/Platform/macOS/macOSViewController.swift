@@ -184,8 +184,8 @@ final class macOSViewController: NSViewController {
         )
     }
 
-    private var currentPositionPromptAllowedFrets: Set<Int> {
-        trainerDisplayState.positionPromptConfiguration.selectedFrets
+    private var currentPositionPromptFilter: PositionPromptCandidateFilter {
+        trainerDisplayState.positionPromptConfiguration.activeFilter
     }
 
     private var currentPositionPromptOverlayPhase: FretboardFeedbackOverlayState.PositionPromptPhase {
@@ -355,15 +355,20 @@ final class macOSViewController: NSViewController {
         _ cell: FretboardCell,
         expectedPitchClass: PitchClass
     ) -> Bool {
-        guard currentPositionPromptAllowedFrets.contains(cell.fret),
-              let resolvedPitchClass = displayState.configuration.pitchClass(
+        guard let resolvedPitchClass = displayState.configuration.pitchClass(
                 for: cell
-              ) else {
+              ),
+              resolvedPitchClass == expectedPitchClass,
+              resolvedPitchClass.isNatural else {
             return false
         }
 
-        return resolvedPitchClass == expectedPitchClass
-            && resolvedPitchClass.isNatural
+        switch currentPositionPromptFilter {
+        case let .noteNames(selectedPitchClasses):
+            return selectedPitchClasses.contains(resolvedPitchClass)
+        case let .frets(selectedFrets):
+            return selectedFrets.contains(cell.fret)
+        }
     }
 
     private func ensurePositionPromptSession() {
@@ -383,7 +388,7 @@ final class macOSViewController: NSViewController {
         var generator = SystemRandomNumberGenerator()
         positionPromptSession = fretboardTrainerState.makePositionPromptSession(
             configuration: displayState.configuration,
-            allowedFrets: trainerDisplayState.positionPromptConfiguration.selectedFrets,
+            filter: currentPositionPromptFilter,
             using: &generator
         )
         clearPositionPromptFeedbackState()
@@ -1236,7 +1241,7 @@ final class macOSViewController: NSViewController {
         let answerResult = fretboardTrainerState.handlePositionPromptAnswer(
             pitchClass,
             configuration: displayState.configuration,
-            allowedFrets: trainerDisplayState.positionPromptConfiguration.selectedFrets,
+            filter: currentPositionPromptFilter,
             session: &positionPromptSession
         )
         self.positionPromptSession = positionPromptSession
@@ -1459,6 +1464,11 @@ final class macOSViewController: NSViewController {
 
         if staffDisplayState != baseStaffDisplayState {
             staffDisplayState = baseStaffDisplayState
+        }
+
+        if reason == "positionPromptFilterChanged",
+           currentPositionPromptOverlayPhase != .neutralWhite {
+            resetPositionPromptInteractionState()
         }
 
         if case .positionPrompt = fretboardTrainerState.mode {
@@ -1800,8 +1810,9 @@ final class macOSViewController: NSViewController {
         let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
         let didChangePianoPanel = nextPianoPanelState != pianoPanelState
         let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
-        let didChangePositionPromptFrets = nextTrainerDisplayState.positionPromptConfiguration
-            != trainerDisplayState.positionPromptConfiguration
+        let didChangePositionPromptActiveFilter =
+            nextTrainerDisplayState.positionPromptConfiguration.activeFilter
+            != trainerDisplayState.positionPromptConfiguration.activeFilter
 
         guard didChangeFretboard || didChangeStaff || didChangePage || didChangeTrainer || didChangePianoPanel else {
             return
@@ -1840,8 +1851,8 @@ final class macOSViewController: NSViewController {
             let trainerSyncReason: String
             if didChangeExerciseMode {
                 trainerSyncReason = "exerciseModeChanged"
-            } else if didChangePositionPromptFrets {
-                trainerSyncReason = "positionPromptFretsChanged"
+            } else if didChangePositionPromptActiveFilter {
+                trainerSyncReason = "positionPromptFilterChanged"
             } else {
                 trainerSyncReason = "trainerSettingsChanged"
             }
