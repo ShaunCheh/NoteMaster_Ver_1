@@ -133,12 +133,12 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateRootRouteItemsMatchPanelSections
             ),
             SettingsNavigationValidationFixture(
-                name: "section_routes_wrap_single_section_pages",
-                validate: validateSectionRoutesWrapSingleSectionPages
+                name: "split_sections_produce_expected_page_tree",
+                validate: validateSplitSectionsProduceExpectedPageTree
             ),
             SettingsNavigationValidationFixture(
-                name: "position_prompt_context_keeps_trainer_section_projection",
-                validate: validatePositionPromptContextKeepsTrainerSectionProjection
+                name: "trainer_route_visibility_tracks_exercise_mode",
+                validate: validateTrainerRouteVisibilityTracksExerciseMode
             ),
             SettingsNavigationValidationFixture(
                 name: "layout_route_visibility_tracks_display_mode",
@@ -215,9 +215,9 @@ private extension SettingsNavigationValidationRunner {
         return issues
     }
 
-    static func validateSectionRoutesWrapSingleSectionPages()
+    static func validateSplitSectionsProduceExpectedPageTree()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "section_routes_wrap_single_section_pages"
+        let fixtureName = "split_sections_produce_expected_page_tree"
         let stateContext = SettingsPanelStateContext.default
         let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
         let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
@@ -225,92 +225,302 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
-        for section in panelModel.sections {
-            let route = SettingsRouteID.section(section.id)
-            guard let page = navigationModel.page(for: route) else {
-                issues.append(
-                    issue(fixtureName, "缺少 \(section.title) 的 section route page。")
-                )
-                continue
-            }
-
-            if page.id != route {
-                issues.append(
-                    issue(fixtureName, "\(section.title) page.id 未对齐 route。")
-                )
-            }
-            if page.title != section.title {
-                issues.append(
-                    issue(fixtureName, "\(section.title) page.title 应与 section.title 一致。")
-                )
-            }
-
-            guard let sections = page.content.sections else {
-                issues.append(
-                    issue(fixtureName, "\(section.title) page.content 应为 form sections。")
-                )
-                continue
-            }
-
-            if sections != [section] {
-                issues.append(
-                    issue(fixtureName, "\(section.title) page 应只承载单个且原样的 section。")
-                )
-            }
-
-            let expectedPanelModel = SettingsPanelModel(sections: [section])
-            if page.panelModel != expectedPanelModel {
-                issues.append(
-                    issue(fixtureName, "\(section.title) page.panelModel 应与单 section panel model 对齐。")
-                )
-            }
+        guard let trainerSection = resolveSection(.trainer, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Trainer section。"))
+            return issues
         }
+        guard let staffSection = resolveSection(.staff, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Staff section。"))
+            return issues
+        }
+        guard let pianoSection = resolveSection(.piano, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Piano section。"))
+            return issues
+        }
+        guard let pageSection = resolveSection(.page, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Page section。"))
+            return issues
+        }
+        guard let fretboardSection = resolveSection(.fretboard, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Fretboard section。"))
+            return issues
+        }
+        guard let layoutSection = resolveSection(.layout, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Layout section。"))
+            return issues
+        }
+        guard let debugSection = resolveSection(.debug, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Debug section。"))
+            return issues
+        }
+
+        assertFormPage(
+            route: .section(.page),
+            expectedTitle: pageSection.title,
+            expectedSection: pageSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Page section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .section(.fretboard),
+            expectedTitle: fretboardSection.title,
+            expectedSection: fretboardSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Fretboard section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .section(.layout),
+            expectedTitle: layoutSection.title,
+            expectedSection: layoutSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Layout section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .section(.debug),
+            expectedTitle: debugSection.title,
+            expectedSection: debugSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Debug section",
+            issues: &issues
+        )
+
+        assertIndexPage(
+            route: .section(.trainer),
+            expectedTitle: trainerSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.trainerExercise.fallbackTitle,
+                    subtitle: "Mode",
+                    route: .trainerExercise
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.trainerPositionFilter.fallbackTitle,
+                    subtitle: "Note names or frets",
+                    route: .trainerPositionFilter
+                )
+            ],
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Trainer section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .trainerExercise,
+            expectedTitle: SettingsRouteID.trainerExercise.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.trainerExercise.fallbackTitle,
+                from: trainerSection,
+                keepingRowIDs: [
+                    .choice(.exerciseMode)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Trainer Exercise",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .trainerPositionFilter,
+            expectedTitle: SettingsRouteID.trainerPositionFilter.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.trainerPositionFilter.fallbackTitle,
+                from: trainerSection,
+                keepingRowIDs: [
+                    .choice(.positionPromptFilterMode),
+                    .positionFilter(.positionPromptFilterOptions)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Trainer Position Filter",
+            issues: &issues
+        )
+
+        assertIndexPage(
+            route: .section(.staff),
+            expectedTitle: staffSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.staffClef.fallbackTitle,
+                    subtitle: "Type",
+                    route: .staffClef
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.staffLayout.fallbackTitle,
+                    subtitle: "Scale and trim",
+                    route: .staffLayout
+                )
+            ],
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Staff section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .staffClef,
+            expectedTitle: SettingsRouteID.staffClef.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.staffClef.fallbackTitle,
+                from: staffSection,
+                keepingRowIDs: [
+                    .choice(.clef)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Staff Clef",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .staffLayout,
+            expectedTitle: SettingsRouteID.staffLayout.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.staffLayout.fallbackTitle,
+                from: staffSection,
+                keepingRowIDs: [
+                    .slider(.clefScale),
+                    .slider(.clefVerticalTrim),
+                    .slider(.clefAnchorYOffset)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Staff Layout",
+            issues: &issues
+        )
+
+        assertIndexPage(
+            route: .section(.piano),
+            expectedTitle: pianoSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.pianoBehavior.fallbackTitle,
+                    subtitle: "Visibility and movement",
+                    route: .pianoBehavior
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.pianoAppearance.fallbackTitle,
+                    subtitle: "Key styling",
+                    route: .pianoAppearance
+                )
+            ],
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Piano section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .pianoBehavior,
+            expectedTitle: SettingsRouteID.pianoBehavior.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.pianoBehavior.fallbackTitle,
+                from: pianoSection,
+                keepingRowIDs: [
+                    .toggle(.pianoVisible),
+                    .slider(.pianoRowCount),
+                    .choice(.pianoMovementScope),
+                    .toggle(.pianoSnapEnabled)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Piano Behavior",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .pianoAppearance,
+            expectedTitle: SettingsRouteID.pianoAppearance.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.pianoAppearance.fallbackTitle,
+                from: pianoSection,
+                keepingRowIDs: [
+                    .choice(.pianoWhiteKeyStyle)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Piano Appearance",
+            issues: &issues
+        )
 
         return issues
     }
 
-    static func validatePositionPromptContextKeepsTrainerSectionProjection()
+    static func validateTrainerRouteVisibilityTracksExerciseMode()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "position_prompt_context_keeps_trainer_section_projection"
-        let stateContext = SettingsPanelStateContext(
+        let fixtureName = "trainer_route_visibility_tracks_exercise_mode"
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        let singleTrainerState = TrainerDisplayState(exerciseMode: .single)
+        let singleStateContext = SettingsPanelStateContext(
+            trainerDisplayState: singleTrainerState
+        )
+        let singlePanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: singleStateContext
+        )
+        let singleNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: singleStateContext
+        )
+
+        guard let singleTrainerSection = resolveSection(.trainer, in: singlePanelModel) else {
+            issues.append(issue(fixtureName, "single 模式下应保留 Trainer section。"))
+            return issues
+        }
+
+        assertFormPage(
+            route: .section(.trainer),
+            expectedTitle: singleTrainerSection.title,
+            expectedSection: singleTrainerSection,
+            in: singleNavigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Trainer single-mode section",
+            issues: &issues
+        )
+        if singleNavigationModel.page(for: .trainerExercise) != nil {
+            issues.append(
+                issue(fixtureName, "只有一个 Trainer 子分组时，不应继续暴露 trainerExercise 深层页。")
+            )
+        }
+        if singleNavigationModel.page(for: .trainerPositionFilter) != nil {
+            issues.append(
+                issue(fixtureName, "single 模式下不应暴露 trainerPositionFilter 深层页。")
+            )
+        }
+
+        let positionPromptStateContext = SettingsPanelStateContext(
             pageDisplayState: .positionPrompt,
             trainerDisplayState: .default
         )
-        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
-        let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
-            from: stateContext
+        let positionPromptNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: positionPromptStateContext
         )
-        var issues: [SettingsNavigationValidationIssue] = []
 
-        guard let trainerSection = resolveSection(.trainer, in: panelModel) else {
-            issues.append(issue(fixtureName, "position prompt 启动态应保留 Trainer section。"))
+        guard let trainerPage = positionPromptNavigationModel.page(for: .section(.trainer)) else {
+            issues.append(issue(fixtureName, "position prompt 模式下缺少 Trainer section page。"))
             return issues
         }
 
-        guard let rootRouteItems = navigationModel.rootPage?.content.routeItems else {
-            issues.append(issue(fixtureName, "navigation rootPage 应暴露 route items。"))
+        guard let trainerRouteItems = trainerPage.content.routeItems else {
+            issues.append(issue(fixtureName, "position prompt 模式下 Trainer section 应变为 index page。"))
             return issues
         }
-
-        let trainerRoute = SettingsRouteID.section(.trainer)
-        guard let trainerRouteItem = rootRouteItems.first(where: { $0.route == trainerRoute }) else {
-            issues.append(issue(fixtureName, "position prompt 启动态的 root route 应包含 Trainer。"))
-            return issues
-        }
-
-        if trainerRouteItem.title != trainerSection.title {
-            issues.append(issue(fixtureName, "Trainer route item 标题应与 Trainer section 标题一致。"))
-        }
-
-        guard let trainerPage = navigationModel.page(for: trainerRoute) else {
-            issues.append(issue(fixtureName, "position prompt 启动态缺少 Trainer detail page。"))
-            return issues
-        }
-
-        if trainerPage.content.sections != [trainerSection] {
+        if trainerRouteItems.map(\.route) != [
+            .trainerExercise,
+            .trainerPositionFilter
+        ] {
             issues.append(
-                issue(fixtureName, "Trainer detail page 应完整承载 startup 的 Trainer section 投影。")
+                issue(fixtureName, "position prompt 模式下 Trainer index route 顺序应为 Exercise -> Position Filter。")
             )
+        }
+        if positionPromptNavigationModel.page(for: .trainerPositionFilter) == nil {
+            issues.append(issue(fixtureName, "position prompt 模式下应生成 trainerPositionFilter 深层页。"))
         }
 
         return issues
@@ -372,14 +582,30 @@ private extension SettingsNavigationValidationRunner {
         let startupNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: startupStateContext
         )
-        let trainerFallbackPath = startupNavigationModel.reconciledPath([
+        let availableTrainerPath = startupNavigationModel.reconciledPath([
             .root,
             .section(.trainer),
             .trainerPositionFilter
         ])
-        if trainerFallbackPath != [.root, .section(.trainer)] {
+        if availableTrainerPath != [.root, .section(.trainer), .trainerPositionFilter] {
             issues.append(
-                issue(fixtureName, "缺失的深层 route 应回退到最近仍有效的 Trainer 父级。")
+                issue(fixtureName, "已存在的 Trainer 深层 route 不应被错误回退。")
+            )
+        }
+
+        let singleTrainerNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: SettingsPanelStateContext(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single)
+            )
+        )
+        let singleTrainerFallbackPath = singleTrainerNavigationModel.reconciledPath([
+            .root,
+            .section(.trainer),
+            .trainerPositionFilter
+        ])
+        if singleTrainerFallbackPath != [.root, .section(.trainer)] {
+            issues.append(
+                issue(fixtureName, "缺失的 Trainer 深层 route 应回退到最近仍有效的 Trainer 父级。")
             )
         }
 
@@ -424,16 +650,104 @@ private extension SettingsNavigationValidationRunner {
         if SettingsRouteID.section(.trainer).fallbackTitle != "Trainer" {
             issues.append(issue(fixtureName, "section(.trainer) fallbackTitle 应为 Trainer。"))
         }
+        if SettingsRouteID.trainerExercise.fallbackTitle != "Exercise" {
+            issues.append(issue(fixtureName, "trainerExercise fallbackTitle 应为 Exercise。"))
+        }
         if SettingsRouteID.trainerPositionFilter.fallbackTitle != "Position Filter" {
             issues.append(
                 issue(fixtureName, "trainerPositionFilter fallbackTitle 应为 Position Filter。")
             )
         }
-        if SettingsRouteID.pianoAdvanced.fallbackTitle != "Advanced" {
-            issues.append(issue(fixtureName, "pianoAdvanced fallbackTitle 应为 Advanced。"))
+        if SettingsRouteID.staffClef.fallbackTitle != "Clef" {
+            issues.append(issue(fixtureName, "staffClef fallbackTitle 应为 Clef。"))
+        }
+        if SettingsRouteID.staffLayout.fallbackTitle != "Layout" {
+            issues.append(issue(fixtureName, "staffLayout fallbackTitle 应为 Layout。"))
+        }
+        if SettingsRouteID.pianoBehavior.fallbackTitle != "Behavior" {
+            issues.append(issue(fixtureName, "pianoBehavior fallbackTitle 应为 Behavior。"))
+        }
+        if SettingsRouteID.pianoAppearance.fallbackTitle != "Appearance" {
+            issues.append(issue(fixtureName, "pianoAppearance fallbackTitle 应为 Appearance。"))
         }
 
         return issues
+    }
+
+    static func assertIndexPage(
+        route: SettingsRouteID,
+        expectedTitle: String,
+        expectedRouteItems: [SettingsRouteItem],
+        in navigationModel: SettingsNavigationModel,
+        fixtureName: String,
+        pageDescription: String,
+        issues: inout [SettingsNavigationValidationIssue]
+    ) {
+        guard let page = navigationModel.page(for: route) else {
+            issues.append(issue(fixtureName, "\(pageDescription) 缺少对应 page。"))
+            return
+        }
+
+        if page.id != route {
+            issues.append(issue(fixtureName, "\(pageDescription) page.id 未对齐 route。"))
+        }
+        if page.title != expectedTitle {
+            issues.append(issue(fixtureName, "\(pageDescription) page.title 不符合预期。"))
+        }
+
+        guard let routeItems = page.content.routeItems else {
+            issues.append(issue(fixtureName, "\(pageDescription) page.content 应为 index route items。"))
+            return
+        }
+
+        if routeItems != expectedRouteItems {
+            issues.append(issue(fixtureName, "\(pageDescription) 的 child route items 与预期不一致。"))
+        }
+    }
+
+    static func assertFormPage(
+        route: SettingsRouteID,
+        expectedTitle: String,
+        expectedSection: SettingsSection,
+        in navigationModel: SettingsNavigationModel,
+        fixtureName: String,
+        pageDescription: String,
+        issues: inout [SettingsNavigationValidationIssue]
+    ) {
+        guard let page = navigationModel.page(for: route) else {
+            issues.append(issue(fixtureName, "\(pageDescription) 缺少对应 page。"))
+            return
+        }
+
+        if page.id != route {
+            issues.append(issue(fixtureName, "\(pageDescription) page.id 未对齐 route。"))
+        }
+        if page.title != expectedTitle {
+            issues.append(issue(fixtureName, "\(pageDescription) page.title 不符合预期。"))
+        }
+        guard let sections = page.content.sections else {
+            issues.append(issue(fixtureName, "\(pageDescription) page.content 应为 form sections。"))
+            return
+        }
+        if sections != [expectedSection] {
+            issues.append(issue(fixtureName, "\(pageDescription) 的 form section 投影与预期不一致。"))
+        }
+        if page.panelModel != SettingsPanelModel(sections: [expectedSection]) {
+            issues.append(issue(fixtureName, "\(pageDescription) page.panelModel 应与预期单 section panel model 对齐。"))
+        }
+    }
+
+    static func makeExpectedChildSection(
+        title: String,
+        from sourceSection: SettingsSection,
+        keepingRowIDs: [SettingsRowID]
+    ) -> SettingsSection {
+        let allowedRowIDs = Set(keepingRowIDs)
+        return SettingsSection(
+            id: sourceSection.id,
+            title: title,
+            rows: sourceSection.rows.filter { allowedRowIDs.contains($0.id) }
+        )
     }
 
     static func issue(

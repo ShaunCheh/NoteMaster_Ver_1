@@ -10,8 +10,12 @@ import Foundation
 enum SettingsRouteID: Equatable, Hashable, Sendable {
     case root
     case section(SettingsSectionID)
+    case trainerExercise
     case trainerPositionFilter
-    case pianoAdvanced
+    case staffClef
+    case staffLayout
+    case pianoBehavior
+    case pianoAppearance
 
     var fallbackTitle: String {
         switch self {
@@ -19,10 +23,18 @@ enum SettingsRouteID: Equatable, Hashable, Sendable {
             return "Settings"
         case let .section(sectionID):
             return sectionID.title
+        case .trainerExercise:
+            return "Exercise"
         case .trainerPositionFilter:
             return "Position Filter"
-        case .pianoAdvanced:
-            return "Advanced"
+        case .staffClef:
+            return "Clef"
+        case .staffLayout:
+            return "Layout"
+        case .pianoBehavior:
+            return "Behavior"
+        case .pianoAppearance:
+            return "Appearance"
         }
     }
 
@@ -32,10 +44,18 @@ enum SettingsRouteID: Equatable, Hashable, Sendable {
             return "root"
         case let .section(sectionID):
             return "section-\(String(describing: sectionID))"
+        case .trainerExercise:
+            return "trainer-exercise"
         case .trainerPositionFilter:
             return "trainer-position-filter"
-        case .pianoAdvanced:
-            return "piano-advanced"
+        case .staffClef:
+            return "staff-clef"
+        case .staffLayout:
+            return "staff-layout"
+        case .pianoBehavior:
+            return "piano-behavior"
+        case .pianoAppearance:
+            return "piano-appearance"
         }
     }
 }
