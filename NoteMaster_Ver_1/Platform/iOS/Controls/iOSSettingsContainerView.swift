@@ -10,19 +10,19 @@ import Foundation
 import UIKit
 
 final class iOSSettingsContainerView: UIView {
-    var model: SettingsPanelModel {
+    var navigationModel: SettingsNavigationModel {
         didSet {
-            guard oldValue != model else {
+            guard oldValue != navigationModel else {
                 return
             }
 
-            settingsPanelView.model = model
+            navigatorView.model = navigationModel
         }
     }
 
     var onEvent: ((SettingsPanelEvent) -> Void)? {
         didSet {
-            settingsPanelView.onEvent = onEvent
+            navigatorView.onEvent = onEvent
         }
     }
 
@@ -47,9 +47,17 @@ final class iOSSettingsContainerView: UIView {
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let navigatorHostView = UIView()
-    private let settingsPanelView: iOSSettingsPanelView
     private weak var currentNavigationContentView: UIView?
     private var hostedContentConstraints: [NSLayoutConstraint] = []
+    private lazy var navigatorView: iOSSettingsNavigatorView = {
+        let navigatorView = iOSSettingsNavigatorView(model: navigationModel)
+        navigatorView.onEvent = onEvent
+        navigatorView.onPresentationStateChange = { [weak self] state in
+            self?.navigationTitle = state.title
+            self?.showsBackButton = state.showsBackButton
+        }
+        return navigatorView
+    }()
     private lazy var backButton: UIButton = {
         let button = UIButton(type: .system)
         var configuration = UIButton.Configuration.plain()
@@ -114,22 +122,20 @@ final class iOSSettingsContainerView: UIView {
     }()
 
     override init(frame: CGRect) {
-        model = .empty
-        settingsPanelView = iOSSettingsPanelView(model: .empty)
+        navigationModel = .empty
         super.init(frame: frame)
         configureView()
         setPresented(false)
     }
 
-    convenience init(model: SettingsPanelModel) {
+    convenience init(model: SettingsNavigationModel) {
         self.init(frame: .zero)
-        self.model = model
-        settingsPanelView.model = model
+        navigationModel = model
+        navigatorView.model = model
     }
 
     required init?(coder: NSCoder) {
-        model = .empty
-        settingsPanelView = iOSSettingsPanelView(model: .empty)
+        navigationModel = .empty
         super.init(coder: coder)
         configureView()
         setPresented(false)
@@ -299,7 +305,10 @@ final class iOSSettingsContainerView: UIView {
             navigatorHostView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
 
-        setNavigationContentView(settingsPanelView)
+        onBackRequest = { [weak self] in
+            self?.navigatorView.pop()
+        }
+        setNavigationContentView(navigatorView)
         updateNavigationHeaderState()
     }
 

@@ -547,7 +547,7 @@ final class macOSViewController: NSViewController {
 
     private lazy var settingsContainerView: macOSSettingsContainerView = {
         let settingsContainerView = macOSSettingsContainerView(
-            model: SettingsPanelSnapshotBuilder.makeModel(
+            model: SettingsNavigationSnapshotBuilder.makeModel(
                 from: settingsPanelStateContext
             )
         )
@@ -1123,7 +1123,7 @@ final class macOSViewController: NSViewController {
     }
 
     private func applySettingsPanelState() {
-        settingsContainerView.model = SettingsPanelSnapshotBuilder.makeModel(
+        settingsContainerView.navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: settingsPanelStateContext
         )
     }

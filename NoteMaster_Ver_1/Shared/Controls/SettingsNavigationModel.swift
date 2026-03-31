@@ -25,6 +25,19 @@ enum SettingsRouteID: Equatable, Hashable, Sendable {
             return "Advanced"
         }
     }
+
+    var accessibilityIdentifierComponent: String {
+        switch self {
+        case .root:
+            return "root"
+        case let .section(sectionID):
+            return "section-\(String(describing: sectionID))"
+        case .trainerPositionFilter:
+            return "trainer-position-filter"
+        case .pianoAdvanced:
+            return "piano-advanced"
+        }
+    }
 }
 
 struct SettingsRouteItem: Equatable, Hashable, Sendable {
@@ -66,6 +79,11 @@ struct SettingsPageModel: Equatable, Sendable {
 
         return SettingsPanelModel(sections: sections)
     }
+}
+
+struct SettingsNavigationPresentationState: Equatable, Sendable {
+    var title: String
+    var showsBackButton: Bool
 }
 
 struct SettingsNavigationModel: Equatable, Sendable {
