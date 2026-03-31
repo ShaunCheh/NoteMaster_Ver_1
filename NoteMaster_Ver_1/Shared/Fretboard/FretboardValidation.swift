@@ -1334,27 +1334,44 @@ private extension FretboardValidationRunner {
 
         let configuration = fixture.configuration
 
-        func validateAllowedFretsScenario(
+        func matchesPositionPromptFilter(
+            _ cell: FretboardCell,
+            filter: PositionPromptCandidateFilter
+        ) -> Bool {
+            guard let pitchClass = configuration.pitchClass(for: cell),
+                  pitchClass.isNatural else {
+                return false
+            }
+
+            switch Self.normalizedPositionPromptFilter(filter) {
+            case let .noteNames(selectedPitchClasses):
+                return selectedPitchClasses.contains(pitchClass)
+            case let .frets(selectedFrets):
+                return selectedFrets.contains(cell.fret)
+            }
+        }
+
+        func validateFilterScenario(
             name: String,
-            allowedFrets: Set<Int>,
+            filter: PositionPromptCandidateFilter,
             requiresNoOpenStrings: Bool
         ) {
-            let normalizedAllowedFrets = TrainerPositionPromptConfiguration(
-                selectedFrets: allowedFrets
-            ).selectedFrets
+            let normalizedFilter = Self.normalizedPositionPromptFilter(filter)
 
             logStage("\(name)-candidateEnumeration")
             let candidateCells = positionPromptCandidateCells(
                 configuration: configuration,
-                allowedFrets: normalizedAllowedFrets
+                filter: normalizedFilter
             )
             guard candidateCells.count >= 2 else {
                 record("position prompt trainer \(name) 缺少至少两个自然音位置，无法验证换题语义。")
                 return
             }
 
-            if !candidateCells.allSatisfy({ normalizedAllowedFrets.contains($0.fret) }) {
-                record("position prompt trainer \(name) 的候选池包含了未允许的品位。")
+            if !candidateCells.allSatisfy({
+                matchesPositionPromptFilter($0, filter: normalizedFilter)
+            }) {
+                record("position prompt trainer \(name) 的候选池包含了未命中当前 active filter 的位置。")
             }
             if requiresNoOpenStrings,
                candidateCells.contains(where: { $0.fret == 0 }) {
@@ -1375,9 +1392,9 @@ private extension FretboardValidationRunner {
             if !firstCandidatePitchClass.isNatural || !secondCandidatePitchClass.isNatural {
                 record("position prompt trainer \(name) 的候选基准 cell 应为自然音。")
             }
-            if !normalizedAllowedFrets.contains(firstCandidateCell.fret)
-                || !normalizedAllowedFrets.contains(secondCandidateCell.fret) {
-                record("position prompt trainer \(name) 的候选基准 cell 应落在允许品位内。")
+            if !matchesPositionPromptFilter(firstCandidateCell, filter: normalizedFilter)
+                || !matchesPositionPromptFilter(secondCandidateCell, filter: normalizedFilter) {
+                record("position prompt trainer \(name) 的候选基准 cell 应命中当前 active filter。")
             }
 
             logStage("\(name)-initialSession")
@@ -1387,7 +1404,7 @@ private extension FretboardValidationRunner {
             )
             let initialSession = initialTrainer.makePositionPromptSession(
                 configuration: configuration,
-                allowedFrets: normalizedAllowedFrets,
+                filter: normalizedFilter,
                 using: &initialGenerator
             )
             print(
@@ -1402,8 +1419,8 @@ private extension FretboardValidationRunner {
             if !initialSession.promptPitchClass.isNatural {
                 record("position prompt trainer \(name) 新建 session 的 promptPitchClass 应为自然音。")
             }
-            if !normalizedAllowedFrets.contains(initialSession.promptCell.fret) {
-                record("position prompt trainer \(name) 新建 session 不应落在未允许的品位。")
+            if !matchesPositionPromptFilter(initialSession.promptCell, filter: normalizedFilter) {
+                record("position prompt trainer \(name) 新建 session 不应落在当前 active filter 之外。")
             }
 
             print(
@@ -1426,14 +1443,14 @@ private extension FretboardValidationRunner {
             )
             var wrongSession = wrongTrainer.makePositionPromptSession(
                 configuration: configuration,
-                allowedFrets: normalizedAllowedFrets,
+                filter: normalizedFilter,
                 using: &wrongGenerator
             )
             let wrongSessionSnapshot = wrongSession
             switch wrongTrainer.handlePositionPromptAnswer(
                 wrongAnswer,
                 configuration: configuration,
-                allowedFrets: normalizedAllowedFrets,
+                filter: normalizedFilter,
                 session: &wrongSession,
                 using: &wrongGenerator
             ) {
@@ -1462,8 +1479,11 @@ private extension FretboardValidationRunner {
                 if evaluation.nextPromptPitchClass != firstCandidatePitchClass {
                     record("position prompt trainer \(name) 错误作答后 nextPromptPitchClass 不应改变。")
                 }
-                if !normalizedAllowedFrets.contains(evaluation.nextPromptCell.fret) {
-                    record("position prompt trainer \(name) 错误作答后 nextPromptCell 仍应落在允许品位内。")
+                if !matchesPositionPromptFilter(
+                    evaluation.nextPromptCell,
+                    filter: normalizedFilter
+                ) {
+                    record("position prompt trainer \(name) 错误作答后 nextPromptCell 仍应命中当前 active filter。")
                 }
             }
             if wrongSession != wrongSessionSnapshot {
@@ -1477,13 +1497,13 @@ private extension FretboardValidationRunner {
             )
             var correctSession = correctTrainer.makePositionPromptSession(
                 configuration: configuration,
-                allowedFrets: normalizedAllowedFrets,
+                filter: normalizedFilter,
                 using: &correctGenerator
             )
             switch correctTrainer.handlePositionPromptAnswer(
                 correctSession.promptPitchClass,
                 configuration: configuration,
-                allowedFrets: normalizedAllowedFrets,
+                filter: normalizedFilter,
                 session: &correctSession,
                 using: &correctGenerator
             ) {
@@ -1515,8 +1535,11 @@ private extension FretboardValidationRunner {
                 if !evaluation.nextPromptPitchClass.isNatural {
                     record("position prompt trainer \(name) 正确作答后切换到了非自然音题目。")
                 }
-                if !normalizedAllowedFrets.contains(evaluation.nextPromptCell.fret) {
-                    record("position prompt trainer \(name) 正确作答后 nextPromptCell 应继续落在允许品位内。")
+                if !matchesPositionPromptFilter(
+                    evaluation.nextPromptCell,
+                    filter: normalizedFilter
+                ) {
+                    record("position prompt trainer \(name) 正确作答后 nextPromptCell 应继续命中当前 active filter。")
                 }
             }
             if correctSession.promptCell != secondCandidateCell {
@@ -1525,9 +1548,45 @@ private extension FretboardValidationRunner {
             if correctSession.promptPitchClass != secondCandidatePitchClass {
                 record("position prompt trainer \(name) 正确作答后 session.promptPitchClass 未与新题同步。")
             }
-            if !normalizedAllowedFrets.contains(correctSession.promptCell.fret) {
-                record("position prompt trainer \(name) 正确作答后 session.promptCell 应继续落在允许品位内。")
+            if !matchesPositionPromptFilter(correctSession.promptCell, filter: normalizedFilter) {
+                record("position prompt trainer \(name) 正确作答后 session.promptCell 应继续命中当前 active filter。")
             }
+        }
+
+        logStage("defaultConfiguration")
+        let defaultPositionPromptConfiguration =
+            TrainerPositionPromptConfiguration.default
+        if defaultPositionPromptConfiguration.filterMode != .noteName {
+            record("position prompt 默认 filterMode 应为 .noteName。")
+        }
+        if defaultPositionPromptConfiguration.selectedPitchClasses
+            != TrainerPositionPromptConfiguration.defaultSelectedPitchClasses {
+            record("position prompt 默认 selectedPitchClasses 未对齐 C/E/F/B。")
+        }
+        if defaultPositionPromptConfiguration.selectedFrets
+            != TrainerPositionPromptConfiguration.defaultSelectedFrets {
+            record("position prompt 默认 selectedFrets 未保留既有品位集合。")
+        }
+        switch defaultPositionPromptConfiguration.activeFilter {
+        case let .noteNames(selectedPitchClasses):
+            if selectedPitchClasses
+                != TrainerPositionPromptConfiguration.defaultSelectedPitchClasses {
+                record("position prompt 默认 activeFilter 未对齐默认音名集合。")
+            }
+        case .frets:
+            record("position prompt 默认 activeFilter 不应落在 fret 模式。")
+        }
+
+        logStage("lastSelectedPitchClassGuard")
+        let lockedPitchClassConfiguration = TrainerPositionPromptConfiguration(
+            selectedPitchClasses: [.c]
+        )
+        if lockedPitchClassConfiguration.canDeselect(.c) {
+            record("position prompt 配置在只剩最后一个已选音名时不应允许 canDeselect 返回 true。")
+        }
+        if lockedPitchClassConfiguration.toggled(pitchClass: .c).selectedPitchClasses
+            != Set<PitchClass>([.c]) {
+            record("position prompt 配置在只剩最后一个已选音名时，不应允许 toggled(pitchClass:) 取消该音名。")
         }
 
         logStage("lastSelectedFretGuard")
@@ -1541,14 +1600,33 @@ private extension FretboardValidationRunner {
             record("position prompt 配置在只剩最后一个已选品位时，不应允许 toggled(fret:) 取消该品位。")
         }
 
-        validateAllowedFretsScenario(
+        validateFilterScenario(
+            name: "defaultNoteNames",
+            filter: defaultPositionPromptConfiguration.activeFilter,
+            requiresNoOpenStrings: false
+        )
+        validateFilterScenario(
+            name: "subset_C_E",
+            filter: TrainerPositionPromptConfiguration(
+                filterMode: .noteName,
+                selectedPitchClasses: [.c, .e]
+            ).activeFilter,
+            requiresNoOpenStrings: false
+        )
+        validateFilterScenario(
             name: "defaultSelectedFrets",
-            allowedFrets: TrainerPositionPromptConfiguration.defaultSelectedFrets,
+            filter: TrainerPositionPromptConfiguration(
+                filterMode: .fret,
+                selectedFrets: TrainerPositionPromptConfiguration.defaultSelectedFrets
+            ).activeFilter,
             requiresNoOpenStrings: true
         )
-        validateAllowedFretsScenario(
+        validateFilterScenario(
             name: "subset_1_3_5_7",
-            allowedFrets: [1, 3, 5, 7],
+            filter: TrainerPositionPromptConfiguration(
+                filterMode: .fret,
+                selectedFrets: [1, 3, 5, 7]
+            ).activeFilter,
             requiresNoOpenStrings: true
         )
     }
@@ -1899,21 +1977,33 @@ private extension FretboardValidationRunner {
         }
     }
 
+    static func normalizedPositionPromptFilter(
+        _ filter: PositionPromptCandidateFilter
+    ) -> PositionPromptCandidateFilter {
+        switch filter {
+        case let .noteNames(selectedPitchClasses):
+            return TrainerPositionPromptConfiguration(
+                filterMode: .noteName,
+                selectedPitchClasses: selectedPitchClasses
+            ).activeFilter
+        case let .frets(selectedFrets):
+            return TrainerPositionPromptConfiguration(
+                filterMode: .fret,
+                selectedFrets: selectedFrets
+            ).activeFilter
+        }
+    }
+
     static func positionPromptCandidateCells(
         configuration: FretboardConfiguration,
-        allowedFrets: Set<Int> = TrainerPositionPromptConfiguration.defaultSelectedFrets
+        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter
     ) -> [FretboardCell] {
-        let normalizedAllowedFrets = TrainerPositionPromptConfiguration(
-            selectedFrets: allowedFrets
-        ).selectedFrets
+        let normalizedFilter = normalizedPositionPromptFilter(filter)
         var cells: [FretboardCell] = []
         cells.reserveCapacity(configuration.stringCount * configuration.displayPositionCount)
 
         for stringIndex in 0..<configuration.stringCount {
             for fret in configuration.fretRange {
-                guard normalizedAllowedFrets.contains(fret) else {
-                    continue
-                }
                 let cell = FretboardCell(
                     stringIndex: stringIndex,
                     fret: fret
@@ -1921,6 +2011,16 @@ private extension FretboardValidationRunner {
                 guard let pitchClass = configuration.pitchClass(for: cell),
                       pitchClass.isNatural else {
                     continue
+                }
+                switch normalizedFilter {
+                case let .noteNames(selectedPitchClasses):
+                    guard selectedPitchClasses.contains(pitchClass) else {
+                        continue
+                    }
+                case let .frets(selectedFrets):
+                    guard selectedFrets.contains(fret) else {
+                        continue
+                    }
                 }
                 cells.append(cell)
             }
@@ -1937,11 +2037,13 @@ private extension FretboardValidationRunner {
             "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",
             "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
             "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。",
-            "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Frets` 这一行；切到 `positionPrompt` 后再确认该行出现，并默认选中 `1...12`。",
-            "在 `positionPrompt` 默认全选状态下连续答对多次，确认题目不会落在空弦，只会出现在 `1...12` 品。",
-            "在 `positionPrompt` 里只保留 `1 / 3 / 5 / 7` 这几个品位后连续答对多次，确认当前题与下一题都只落在这些品位。",
+            "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Filter` 与位置题多选过滤行；切到 `positionPrompt` 后确认出现 `Filter = Note Names`，且默认选中 `C / E / F / B`。",
+            "在 `positionPrompt` 默认 `Filter = Note Names`、默认 `C / E / F / B` 状态下连续答对多次，确认当前题与下一题都只落在这些音名，且会从当前指板全部合法位置出题（包含命中这些音名的空弦）。",
+            "把 `positionPrompt` 的 `Filter` 切到 `Frets`，确认会回显当前品位集合；连续答对多次，确认当前题与下一题都只落在当前已选品位。",
+            "在 `positionPrompt` 里只保留 `C / E` 这两个音名后连续答对多次，确认当前题与下一题都只落在 `C / E`，不受已保存品位集合干扰。",
+            "尝试连续取消音名直到只剩最后一个已选音名，再继续点击该音名；确认 UI 仍保持至少一个音名被选中。",
             "尝试连续取消品位直到只剩最后一个已选格子，再继续点击该格子；确认 UI 仍保持至少一个品位被选中。",
-            "在 `wrongFlash` 或 `correctHold` 期间切换品位筛选；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。"
+            "在 `wrongFlash` 或 `correctHold` 期间切换过滤模式或当前激活模式下的过滤选项；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。"
         ]
 
         switch platform {

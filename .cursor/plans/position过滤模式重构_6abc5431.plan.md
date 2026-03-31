@@ -16,10 +16,10 @@ todos:
     status: completed
   - id: phase5-controller-sync
     content: 更新 iOS/macOS controller 的建题、答题换题、settings diff 与 session 重建逻辑
-    status: in_progress
+    status: completed
   - id: phase6-validation
     content: 扩展 positionPrompt validation，覆盖默认音名模式、子集音名模式、品位模式与最后一个选项保护
-    status: pending
+    status: completed
 isProject: false
 ---
 
