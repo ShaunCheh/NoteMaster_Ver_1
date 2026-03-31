@@ -50,6 +50,13 @@ enum SettingsPanelSnapshotBuilder {
     ) -> SettingsRow? {
         switch id {
         case let .choice(choiceRowID):
+            guard shouldInclude(
+                choiceRowID: choiceRowID,
+                stateContext: stateContext
+            ) else {
+                return nil
+            }
+
             return .choice(
                 makeChoiceRow(
                     id: choiceRowID,
@@ -164,21 +171,53 @@ enum SettingsPanelSnapshotBuilder {
     ) -> SettingsPositionFilterRow {
         let configuration = stateContext.trainerDisplayState.positionPromptConfiguration
 
-        return SettingsPositionFilterRow(
-            id: id,
-            title: "Frets",
-            accessibilityLabel: "Select the frets used when generating position prompt questions",
-            options: id.supportedFrets.map { fret in
-                let isSelected = configuration.contains(fret)
-                return SettingsPositionFilterItem(
-                    id: .fret(fret),
-                    title: "\(fret)",
-                    accessibilityLabel: "Toggle fret \(fret) for position prompt questions",
-                    isSelected: isSelected,
-                    isEnabled: !isSelected || configuration.canDeselect(fret)
-                )
-            }
-        )
+        switch configuration.filterMode {
+        case .noteName:
+            return SettingsPositionFilterRow(
+                id: id,
+                title: "Note Names",
+                accessibilityLabel: "Select the note names used when generating position prompt questions",
+                options: id.supportedPitchClasses.map { pitchClass in
+                    let title = pitchClass.displayText()
+                    let isSelected = configuration.contains(pitchClass)
+                    return SettingsPositionFilterItem(
+                        id: .pitchClass(pitchClass),
+                        title: title,
+                        accessibilityLabel: "Toggle note name \(title) for position prompt questions",
+                        isSelected: isSelected,
+                        isEnabled: !isSelected || configuration.canDeselect(pitchClass)
+                    )
+                }
+            )
+        case .fret:
+            return SettingsPositionFilterRow(
+                id: id,
+                title: "Frets",
+                accessibilityLabel: "Select the frets used when generating position prompt questions",
+                options: id.supportedFrets.map { fret in
+                    let isSelected = configuration.contains(fret)
+                    return SettingsPositionFilterItem(
+                        id: .fret(fret),
+                        title: "\(fret)",
+                        accessibilityLabel: "Toggle fret \(fret) for position prompt questions",
+                        isSelected: isSelected,
+                        isEnabled: !isSelected || configuration.canDeselect(fret)
+                    )
+                }
+            )
+        }
+    }
+
+    private static func shouldInclude(
+        choiceRowID: SettingsChoiceRowID,
+        stateContext: SettingsPanelStateContext
+    ) -> Bool {
+        switch choiceRowID {
+        case .positionPromptFilterMode:
+            return stateContext.trainerDisplayState.isPositionPromptMode
+        default:
+            return true
+        }
     }
 
     private static func shouldInclude(

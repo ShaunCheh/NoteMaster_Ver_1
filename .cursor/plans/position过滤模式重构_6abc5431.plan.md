@@ -4,13 +4,13 @@ overview: 将现有 `positionPrompt` 的品位筛选重构为统一的“过滤�
 todos:
   - id: phase1-domain
     content: 重构 `TrainerPositionPromptConfiguration`，引入 `filterMode`、`selectedPitchClasses`、`selectedFrets` 与默认值 `C/E/F/B`
-    status: pending
+    status: completed
   - id: phase2-settings-model
     content: 把 settings 层从专用 `fretFilter` 抽象成通用 position filter row，并补齐过滤模式切换事件
-    status: pending
+    status: completed
   - id: phase3-snapshot-ui
     content: 更新快照 builder 与 iOS/macOS settings 行视图，使其按当前 `filterMode` 渲染 7 个音名或 12 个品位
-    status: pending
+    status: completed
   - id: phase4-shared-trainer
     content: 重构 shared trainer 候选池接口，统一走 `activeFilter -> candidateCells -> randomElement`
     status: pending

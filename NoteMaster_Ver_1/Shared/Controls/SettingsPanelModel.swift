@@ -63,6 +63,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         case .trainer:
             return [
                 .choice(.exerciseMode),
+                .choice(.positionPromptFilterMode),
                 .positionFilter(.positionPromptFilterOptions)
             ]
         case .fretboard:
