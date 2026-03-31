@@ -26,6 +26,19 @@ final class macOSSettingsContainerView: NSView {
         }
     }
 
+    var navigationTitle: String = SettingsRouteID.root.fallbackTitle {
+        didSet {
+            updateNavigationHeaderState()
+        }
+    }
+
+    var showsBackButton = false {
+        didSet {
+            updateNavigationHeaderState()
+        }
+    }
+
+    var onBackRequest: (() -> Void)?
     var onDismissRequest: (() -> Void)?
 
     private let backdropView = DismissBackgroundView()
@@ -33,7 +46,37 @@ final class macOSSettingsContainerView: NSView {
     private let headerView = NSView()
     private let scrollView = NSScrollView()
     private let contentView = NSView()
+    private let navigatorHostView = NSView()
     private let settingsPanelView: macOSSettingsPanelView
+    private weak var currentNavigationContentView: NSView?
+    private var hostedContentConstraints: [NSLayoutConstraint] = []
+    private lazy var backButton: NSButton = {
+        let button = NSButton()
+        button.isBordered = false
+        button.bezelStyle = .regularSquare
+        button.imagePosition = .imageOnly
+        button.image = NSImage(
+            systemSymbolName: "chevron.left",
+            accessibilityDescription: "Back"
+        )
+        button.imageScaling = .scaleProportionallyDown
+        button.contentTintColor = .labelColor
+        button.identifier = NSUserInterfaceItemIdentifier("settings-container-back-button")
+        button.toolTip = "Back"
+        button.target = self
+        button.action = #selector(handleBackButtonTap)
+        button.isHidden = true
+        return button
+    }()
+    private lazy var titleLabel: NSTextField = {
+        let label = NSTextField(labelWithString: SettingsRouteID.root.fallbackTitle)
+        label.font = NSFont.preferredFont(forTextStyle: .headline)
+        label.textColor = .labelColor
+        label.alignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        label.identifier = NSUserInterfaceItemIdentifier("settings-container-title")
+        return label
+    }()
     private lazy var closeButton: NSButton = {
         let button = NSButton()
         button.isBordered = false
@@ -130,15 +173,24 @@ final class macOSSettingsContainerView: NSView {
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.setContentHuggingPriority(.required, for: .vertical)
         contentView.setContentCompressionResistancePriority(.required, for: .vertical)
-        settingsPanelView.translatesAutoresizingMaskIntoConstraints = false
+        navigatorHostView.translatesAutoresizingMaskIntoConstraints = false
+        navigatorHostView.identifier = NSUserInterfaceItemIdentifier(
+            "settings-container-navigation-host"
+        )
+        navigatorHostView.setContentHuggingPriority(.required, for: .vertical)
+        navigatorHostView.setContentCompressionResistancePriority(.required, for: .vertical)
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
         closeButton.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(backdropView)
         addSubview(cardView)
         cardView.addSubview(headerView)
+        headerView.addSubview(backButton)
+        headerView.addSubview(titleLabel)
         headerView.addSubview(closeButton)
         cardView.addSubview(scrollView)
-        contentView.addSubview(settingsPanelView)
+        contentView.addSubview(navigatorHostView)
 
         let safeArea = safeAreaLayoutGuide
         let preferredWidthConstraint = cardView.widthAnchor.constraint(
@@ -146,7 +198,7 @@ final class macOSSettingsContainerView: NSView {
         )
         preferredWidthConstraint.priority = .defaultHigh
         let scrollHeightMatchesContentConstraint = scrollView.heightAnchor.constraint(
-            equalTo: settingsPanelView.heightAnchor
+            equalTo: navigatorHostView.heightAnchor
         )
         scrollHeightMatchesContentConstraint.priority = .defaultHigh
 
@@ -190,10 +242,26 @@ final class macOSSettingsContainerView: NSView {
             ),
             headerView.heightAnchor.constraint(equalToConstant: Style.headerHeight),
 
+            backButton.leadingAnchor.constraint(equalTo: headerView.leadingAnchor),
+            backButton.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
+            backButton.widthAnchor.constraint(equalToConstant: Style.closeButtonSize),
+            backButton.heightAnchor.constraint(equalToConstant: Style.closeButtonSize),
+
             closeButton.trailingAnchor.constraint(equalTo: headerView.trailingAnchor),
             closeButton.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
             closeButton.widthAnchor.constraint(equalToConstant: Style.closeButtonSize),
             closeButton.heightAnchor.constraint(equalToConstant: Style.closeButtonSize),
+
+            titleLabel.centerXAnchor.constraint(equalTo: headerView.centerXAnchor),
+            titleLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
+            titleLabel.leadingAnchor.constraint(
+                greaterThanOrEqualTo: backButton.trailingAnchor,
+                constant: Style.headerTitleSpacing
+            ),
+            titleLabel.trailingAnchor.constraint(
+                lessThanOrEqualTo: closeButton.leadingAnchor,
+                constant: -Style.headerTitleSpacing
+            ),
 
             scrollView.leadingAnchor.constraint(
                 equalTo: cardView.leadingAnchor,
@@ -219,11 +287,50 @@ final class macOSSettingsContainerView: NSView {
             contentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
-            settingsPanelView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            settingsPanelView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            settingsPanelView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            settingsPanelView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+            navigatorHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            navigatorHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            navigatorHostView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            navigatorHostView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
+
+        setNavigationContentView(settingsPanelView)
+        updateNavigationHeaderState()
+    }
+
+    func setNavigationContentView(_ view: NSView) {
+        guard currentNavigationContentView !== view else {
+            return
+        }
+
+        NSLayoutConstraint.deactivate(hostedContentConstraints)
+        hostedContentConstraints = []
+        currentNavigationContentView?.removeFromSuperview()
+
+        if view.superview != nil {
+            view.removeFromSuperview()
+        }
+
+        view.translatesAutoresizingMaskIntoConstraints = false
+        navigatorHostView.addSubview(view)
+        hostedContentConstraints = [
+            view.leadingAnchor.constraint(equalTo: navigatorHostView.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: navigatorHostView.trailingAnchor),
+            view.topAnchor.constraint(equalTo: navigatorHostView.topAnchor),
+            view.bottomAnchor.constraint(equalTo: navigatorHostView.bottomAnchor)
+        ]
+        NSLayoutConstraint.activate(hostedContentConstraints)
+        currentNavigationContentView = view
+    }
+
+    private func updateNavigationHeaderState() {
+        titleLabel.stringValue = navigationTitle
+        titleLabel.isHidden = navigationTitle.isEmpty
+        backButton.isHidden = !showsBackButton
+    }
+
+    @objc
+    private func handleBackButtonTap() {
+        onBackRequest?()
     }
 
     @objc
@@ -247,6 +354,7 @@ private enum Style {
     static let cardContentInset: CGFloat = 16
     static let headerHeight: CGFloat = 40
     static let headerBottomSpacing: CGFloat = 8
+    static let headerTitleSpacing: CGFloat = 8
     static let closeButtonSize: CGFloat = 40
     static let cardCornerRadius: CGFloat = 22
     static let backdropOpacity: CGFloat = 0.28
