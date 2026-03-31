@@ -302,6 +302,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .setVisibilityAll,
                 .setVisibilityNaturalOnly,
+                .setVisibilityBCEFOnly,
                 .setVisibilityAccidentalOnly,
                 .setVisibilityNone
             ]
@@ -352,6 +353,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setDisplayModeVertical
     case setVisibilityAll
     case setVisibilityNaturalOnly
+    case setVisibilityBCEFOnly
     case setVisibilityAccidentalOnly
     case setVisibilityNone
     case setSpellingSharp
@@ -390,6 +392,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return .displayMode
         case .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone:
             return .labels
@@ -447,6 +450,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "All"
         case .setVisibilityNaturalOnly:
             return "Natural"
+        case .setVisibilityBCEFOnly:
+            return "BCEF"
         case .setVisibilityAccidentalOnly:
             return "Accidental"
         case .setVisibilityNone:
@@ -510,6 +515,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Show all note labels"
         case .setVisibilityNaturalOnly:
             return "Show natural note labels only"
+        case .setVisibilityBCEFOnly:
+            return "Show B, C, E, and F note labels only"
         case .setVisibilityAccidentalOnly:
             return "Show accidental note labels only"
         case .setVisibilityNone:
@@ -575,6 +582,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.fretboardDisplayState.visibility == .all
         case .setVisibilityNaturalOnly:
             return stateContext.fretboardDisplayState.visibility == .naturalOnly
+        case .setVisibilityBCEFOnly:
+            return stateContext.fretboardDisplayState.visibility == .bcefOnly
         case .setVisibilityAccidentalOnly:
             return stateContext.fretboardDisplayState.visibility == .accidentalOnly
         case .setVisibilityNone:
@@ -622,6 +631,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setDisplayModeVertical,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone,
              .setSpellingSharp,
@@ -672,6 +682,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.visibility = .all
         case .setVisibilityNaturalOnly:
             displayState.visibility = .naturalOnly
+        case .setVisibilityBCEFOnly:
+            displayState.visibility = .bcefOnly
         case .setVisibilityAccidentalOnly:
             displayState.visibility = .accidentalOnly
         case .setVisibilityNone:
@@ -711,6 +723,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setDisplayModeVertical,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone,
              .setSpellingSharp,
@@ -749,6 +762,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setDisplayModeVertical,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone,
              .setSpellingSharp,
@@ -789,6 +803,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setDisplayModeVertical,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone,
              .setSpellingSharp,
@@ -834,6 +849,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setDisplayModeVertical,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone,
              .setSpellingSharp,

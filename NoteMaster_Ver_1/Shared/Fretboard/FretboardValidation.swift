@@ -312,6 +312,13 @@ private extension FretboardValidationRunner {
                 record: record
             )
         }
+        runStep("validateLabelVisibilityModes") {
+            validateLabelVisibilityModes(
+                fixture: fixture,
+                scene: scene,
+                record: record
+            )
+        }
         runStep("validateNaturalNoteTrainer") {
             validateNaturalNoteTrainer(
                 fixture: fixture,
@@ -818,6 +825,75 @@ private extension FretboardValidationRunner {
             record(
                 "按 pitchClass 汇总的 cell 总数错误，期望 \(expectedTotalCellCount)，实际 \(totalEnumeratedCellCount)。"
             )
+        }
+    }
+
+    static func validateLabelVisibilityModes(
+        fixture: FretboardValidationFixture,
+        scene: FretboardScene,
+        record: (String) -> Void
+    ) {
+        let configuration = fixture.configuration
+        let allCells = (0..<configuration.stringCount).flatMap { stringIndex in
+            configuration.fretRange.map { fret in
+                FretboardCell(
+                    stringIndex: stringIndex,
+                    fret: fret
+                )
+            }
+        }
+        let visibilityFixtures: [(String, NoteLabelVisibility, Set<PitchClass>)] = [
+            ("all", .all, Set(PitchClass.allCases)),
+            ("naturalOnly", .naturalOnly, Set(PitchClass.naturalCasesInOrder)),
+            ("bcefOnly", .bcefOnly, Set([.b, .c, .e, .f])),
+            ("accidentalOnly", .accidentalOnly, Set(PitchClass.allCases.filter(\.isAccidental))),
+            ("none", .none, Set<PitchClass>())
+        ]
+
+        for (modeName, visibility, expectedPitchClasses) in visibilityFixtures {
+            let labels = NoteNameContentProvider(
+                visibility: visibility,
+                spelling: .sharp,
+                showsOctave: false
+            ).makeLabels(
+                configuration: configuration,
+                scene: scene
+            )
+            let actualCells = Set(labels.map {
+                FretboardCell(
+                    stringIndex: $0.stringIndex,
+                    fret: $0.fret
+                )
+            })
+            let expectedCells = Set(
+                allCells.filter { cell in
+                    guard let pitchClass = configuration.pitchClass(for: cell) else {
+                        return false
+                    }
+                    return expectedPitchClasses.contains(pitchClass)
+                }
+            )
+
+            if labels.count != actualCells.count {
+                record("visibility=\(modeName) 生成了重复 label，labels.count=\(labels.count)，uniqueCells=\(actualCells.count)。")
+            }
+            if actualCells != expectedCells {
+                record("visibility=\(modeName) 的 label cells 不正确，期望 \(expectedCells.count) 个，实际 \(actualCells.count) 个。")
+            }
+            if let unexpectedLabel = labels.first(where: { label in
+                let cell = FretboardCell(
+                    stringIndex: label.stringIndex,
+                    fret: label.fret
+                )
+                guard let pitchClass = configuration.pitchClass(for: cell) else {
+                    return true
+                }
+                return !expectedPitchClasses.contains(pitchClass)
+            }) {
+                record(
+                    "visibility=\(modeName) 错误显示了 cell(\(unexpectedLabel.stringIndex), \(unexpectedLabel.fret))。"
+                )
+            }
         }
     }
 
@@ -2167,6 +2243,7 @@ private extension FretboardValidationRunner {
     static func manualChecklist(for platform: FretboardValidationPlatform) -> [String] {
         var checklist = [
             "切换 Guitar 6 / Bass 4 / Bass 5，并在 Horizontal / Vertical 之间切换；确认 horizontal 视觉回归不变，vertical 为“左低右高、上空弦下高品、文字正立”。",
+            "在设置面板的 `Labels` 中切到 `BCEF`，确认指板只显示 `B / C / E / F`；再切回 `All / Natural / Accidental / None`，确认不会残留错误标签。",
             "点击空弦区与普通品位区，确认控制台输出的 string / fret 与可见格子一致。",
             "观察页面加载后的控制台目标音日志；点击与目标同名但不同八度的音位，确认判定为 correct，并立即打印下一题目标音。",
             "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",

@@ -8,32 +8,43 @@
 import CoreGraphics
 
 // 仅控制音名文本的可见性，不影响指板 marker 的绘制。
+// 用精确的 pitch class 集合表达可见范围，避免被“自然音/变化音”两位开关限制住。
 struct NoteLabelVisibility: Equatable, Hashable, Sendable {
-    var showsNaturalNotes: Bool
-    var showsAccidentals: Bool
+    private static let allPitchClasses = Set(PitchClass.allCases)
+    private static let naturalPitchClasses = Set(PitchClass.naturalCasesInOrder)
+    private static let accidentalPitchClasses = Set(
+        PitchClass.allCases.filter(\.isAccidental)
+    )
+
+    var visiblePitchClasses: Set<PitchClass>
 
     static let all = NoteLabelVisibility(
-        showsNaturalNotes: true,
-        showsAccidentals: true
+        visiblePitchClasses: allPitchClasses
     )
 
     static let naturalOnly = NoteLabelVisibility(
-        showsNaturalNotes: true,
-        showsAccidentals: false
+        visiblePitchClasses: naturalPitchClasses
+    )
+
+    static let bcefOnly = NoteLabelVisibility(
+        visiblePitchClasses: [
+            .b,
+            .c,
+            .e,
+            .f
+        ]
     )
 
     static let accidentalOnly = NoteLabelVisibility(
-        showsNaturalNotes: false,
-        showsAccidentals: true
+        visiblePitchClasses: accidentalPitchClasses
     )
 
     static let none = NoteLabelVisibility(
-        showsNaturalNotes: false,
-        showsAccidentals: false
+        visiblePitchClasses: []
     )
 
     func allows(_ pitchClass: PitchClass) -> Bool {
-        pitchClass.isAccidental ? showsAccidentals : showsNaturalNotes
+        visiblePitchClasses.contains(pitchClass)
     }
 }
 

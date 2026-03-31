@@ -50,6 +50,7 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setDisplayModeVertical
     case setVisibilityAll
     case setVisibilityNaturalOnly
+    case setVisibilityBCEFOnly
     case setVisibilityAccidentalOnly
     case setVisibilityNone
     case setSpellingSharp
@@ -67,6 +68,7 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
             return .displayMode
         case .setVisibilityAll,
              .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
              .setVisibilityAccidentalOnly,
              .setVisibilityNone:
             return .labels
@@ -163,6 +165,8 @@ private extension ButtonPanelActionID {
             return .setVisibilityAll
         case .setVisibilityNaturalOnly:
             return .setVisibilityNaturalOnly
+        case .setVisibilityBCEFOnly:
+            return .setVisibilityBCEFOnly
         case .setVisibilityAccidentalOnly:
             return .setVisibilityAccidentalOnly
         case .setVisibilityNone:
