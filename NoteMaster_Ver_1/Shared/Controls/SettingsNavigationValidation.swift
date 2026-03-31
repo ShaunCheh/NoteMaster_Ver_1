@@ -145,6 +145,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateLayoutRouteVisibilityTracksDisplayMode
             ),
             SettingsNavigationValidationFixture(
+                name: "fretboard_string_thickness_option_tracks_state",
+                validate: validateFretboardStringThicknessOptionTracksState
+            ),
+            SettingsNavigationValidationFixture(
                 name: "reconciled_path_falls_back_to_existing_parent",
                 validate: validateReconciledPathFallsBackToExistingParent
             ),
@@ -571,6 +575,58 @@ private extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(fixtureName, "horizontal 指板模式下不应继续生成 Layout detail page。")
             )
+        }
+
+        return issues
+    }
+
+    static func validateFretboardStringThicknessOptionTracksState()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "fretboard_string_thickness_option_tracks_state"
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        let defaultStateContext = SettingsPanelStateContext.default
+        let defaultPanelModel = SettingsPanelSnapshotBuilder.makeModel(from: defaultStateContext)
+
+        guard let defaultRow = defaultPanelModel.choiceRow(for: .stringThickness) else {
+            issues.append(issue(fixtureName, "default state 应暴露 String Thickness 选项。"))
+            return issues
+        }
+
+        if defaultRow.selectionStyle != .singleSelection {
+            issues.append(issue(fixtureName, "String Thickness 应为 singleSelection。"))
+        }
+        if defaultRow.presentationStyle != .segmented {
+            issues.append(issue(fixtureName, "String Thickness 应使用 segmented 呈现。"))
+        }
+        if defaultRow.choices.map(\.id) != [
+            .setStringThicknessUniform,
+            .setStringThicknessGraduated
+        ] {
+            issues.append(
+                issue(fixtureName, "String Thickness 选项顺序应为 Uniform -> Graduated。")
+            )
+        }
+        if defaultRow.choices.filter(\.isSelected).map(\.id) != [.setStringThicknessUniform] {
+            issues.append(issue(fixtureName, "default state 应默认选中 Uniform。"))
+        }
+
+        var graduatedStateContext = defaultStateContext
+        SettingsActionID.setStringThicknessGraduated.apply(to: &graduatedStateContext)
+        if graduatedStateContext.fretboardDisplayState.configuration.stringThicknessStyle != .graduated {
+            issues.append(issue(fixtureName, "Graduated action 应写回 fretboardDisplayState。"))
+        }
+
+        let graduatedPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: graduatedStateContext
+        )
+        guard let graduatedRow = graduatedPanelModel.choiceRow(for: .stringThickness) else {
+            issues.append(issue(fixtureName, "Graduated state 仍应保留 String Thickness 选项。"))
+            return issues
+        }
+
+        if graduatedRow.choices.filter(\.isSelected).map(\.id) != [.setStringThicknessGraduated] {
+            issues.append(issue(fixtureName, "Graduated state 应只选中 Graduated。"))
         }
 
         return issues

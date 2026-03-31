@@ -70,6 +70,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .choice(.instrument),
                 .choice(.displayMode),
+                .choice(.stringThickness),
                 .choice(.labels),
                 .choice(.spelling),
                 .choice(.octave)
@@ -147,6 +148,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     case positionPromptFilterMode
     case instrument
     case displayMode
+    case stringThickness
     case labels
     case spelling
     case octave
@@ -160,7 +162,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return .page
         case .exerciseMode, .positionPromptFilterMode:
             return .trainer
-        case .instrument, .displayMode, .labels, .spelling, .octave:
+        case .instrument, .displayMode, .stringThickness, .labels, .spelling, .octave:
             return .fretboard
         case .clef:
             return .staff
@@ -185,6 +187,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Instrument"
         case .displayMode:
             return "Display"
+        case .stringThickness:
+            return "String Thickness"
         case .labels:
             return "Labels"
         case .spelling:
@@ -214,6 +218,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Select instrument"
         case .displayMode:
             return "Select display mode"
+        case .stringThickness:
+            return "Select whether all strings share one thickness or low strings are thicker than high strings"
         case .labels:
             return "Select note label visibility"
         case .spelling:
@@ -237,6 +243,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
              .positionPromptFilterMode,
              .instrument,
              .displayMode,
+             .stringThickness,
              .labels,
              .spelling,
              .clef,
@@ -254,6 +261,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
              .mainContent,
              .exerciseMode,
              .positionPromptFilterMode,
+             .stringThickness,
              .clef,
              .pianoMovementScope,
              .pianoWhiteKeyStyle:
@@ -297,6 +305,11 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .setDisplayModeHorizontal,
                 .setDisplayModeVertical
+            ]
+        case .stringThickness:
+            return [
+                .setStringThicknessUniform,
+                .setStringThicknessGraduated
             ]
         case .labels:
             return [
@@ -351,6 +364,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setInstrumentBass5
     case setDisplayModeHorizontal
     case setDisplayModeVertical
+    case setStringThicknessUniform
+    case setStringThicknessGraduated
     case setVisibilityAll
     case setVisibilityNaturalOnly
     case setVisibilityBCEFOnly
@@ -390,6 +405,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setDisplayModeHorizontal,
              .setDisplayModeVertical:
             return .displayMode
+        case .setStringThicknessUniform,
+             .setStringThicknessGraduated:
+            return .stringThickness
         case .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityBCEFOnly,
@@ -446,6 +464,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Horizontal"
         case .setDisplayModeVertical:
             return "Vertical"
+        case .setStringThicknessUniform:
+            return "Uniform"
+        case .setStringThicknessGraduated:
+            return "Graduated"
         case .setVisibilityAll:
             return "All"
         case .setVisibilityNaturalOnly:
@@ -511,6 +533,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Show fretboard in horizontal mode"
         case .setDisplayModeVertical:
             return "Show fretboard in vertical mode"
+        case .setStringThicknessUniform:
+            return "Render all strings with the same thickness"
+        case .setStringThicknessGraduated:
+            return "Render low strings thicker and high strings thinner"
         case .setVisibilityAll:
             return "Show all note labels"
         case .setVisibilityNaturalOnly:
@@ -578,6 +604,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.fretboardDisplayState.displayMode == .horizontal
         case .setDisplayModeVertical:
             return stateContext.fretboardDisplayState.displayMode == .vertical
+        case .setStringThicknessUniform:
+            return stateContext.fretboardDisplayState.configuration.stringThicknessStyle == .uniform
+        case .setStringThicknessGraduated:
+            return stateContext.fretboardDisplayState.configuration.stringThicknessStyle == .graduated
         case .setVisibilityAll:
             return stateContext.fretboardDisplayState.visibility == .all
         case .setVisibilityNaturalOnly:
@@ -629,6 +659,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
              .setDisplayModeVertical,
+             .setStringThicknessUniform,
+             .setStringThicknessGraduated,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityBCEFOnly,
@@ -678,6 +710,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.setDisplayMode(.horizontal)
         case .setDisplayModeVertical:
             displayState.setDisplayMode(.vertical)
+        case .setStringThicknessUniform:
+            displayState.configuration.stringThicknessStyle = .uniform
+        case .setStringThicknessGraduated:
+            displayState.configuration.stringThicknessStyle = .graduated
         case .setVisibilityAll:
             displayState.visibility = .all
         case .setVisibilityNaturalOnly:
@@ -721,6 +757,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
              .setDisplayModeVertical,
+             .setStringThicknessUniform,
+             .setStringThicknessGraduated,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityBCEFOnly,
@@ -760,6 +798,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
              .setDisplayModeVertical,
+             .setStringThicknessUniform,
+             .setStringThicknessGraduated,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityBCEFOnly,
@@ -801,6 +841,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
              .setDisplayModeVertical,
+             .setStringThicknessUniform,
+             .setStringThicknessGraduated,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityBCEFOnly,
@@ -847,6 +889,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
              .setDisplayModeVertical,
+             .setStringThicknessUniform,
+             .setStringThicknessGraduated,
              .setVisibilityAll,
              .setVisibilityNaturalOnly,
              .setVisibilityBCEFOnly,

@@ -174,14 +174,20 @@ final class FretboardBoardLayer: CALayer {
         context.saveGState()
         context.setStrokeColor(FretboardPalette.string)
         context.setLineCap(.round)
-        context.setLineWidth(max(configuration.layoutMetrics.stringLineWidth, 1))
 
         for stringSegment in scene.stringSegments {
+            context.setLineWidth(
+                configuration.layoutMetrics.resolvedStringLineWidth(
+                    for: stringSegment.stringIndex,
+                    stringCount: configuration.stringCount,
+                    style: configuration.stringThicknessStyle
+                )
+            )
             context.move(to: stringSegment.start)
             context.addLine(to: stringSegment.end)
+            context.strokePath()
         }
 
-        context.strokePath()
         context.restoreGState()
     }
 

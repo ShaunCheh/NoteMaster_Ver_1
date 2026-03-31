@@ -7,6 +7,11 @@
 
 import CoreGraphics
 
+enum FretboardStringThicknessStyle: CaseIterable, Equatable, Hashable, Sendable {
+    case uniform
+    case graduated
+}
+
 struct FretboardConfiguration: Equatable, Sendable {
     struct LayoutMetrics: Equatable, Sendable {
         var horizontalInsetRatio: CGFloat
@@ -18,6 +23,8 @@ struct FretboardConfiguration: Equatable, Sendable {
         var nutWidthRatio: CGFloat
         var fretLineWidth: CGFloat
         var stringLineWidth: CGFloat
+        var bassStringLineWidthRatio: CGFloat
+        var trebleStringLineWidthRatio: CGFloat
         var markerDiameterRatio: CGFloat
         var doubleMarkerOffsetRatio: CGFloat
 
@@ -29,12 +36,16 @@ struct FretboardConfiguration: Equatable, Sendable {
             nutWidthRatio: 0.014,
             fretLineWidth: 1,
             stringLineWidth: 1.5,
+            bassStringLineWidthRatio: 1.45,
+            trebleStringLineWidthRatio: 0.85,
             markerDiameterRatio: 0.15,
             doubleMarkerOffsetRatio: 0.18
         )
 
         private static let minimumLayoutFactor: CGFloat = 0.01
         private static let minimumAspectRatio: CGFloat = 0.01
+        private static let minimumLineWidthRatio: CGFloat = 0.01
+        private static let minimumLineWidth: CGFloat = 1
 
         private var drawingWidthFactor: CGFloat {
             max(1 - (horizontalInsetRatio * 2), Self.minimumLayoutFactor)
@@ -219,6 +230,50 @@ struct FretboardConfiguration: Equatable, Sendable {
             let stringBandHeight = CGFloat(max(stringCount, 1)) * max(stringLaneHeight, 1)
             return stringBandHeight / drawingHeightFactor
         }
+
+        func resolvedStringLineWidth(
+            for stringIndex: Int,
+            stringCount: Int,
+            style: FretboardStringThicknessStyle
+        ) -> CGFloat {
+            let baseWidth = max(stringLineWidth, Self.minimumLineWidth)
+
+            switch style {
+            case .uniform:
+                return baseWidth
+            case .graduated:
+                return interpolatedStringLineWidth(
+                    for: stringIndex,
+                    stringCount: stringCount,
+                    baseWidth: baseWidth
+                )
+            }
+        }
+
+        private func interpolatedStringLineWidth(
+            for stringIndex: Int,
+            stringCount: Int,
+            baseWidth: CGFloat
+        ) -> CGFloat {
+            let resolvedStringCount = max(stringCount, 1)
+            guard resolvedStringCount > 1 else {
+                return baseWidth
+            }
+
+            let resolvedStringIndex = min(max(stringIndex, 0), resolvedStringCount - 1)
+            let progress = CGFloat(resolvedStringIndex) / CGFloat(resolvedStringCount - 1)
+            let thickerRatio = max(
+                max(bassStringLineWidthRatio, trebleStringLineWidthRatio),
+                Self.minimumLineWidthRatio
+            )
+            let thinnerRatio = max(
+                min(bassStringLineWidthRatio, trebleStringLineWidthRatio),
+                Self.minimumLineWidthRatio
+            )
+            let lowStringWidth = max(baseWidth * thickerRatio, Self.minimumLineWidth)
+            let highStringWidth = max(baseWidth * thinnerRatio, Self.minimumLineWidth)
+            return lowStringWidth + ((highStringWidth - lowStringWidth) * progress)
+        }
     }
 
     struct MarkerLayout: Equatable, Sendable {
@@ -266,6 +321,7 @@ struct FretboardConfiguration: Equatable, Sendable {
     var displayMode: FretboardDisplayMode
     var tuning: InstrumentTuning
     var maxFret: Int
+    var stringThicknessStyle: FretboardStringThicknessStyle
     var layoutMetrics: LayoutMetrics
     var markerLayout: MarkerLayout
 
@@ -273,12 +329,14 @@ struct FretboardConfiguration: Equatable, Sendable {
         displayMode: FretboardDisplayMode = .horizontal,
         tuning: InstrumentTuning = .standard(for: .guitar6),
         maxFret: Int = 12,
+        stringThicknessStyle: FretboardStringThicknessStyle = .uniform,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
         self.displayMode = displayMode
         self.tuning = tuning
         self.maxFret = max(0, maxFret)
+        self.stringThicknessStyle = stringThicknessStyle
         self.layoutMetrics = layoutMetrics
         self.markerLayout = markerLayout
     }
@@ -287,6 +345,7 @@ struct FretboardConfiguration: Equatable, Sendable {
         instrument: InstrumentType,
         displayMode: FretboardDisplayMode = .horizontal,
         maxFret: Int = 12,
+        stringThicknessStyle: FretboardStringThicknessStyle = .uniform,
         layoutMetrics: LayoutMetrics = .default,
         markerLayout: MarkerLayout = .standard
     ) {
@@ -294,6 +353,7 @@ struct FretboardConfiguration: Equatable, Sendable {
             displayMode: displayMode,
             tuning: .standard(for: instrument),
             maxFret: maxFret,
+            stringThicknessStyle: stringThicknessStyle,
             layoutMetrics: layoutMetrics,
             markerLayout: markerLayout
         )
