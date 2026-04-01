@@ -846,12 +846,19 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
                 for: stateContext.trainerDisplayState.exerciseMode
             )
         case .setLayoutPresetStacked:
-            return LegacyPageLayoutAdapter.isLayoutPresetSupported(.stacked)
+            return LegacyPageLayoutAdapter.isLayoutPresetSupported(
+                .stacked,
+                in: stateContext
+            )
         case .setLayoutPresetSideBySide:
-            return LegacyPageLayoutAdapter.isLayoutPresetSupported(.sideBySide)
+            return LegacyPageLayoutAdapter.isLayoutPresetSupported(
+                .sideBySide,
+                in: stateContext
+            )
         case .setLayoutPresetSingleSurface:
             return LegacyPageLayoutAdapter.isLayoutPresetSupported(
-                .singleSurface
+                .singleSurface,
+                in: stateContext
             )
         case .setAccessoryPresentationDocked:
             return LegacyPageLayoutAdapter.isAccessoryPresentationSupported(

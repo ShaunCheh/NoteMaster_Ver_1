@@ -187,6 +187,8 @@ private extension ExerciseCompositionValidationRunner {
         var checklist = [
             "确认 `single` 与 `sequence` 继续使用上方 `staff`、下方 `fretboard` 的主视觉组合。",
             "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合。",
+            "确认把 `Layout Preset` 切到 `Side` 后，主视觉立即切成左右双栏，而不是被自动打回 `Stacked`。",
+            "确认在 `positionPrompt` 里切到 `Composition Preset = Self` 后，页面收敛为单 `fretboard`，并且 settings 重新打开后该选择仍然保留。",
             "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoAccessoryVisible`。",
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后只追加钢琴区域，关闭后主 prompt/answer 组合不发生漂移。",
@@ -791,6 +793,40 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "阶段 2 中，shared context 新增字段不应破坏新 Exercise section 的生成。"
+                )
+            )
+        }
+
+        let preservedSideBySidePreferences = LegacyPageLayoutAdapter
+            .normalizedPreferences(
+                ExerciseLayoutPreferences(
+                    compositionPreset: .targetPromptToFretboard,
+                    layoutPreset: .sideBySide
+                ),
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single)
+            )
+        if preservedSideBySidePreferences.layoutPreset != .sideBySide {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 4 中，bridge 不应再把已支持的 sideBySide 语义布局压回 stacked。"
+                )
+            )
+        }
+
+        let preservedSelfAnswerPreferences = LegacyPageLayoutAdapter
+            .normalizedPreferences(
+                .singleFretboardSelfAnswer,
+                trainerDisplayState: TrainerDisplayState(
+                    exerciseMode: .positionPrompt
+                )
+            )
+        if preservedSelfAnswerPreferences.compositionPreset != .fretboardSelfAnswer
+            || preservedSelfAnswerPreferences.layoutPreset != .singleSurface {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 4 中，positionPrompt 的单 fretboard self-answer 偏好不应在 settings bridge 往返时丢失。"
                 )
             )
         }

@@ -108,3 +108,60 @@ struct ExercisePresentationState: Equatable, Sendable {
         surfaceStates[surfaceID] = state
     }
 }
+
+enum ExerciseRenderedSceneArrangement: Equatable, Sendable {
+    case singleSurface
+    case stacked
+    case sideBySide
+}
+
+struct ExerciseRenderedSceneLayout: Equatable, Sendable {
+    var arrangement: ExerciseRenderedSceneArrangement
+    var primarySurface: ExerciseSurfaceNode
+    var primaryWeight: Double
+    var secondarySurface: ExerciseSurfaceNode?
+    var secondaryWeight: Double?
+}
+
+extension ExercisePresentationState {
+    func isSurfaceVisible(_ surfaceID: ExerciseSurfaceID) -> Bool {
+        surfaceState(for: surfaceID)?.isVisible ?? false
+    }
+
+    var renderedSceneLayout: ExerciseRenderedSceneLayout? {
+        renderedSceneLayout(for: scene.root)
+    }
+
+    private func renderedSceneLayout(
+        for node: ExerciseSceneNode
+    ) -> ExerciseRenderedSceneLayout? {
+        switch node {
+        case let .surface(surface):
+            return ExerciseRenderedSceneLayout(
+                arrangement: .singleSurface,
+                primarySurface: surface,
+                primaryWeight: 1,
+                secondarySurface: nil,
+                secondaryWeight: nil
+            )
+        case let .split(axis, children):
+            guard children.count == 2,
+                  case let .surface(primarySurface) = children[0].node,
+                  case let .surface(secondarySurface) = children[1].node else {
+                return nil
+            }
+
+            return ExerciseRenderedSceneLayout(
+                arrangement: axis == .vertical ? .stacked : .sideBySide,
+                primarySurface: primarySurface,
+                primaryWeight: children[0].weight,
+                secondarySurface: secondarySurface,
+                secondaryWeight: children[1].weight
+            )
+        case let .overlay(base, _):
+            return renderedSceneLayout(for: base)
+        case let .collapsible(main, _, _):
+            return renderedSceneLayout(for: main)
+        }
+    }
+}
