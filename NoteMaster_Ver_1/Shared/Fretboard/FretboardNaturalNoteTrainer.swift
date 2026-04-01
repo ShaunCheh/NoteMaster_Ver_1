@@ -677,6 +677,44 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             return .ignored(.missingHitCell)
         }
 
+        return handleSingleCoverageAnswer(
+            selectedCell,
+            configuration: configuration,
+            session: &session,
+            using: &generator
+        )
+    }
+
+    mutating func handleSingleCoverageAnswer(
+        _ selectedCell: FretboardCell,
+        configuration: FretboardConfiguration,
+        session: inout SingleCoverageSession
+    ) -> SingleCoverageAnswerResult {
+        var generator = SystemRandomNumberGenerator()
+        return handleSingleCoverageAnswer(
+            selectedCell,
+            configuration: configuration,
+            session: &session,
+            using: &generator
+        )
+    }
+
+    mutating func handleSingleCoverageAnswer<R: RandomNumberGenerator>(
+        _ selectedCell: FretboardCell,
+        configuration: FretboardConfiguration,
+        session: inout SingleCoverageSession,
+        using generator: inout R
+    ) -> SingleCoverageAnswerResult {
+        requireSingleNaturalTargetMode()
+        guard !session.isCompleted else {
+            return .ignored(.completedSession)
+        }
+
+        validateSingleCoverageSession(
+            session,
+            configuration: configuration
+        )
+
         guard let selectedPitch = configuration.notePitch(for: selectedCell) else {
             return .ignored(.unresolvedHitPitch(selectedCell))
         }
@@ -781,6 +819,29 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
+    mutating func handlePositionPromptAnswer(
+        _ event: ExerciseAnswerEvent,
+        configuration: FretboardConfiguration,
+        answerRule: PositionPromptAnswerRule,
+        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
+        session: inout PositionPromptSession
+    ) -> PositionPromptAnswerResult? {
+        guard let pitchClass = Self.resolvedPositionPromptAnswerPitchClass(
+            from: event,
+            configuration: configuration,
+            answerRule: answerRule
+        ) else {
+            return nil
+        }
+
+        return handlePositionPromptAnswer(
+            pitchClass,
+            configuration: configuration,
+            filter: filter,
+            session: &session
+        )
+    }
+
     mutating func handlePositionPromptAnswer<R: RandomNumberGenerator>(
         _ pitchClass: PitchClass,
         configuration: FretboardConfiguration,
@@ -841,6 +902,32 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             session: &session,
             using: &generator
         )
+    }
+
+    static func resolvedPitchClass(
+        from event: ExerciseAnswerEvent,
+        configuration: FretboardConfiguration
+    ) -> PitchClass? {
+        switch event.payload {
+        case let .pitchClass(pitchClass):
+            return pitchClass
+        case let .fretboardCell(cell):
+            return configuration.notePitch(for: cell)?.pitchClass
+        }
+    }
+
+    static func resolvedPositionPromptAnswerPitchClass(
+        from event: ExerciseAnswerEvent,
+        configuration: FretboardConfiguration,
+        answerRule: PositionPromptAnswerRule
+    ) -> PitchClass? {
+        switch answerRule {
+        case .samePitchClass:
+            return resolvedPitchClass(
+                from: event,
+                configuration: configuration
+            )
+        }
     }
 
     mutating func advanceToNextTarget() -> PitchClass {

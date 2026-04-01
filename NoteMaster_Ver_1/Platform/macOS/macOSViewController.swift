@@ -124,6 +124,7 @@ final class macOSViewController: NSViewController {
                 from: oldValue,
                 to: exercisePresentationState
             )
+            updateAnswerSurfaceInteractionState()
             applyLabelVisibilityButtonState()
         }
     }
@@ -320,7 +321,7 @@ final class macOSViewController: NSViewController {
         positionPromptSession = nil
         clearPositionPromptFeedbackState()
         positionPromptOverlayPhase = nil
-        updateNaturalNoteStripInteractionState()
+        updateAnswerSurfaceInteractionState()
     }
 
     private func resetSingleCoverageInteractionState() {
@@ -993,7 +994,7 @@ final class macOSViewController: NSViewController {
             )
         case .quarterNoteSequence:
             applyCurrentFretboardFeedbackOverlayState()
-            updateNaturalNoteStripInteractionState()
+            updateAnswerSurfaceInteractionState()
         }
 
         guard isShowingFretboard else {
@@ -1027,26 +1028,97 @@ final class macOSViewController: NSViewController {
     }
 
     private func handleFretboardTrainerHitResult(_ hitResult: FretboardHitResult) {
-        switch fretboardTrainerState.mode {
-        case .singleNaturalTarget:
-            handleSingleNaturalTargetHitResult(hitResult)
-        case .positionPrompt:
+        guard hitResult.phase == .ended else {
             return
-        case .quarterNoteSequence:
-            handleQuarterNoteSequenceHitResult(hitResult)
         }
+
+        guard let selectedCell = hitResult.cell else {
+            logIgnoredFretboardAnswerHitResultMissingCell()
+            return
+        }
+
+        handleExerciseAnswerEvent(
+            .fretboardCell(selectedCell, from: .fretboard)
+        )
     }
 
     private func handleNaturalNoteStripPitchClassTap(_ pitchClass: PitchClass) {
-        switch fretboardTrainerState.mode {
-        case .positionPrompt:
-            handlePositionPromptAnswer(pitchClass)
-        case .singleNaturalTarget, .quarterNoteSequence:
-            return
+        handleExerciseAnswerEvent(
+            .pitchClass(pitchClass, from: .naturalNoteStrip)
+        )
+    }
+
+    private func handleExerciseAnswerEvent(_ event: ExerciseAnswerEvent) {
+        switch ExerciseAnswerRouter.route(
+            event,
+            presentationState: exercisePresentationState,
+            trainerDisplayState: trainerDisplayState,
+            fretboardConfiguration: displayState.configuration
+        ) {
+        case let .routed(route):
+            handleRoutedExerciseAnswer(route)
+        case let .ignored(reason):
+            logIgnoredExerciseAnswerEvent(event, reason: reason)
         }
     }
 
-    private func handlePositionPromptAnswer(_ pitchClass: PitchClass) {
+    private func handleRoutedExerciseAnswer(_ route: ExerciseAnswerRoute) {
+        switch route {
+        case let .singleCoverage(_, cell):
+            handleSingleCoverageAnswer(cell)
+        case let .quarterNoteSequence(event, pitchClass):
+            handleQuarterNoteSequenceAnswer(
+                event,
+                pitchClass: pitchClass
+            )
+        case let .positionPrompt(answer):
+            handlePositionPromptAnswer(answer)
+        }
+    }
+
+    private func logIgnoredExerciseAnswerEvent(
+        _ event: ExerciseAnswerEvent,
+        reason: ExerciseAnswerRouteIgnoreReason
+    ) {
+        guard shouldLogIgnoredExerciseAnswer(reason) else {
+            return
+        }
+
+        print(
+            "[ExerciseAnswerRouter][macOS] result=ignored surface=\(event.surfaceID.rawValue) reason=\(reason.debugDescription)"
+        )
+    }
+
+    private func shouldLogIgnoredExerciseAnswer(
+        _ reason: ExerciseAnswerRouteIgnoreReason
+    ) -> Bool {
+        switch reason {
+        case .surfaceUnavailable, .surfaceHidden, .answerDisabled,
+             .interactionDisabled:
+            return false
+        case .unsupportedPayload, .unresolvedPitchClass:
+            return true
+        }
+    }
+
+    private func logIgnoredFretboardAnswerHitResultMissingCell() {
+        switch fretboardTrainerState.mode {
+        case .singleNaturalTarget:
+            print(
+                "[SingleCoverage][macOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
+            )
+        case .positionPrompt:
+            print("[PositionPrompt][macOS] result=ignored reason=missingHitCell")
+        case .quarterNoteSequence:
+            print(
+                "[QuarterNoteSequence][macOS] result=ignored reason=missingHitCell"
+            )
+        }
+    }
+
+    private func handlePositionPromptAnswer(
+        _ routedAnswer: ExercisePositionPromptRoutedAnswer
+    ) {
         guard case .positionPrompt = fretboardTrainerState.mode else {
             return
         }
@@ -1065,12 +1137,18 @@ final class macOSViewController: NSViewController {
             return
         }
 
-        let answerResult = fretboardTrainerState.handlePositionPromptAnswer(
-            pitchClass,
+        guard let answerResult = fretboardTrainerState.handlePositionPromptAnswer(
+            routedAnswer.event,
             configuration: displayState.configuration,
+            answerRule: trainerDisplayState.positionPromptAnswerRule,
             filter: currentPositionPromptFilter,
             session: &positionPromptSession
-        )
+        ) else {
+            print(
+                "[PositionPrompt][macOS] result=ignored reason=unresolvedAnswerEvent surface=\(routedAnswer.event.surfaceID.rawValue)"
+            )
+            return
+        }
         self.positionPromptSession = positionPromptSession
 
         switch answerResult {
@@ -1117,26 +1195,20 @@ final class macOSViewController: NSViewController {
         }
     }
 
-    private func handleSingleNaturalTargetHitResult(_ hitResult: FretboardHitResult) {
+    private func handleSingleCoverageAnswer(_ selectedCell: FretboardCell) {
         ensureSingleCoverageSession()
         guard var singleCoverageSession else {
             print("[SingleCoverage][macOS] result=ignored reason=missingSession")
             return
         }
 
-        let answerResult = fretboardTrainerState.handleSingleCoverageHit(
-            hitResult,
+        let answerResult = fretboardTrainerState.handleSingleCoverageAnswer(
+            selectedCell,
             configuration: displayState.configuration,
             session: &singleCoverageSession
         )
 
         switch answerResult {
-        case .ignored(.nonEndedPhase):
-            return
-        case .ignored(.missingHitCell):
-            print(
-                "[SingleCoverage][macOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
-            )
         case let .ignored(.unresolvedHitPitch(cell)):
             print(
                 "[SingleCoverage][macOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=unresolvedHitPitch string=\(cell.stringIndex) fret=\(cell.fret)"
@@ -1145,6 +1217,8 @@ final class macOSViewController: NSViewController {
             print(
                 "[SingleCoverage][macOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=completedSession"
             )
+        case .ignored(.nonEndedPhase), .ignored(.missingHitCell):
+            return
         case let .evaluated(evaluation):
             self.singleCoverageSession = singleCoverageSession
             updateSingleCoverageFeedbackState(with: answerResult)
@@ -1162,25 +1236,10 @@ final class macOSViewController: NSViewController {
         }
     }
 
-    private func handleQuarterNoteSequenceHitResult(_ hitResult: FretboardHitResult) {
-        guard hitResult.phase == .ended else {
-            return
-        }
-
-        guard let selectedCell = hitResult.cell else {
-            print(
-                "[QuarterNoteSequence][macOS] result=ignored reason=missingHitCell"
-            )
-            return
-        }
-
-        guard let selectedPitch = displayState.configuration.notePitch(for: selectedCell) else {
-            print(
-                "[QuarterNoteSequence][macOS] result=ignored reason=unresolvedHitPitch string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
-            )
-            return
-        }
-
+    private func handleQuarterNoteSequenceAnswer(
+        _ event: ExerciseAnswerEvent,
+        pitchClass: PitchClass
+    ) {
         guard let generatedSequence = currentGeneratedQuarterNoteSequence else {
             print(
                 "[QuarterNoteSequence][macOS] result=ignored reason=missingSequence"
@@ -1201,7 +1260,7 @@ final class macOSViewController: NSViewController {
         }
 
         let answerResult = fretboardTrainerState.handleQuarterNoteSequenceAnswer(
-            selectedPitch.pitchClass,
+            pitchClass,
             session: &quarterNoteSequenceSession
         )
         self.quarterNoteSequenceSession = quarterNoteSequenceSession
@@ -1212,15 +1271,33 @@ final class macOSViewController: NSViewController {
             showsLog: false
         )
 
+        let selectedCell = event.payload.fretboardCell
+        let selectedPitch = selectedCell.flatMap {
+            displayState.configuration.notePitch(for: $0)
+        }
+
         switch answerResult {
         case .ignored(.completedSession):
-            print(
-                "[QuarterNoteSequence][macOS] result=ignored reason=completedSession string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
-            )
+            if let selectedCell {
+                print(
+                    "[QuarterNoteSequence][macOS] result=ignored reason=completedSession string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
+                )
+            } else {
+                print(
+                    "[QuarterNoteSequence][macOS] result=ignored reason=completedSession answered=\(pitchClass.displayText())"
+                )
+            }
         case let .evaluated(evaluation):
-            print(
-                "[macOS] \(evaluation.debugSummary()) selected=\(selectedPitch.displayText()) string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
-            )
+            if let selectedCell,
+               let selectedPitch {
+                print(
+                    "[macOS] \(evaluation.debugSummary()) selected=\(selectedPitch.displayText()) string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
+                )
+            } else {
+                print(
+                    "[macOS] \(evaluation.debugSummary()) answered=\(pitchClass.displayText())"
+                )
+            }
         }
     }
 
@@ -1347,7 +1424,7 @@ final class macOSViewController: NSViewController {
         showsLog: Bool = true
     ) {
         applyCurrentFretboardFeedbackOverlayState()
-        updateNaturalNoteStripInteractionState()
+        updateAnswerSurfaceInteractionState()
         let content = currentQuarterNoteSequenceTargetPromptContent
             ?? generatedSequence.targetPromptContent()
         targetNotePromptView.apply(content: content)
@@ -1375,21 +1452,24 @@ final class macOSViewController: NSViewController {
         fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
     }
 
-    private func updateNaturalNoteStripInteractionState() {
+    private func updateAnswerSurfaceInteractionState() {
         guard isViewLoaded else {
             return
         }
 
-        let isInteractionEnabled = exercisePresentationState.surfaceState(
+        let allowsLiveAnswerInteraction = !trainerDisplayState.isPositionPromptMode
+            || currentPositionPromptOverlayPhase == .neutralWhite
+        let fretboardInteractionEnabled = exercisePresentationState.surfaceState(
+            for: .fretboard
+        )?.isInteractionEnabled ?? false
+        let naturalNoteStripInteractionEnabled = exercisePresentationState.surfaceState(
             for: .naturalNoteStrip
         )?.isInteractionEnabled ?? false
 
-        if trainerDisplayState.isPositionPromptMode {
-            naturalNoteStripView.areButtonsEnabled = isInteractionEnabled
-                && currentPositionPromptOverlayPhase == .neutralWhite
-        } else {
-            naturalNoteStripView.areButtonsEnabled = isInteractionEnabled
-        }
+        fretboardView.areRawEventsEnabled = fretboardInteractionEnabled
+            && allowsLiveAnswerInteraction
+        naturalNoteStripView.areButtonsEnabled = naturalNoteStripInteractionEnabled
+            && allowsLiveAnswerInteraction
     }
 
     private func applySingleCoverageProjection(
@@ -1399,7 +1479,7 @@ final class macOSViewController: NSViewController {
         ensureSingleCoverageSession()
         targetNotePromptView.apply(content: currentSingleCoverageTargetPromptContent)
         applyCurrentFretboardFeedbackOverlayState()
-        updateNaturalNoteStripInteractionState()
+        updateAnswerSurfaceInteractionState()
 
         guard showsLog else {
             return
@@ -1423,7 +1503,7 @@ final class macOSViewController: NSViewController {
     ) {
         ensurePositionPromptSession()
         applyCurrentFretboardFeedbackOverlayState()
-        updateNaturalNoteStripInteractionState()
+        updateAnswerSurfaceInteractionState()
 
         guard
             showsLog,

@@ -49,6 +49,7 @@ final class macOSFretboardView: NSView {
 
     // 阶段 4 只负责把 raw mouse 事件转换成共享命中结果并向外抛出。
     var onRawEvent: ((FretboardHitResult) -> Void)?
+    var areRawEventsEnabled = true
 
     override var intrinsicContentSize: NSSize {
         switch configuration.displayMode {
@@ -116,14 +117,23 @@ final class macOSFretboardView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard areRawEventsEnabled else {
+            return
+        }
         handleRawMouseEvent(event, phase: .began)
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard areRawEventsEnabled else {
+            return
+        }
         handleRawMouseEvent(event, phase: .moved)
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard areRawEventsEnabled else {
+            return
+        }
         handleRawMouseEvent(event, phase: .ended)
     }
 

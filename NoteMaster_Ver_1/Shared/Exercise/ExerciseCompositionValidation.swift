@@ -177,6 +177,10 @@ private extension ExerciseCompositionValidationRunner {
             ExerciseCompositionValidationFixture(
                 name: "shared_answer_contracts_default_position_prompt_to_same_pitch_class",
                 validate: validateSharedAnswerContractsDefaultPositionPromptToSamePitchClass
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "answer_router_routes_stacked_side_and_single_surface_answers",
+                validate: validateAnswerRouterRoutesStackedSideAndSingleSurfaceAnswers
             )
         ]
     }
@@ -189,6 +193,8 @@ private extension ExerciseCompositionValidationRunner {
             "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合。",
             "确认把 `Layout Preset` 切到 `Side` 后，主视觉立即切成左右双栏，而不是被自动打回 `Stacked`。",
             "确认在 `positionPrompt` 里切到 `Composition Preset = Self` 后，页面收敛为单 `fretboard`，并且 settings 重新打开后该选择仍然保留。",
+            "确认 stacked/side 的 `positionPrompt` 里，只有当前 answer surface 会响应答题；prompt-only 的 `fretboard` 点击不会误触发答题。",
+            "确认单 `fretboard` 自答时，点击同音位置会走统一 answer router，并在正确反馈结束后推进到下一题。",
             "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoAccessoryVisible`。",
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后只追加钢琴区域，关闭后主 prompt/answer 组合不发生漂移。",
@@ -1173,6 +1179,159 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "ExerciseAnswerEvent 应保留 pitchClass payload 与来源 surfaceID。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateAnswerRouterRoutesStackedSideAndSingleSurfaceAnswers()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "answer_router_routes_stacked_side_and_single_surface_answers"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        let fretboardConfiguration = FretboardConfiguration()
+        let answerCell = FretboardCell(stringIndex: 0, fret: 0)
+        guard let answerPitchClass = fretboardConfiguration.pitchClass(
+            for: answerCell
+        ) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 5 的 answer router 夹具需要一个可解析为 pitch class 的 fretboard cell。"
+                )
+            )
+            return issues
+        }
+
+        let singleTrainerDisplayState = TrainerDisplayState(exerciseMode: .single)
+        let stackedSinglePresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: singleTrainerDisplayState,
+                fretboardTrainerState: .init(targetPitchClass: .c),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .default
+            )
+        )
+        let fretboardCellEvent = ExerciseAnswerEvent.fretboardCell(
+            answerCell,
+            from: .fretboard
+        )
+        if ExerciseAnswerRouter.route(
+            fretboardCellEvent,
+            presentationState: stackedSinglePresentation,
+            trainerDisplayState: singleTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .routed(
+            .singleCoverage(
+                event: fretboardCellEvent,
+                cell: answerCell
+            )
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "上下布局中的单音训练应把 fretboardCell 事件路由到 singleCoverage answer。"
+                )
+            )
+        }
+
+        let positionPromptTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .positionPrompt
+        )
+        let sideBySidePositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: positionPromptTrainerDisplayState,
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        let naturalNoteStripEvent = ExerciseAnswerEvent.pitchClass(
+            .e,
+            from: .naturalNoteStrip
+        )
+        if ExerciseAnswerRouter.route(
+            naturalNoteStripEvent,
+            presentationState: sideBySidePositionPromptPresentation,
+            trainerDisplayState: positionPromptTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .routed(
+            .positionPrompt(
+                ExercisePositionPromptRoutedAnswer(
+                    event: naturalNoteStripEvent,
+                    pitchClass: .e
+                )
+            )
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "左右布局中的 positionPrompt 应允许 natural note strip 继续作为可选 answer surface。"
+                )
+            )
+        }
+
+        let stackedPositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: positionPromptTrainerDisplayState,
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: .legacyPositionPrompt
+                )
+            )
+        if ExerciseAnswerRouter.route(
+            fretboardCellEvent,
+            presentationState: stackedPositionPromptPresentation,
+            trainerDisplayState: positionPromptTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .ignored(.answerDisabled(.fretboard)) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 的 positionPrompt 里，prompt-only fretboard 不应再被当成唯一答题入口。"
+                )
+            )
+        }
+
+        let selfAnswerPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .singleFretboardSelfAnswer
+            )
+        )
+        if ExerciseAnswerRouter.route(
+            fretboardCellEvent,
+            presentationState: selfAnswerPresentation,
+            trainerDisplayState: positionPromptTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .routed(
+            .positionPrompt(
+                ExercisePositionPromptRoutedAnswer(
+                    event: fretboardCellEvent,
+                    pitchClass: answerPitchClass
+                )
+            )
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "单 fretboard self-answer 应把 fretboardCell 解析成 pitch class，并继续路由到 positionPrompt answer。"
                 )
             )
         }
