@@ -2445,9 +2445,10 @@ private extension FretboardValidationRunner {
             "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。",
             "应用启动后不做额外切换，直接打开设置面板；确认 `Trainer` 分区第一眼看到 `Exercise Mode = Position Prompt`、`Filter = Note Names`，并且多选按钮默认回显 `C / E / F / B`。",
             "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Filter` 与位置题多选过滤行；切到 `positionPrompt` 后确认出现 `Filter = Note Names`，且默认选中 `C / E / F / B`。",
-            "在 `positionPrompt` 默认 `Filter = Note Names`、默认 `C / E / F / B` 状态下连续答对多次，确认当前题与下一题都只落在这些音名，且会从当前指板全部合法位置出题（包含命中这些音名的空弦）。",
-            "把 `positionPrompt` 的 `Filter` 切到 `Frets`，确认会回显当前品位集合；连续答对多次，确认当前题与下一题都只落在当前已选品位。",
-            "在 `positionPrompt` 里只保留 `C / E` 这两个音名后连续答对多次，确认当前题与下一题都只落在 `C / E`，不受已保存品位集合干扰。",
+            "在 `positionPrompt` 默认 `Filter = Note Names`、默认 `C / E / F / B` 状态下连续答对至少 6 次，确认当前题与下一题都只落在这些音名；若当前有 6 根候选弦，则一轮 6 题内 6 根弦各出现 1 次，再进入下一轮时重新开始轮巡。",
+            "把 `positionPrompt` 的 `Filter` 切到 `Frets`，确认会回显当前品位集合；连续答对多次，确认当前题与下一题都只落在当前已选品位，并且每一轮会覆盖当前有候选的每根弦一次。",
+            "在 `positionPrompt` 里只保留 `C / E` 这两个音名后连续观察至少两轮，确认当前题与下一题都只落在 `C / E`；同一根弦上会优先出现此前命中次数更少的格子，不受已保存品位集合干扰。",
+            "观察控制台里的 `[PositionPrompt][Trainer]` 日志，确认会打印 `poolStrings`、`activeRoundStrings`、`selectedString`、`minimumHitCount`、`minimumHitCandidateCount`、`roundProgress` 等字段；切换 `Filter` 或指板配置后，这些字段会按新的候选池重新开始。",
             "尝试连续取消音名直到只剩最后一个已选音名，再继续点击该音名；确认 UI 仍保持至少一个音名被选中。",
             "尝试连续取消品位直到只剩最后一个已选格子，再继续点击该格子；确认 UI 仍保持至少一个品位被选中。",
             "在 `wrongFlash` 或 `correctHold` 期间切换过滤模式或当前激活模式下的过滤选项；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。"
