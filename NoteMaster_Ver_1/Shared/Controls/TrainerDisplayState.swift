@@ -21,10 +21,15 @@ enum PositionPromptCandidateFilter: Equatable, Sendable {
     case frets(Set<Int>)
 }
 
+enum PositionPromptAnswerRule: Equatable, Hashable, Sendable {
+    case samePitchClass
+}
+
 struct TrainerPositionPromptConfiguration: Equatable, Sendable {
     static let supportedFretRange: ClosedRange<Int> = 1...12
     static let supportedPitchClasses: [PitchClass] = PitchClass.naturalCasesInOrder
     static let defaultFilterMode: TrainerPositionPromptFilterMode = .noteName
+    static let defaultAnswerRule: PositionPromptAnswerRule = .samePitchClass
     static let defaultSelectedPitchClasses: Set<PitchClass> = [
         .c, .e, .f, .b
     ]
@@ -35,15 +40,18 @@ struct TrainerPositionPromptConfiguration: Equatable, Sendable {
     static let `default` = TrainerPositionPromptConfiguration()
 
     var filterMode: TrainerPositionPromptFilterMode
+    var answerRule: PositionPromptAnswerRule
     private(set) var selectedPitchClasses: Set<PitchClass>
     private(set) var selectedFrets: Set<Int>
 
     init(
         filterMode: TrainerPositionPromptFilterMode = Self.defaultFilterMode,
+        answerRule: PositionPromptAnswerRule = Self.defaultAnswerRule,
         selectedPitchClasses: Set<PitchClass> = Self.defaultSelectedPitchClasses,
         selectedFrets: Set<Int> = Self.defaultSelectedFrets
     ) {
         self.filterMode = filterMode
+        self.answerRule = answerRule
         self.selectedPitchClasses = Self.normalizedSelectedPitchClasses(
             selectedPitchClasses
         )
@@ -80,6 +88,7 @@ struct TrainerPositionPromptConfiguration: Equatable, Sendable {
     func normalized() -> TrainerPositionPromptConfiguration {
         TrainerPositionPromptConfiguration(
             filterMode: filterMode,
+            answerRule: answerRule,
             selectedPitchClasses: selectedPitchClasses,
             selectedFrets: selectedFrets
         )
@@ -126,6 +135,7 @@ struct TrainerPositionPromptConfiguration: Equatable, Sendable {
 
         return TrainerPositionPromptConfiguration(
             filterMode: filterMode,
+            answerRule: answerRule,
             selectedPitchClasses: nextSelectedPitchClasses,
             selectedFrets: selectedFrets
         )
@@ -148,6 +158,7 @@ struct TrainerPositionPromptConfiguration: Equatable, Sendable {
 
         return TrainerPositionPromptConfiguration(
             filterMode: filterMode,
+            answerRule: answerRule,
             selectedPitchClasses: selectedPitchClasses,
             selectedFrets: nextSelectedFrets
         )
@@ -155,6 +166,10 @@ struct TrainerPositionPromptConfiguration: Equatable, Sendable {
 
     mutating func setFilterMode(_ filterMode: TrainerPositionPromptFilterMode) {
         self.filterMode = filterMode
+    }
+
+    mutating func setAnswerRule(_ answerRule: PositionPromptAnswerRule) {
+        self.answerRule = answerRule
     }
 
     mutating func setSelectedPitchClasses(
@@ -253,6 +268,10 @@ struct TrainerDisplayState: Equatable, Sendable {
         exerciseMode == .positionPrompt
     }
 
+    var positionPromptAnswerRule: PositionPromptAnswerRule {
+        positionPromptConfiguration.answerRule
+    }
+
     mutating func setExerciseMode(_ mode: TrainerExerciseMode) {
         exerciseMode = mode
     }
@@ -267,6 +286,12 @@ struct TrainerDisplayState: Equatable, Sendable {
         _ filterMode: TrainerPositionPromptFilterMode
     ) {
         positionPromptConfiguration.setFilterMode(filterMode)
+    }
+
+    mutating func setPositionPromptAnswerRule(
+        _ answerRule: PositionPromptAnswerRule
+    ) {
+        positionPromptConfiguration.setAnswerRule(answerRule)
     }
 
     mutating func togglePositionPromptPitchClass(

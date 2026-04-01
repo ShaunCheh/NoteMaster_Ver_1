@@ -149,6 +149,22 @@ private extension ExerciseCompositionValidationRunner {
             ExerciseCompositionValidationFixture(
                 name: "layout_defaults_keep_piano_hidden_and_vertical_viewport_visible",
                 validate: validateLayoutDefaultsKeepPianoHiddenAndVerticalViewportVisible
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "shared_scene_contracts_cover_stacked_side_by_side_and_single_surface",
+                validate: validateSharedSceneContractsCoverBasicLayouts
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "shared_surface_state_defaults_follow_surface_roles",
+                validate: validateSharedSurfaceStateDefaultsFollowSurfaceRoles
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "shared_layout_preferences_coexist_with_legacy_page_state",
+                validate: validateSharedLayoutPreferencesCoexistWithLegacyPageState
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "shared_answer_contracts_default_position_prompt_to_same_pitch_class",
+                validate: validateSharedAnswerContractsDefaultPositionPromptToSamePitchClass
             )
         ]
     }
@@ -453,6 +469,293 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "horizontal settings snapshot 不应继续暴露 Viewport Height 滑块。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSharedSceneContractsCoverBasicLayouts()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "shared_scene_contracts_cover_stacked_side_by_side_and_single_surface"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let stackedScene = ExerciseScene.stacked(
+            top: .staffPrompt,
+            bottom: .fretboardAnswer
+        )
+        switch stackedScene.root {
+        case let .split(axis, children):
+            if axis != .vertical {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "stacked scene 应落成 vertical split。"
+                    )
+                )
+            }
+            let childSurfaceIDs = children.compactMap {
+                $0.node.surfaceNodes.first?.id
+            }
+            if childSurfaceIDs != [.staff, .fretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "stacked scene 应保持 staff 在上、fretboard 在下。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked scene 的根节点应为 split。"
+                )
+            )
+        }
+
+        let sideBySideScene = ExerciseScene.sideBySide(
+            leading: .targetPrompt,
+            trailing: .fretboardAnswer
+        )
+        switch sideBySideScene.root {
+        case let .split(axis, children):
+            if axis != .horizontal {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "sideBySide scene 应落成 horizontal split。"
+                    )
+                )
+            }
+            let childSurfaceIDs = children.compactMap {
+                $0.node.surfaceNodes.first?.id
+            }
+            if childSurfaceIDs != [.targetPrompt, .fretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "sideBySide scene 应保持 targetPrompt 在左、fretboard 在右。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide scene 的根节点应为 split。"
+                )
+            )
+        }
+
+        let singleSurfaceScene = ExerciseScene.singleSurface(
+            .fretboardPromptAndAnswer
+        )
+        switch singleSurfaceScene.root {
+        case let .surface(surface):
+            if surface.id != .fretboard || surface.kind != .fretboard {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "singleSurface scene 应落到单个 fretboard surface。"
+                    )
+                )
+            }
+            if !surface.roles.contains(.prompt)
+                || !surface.roles.contains(.answer) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "singleSurface scene 中的 fretboard 应同时承担 prompt 与 answer。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "singleSurface scene 的根节点应为 surface。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSharedSurfaceStateDefaultsFollowSurfaceRoles()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "shared_surface_state_defaults_follow_surface_roles"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        var presentationState = ExercisePresentationState(
+            scene: .singleSurface(.fretboardPromptAndAnswer)
+        )
+
+        guard let defaultFretboardState = presentationState.surfaceState(
+            for: .fretboard
+        ) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "presentation state 应能为 scene 中的 fretboard 推导默认 surface state。"
+                )
+            )
+            return issues
+        }
+
+        if !defaultFretboardState.isVisible
+            || !defaultFretboardState.isPromptActive
+            || !defaultFretboardState.isAnswerEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "双角色 fretboard 的默认 surface state 应同时开启可见、prompt active 与 answer enabled。"
+                )
+            )
+        }
+        if presentationState.surfaceState(for: .staff) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "presentation state 不应为不在 scene 中的 surface 凭空生成状态。"
+                )
+            )
+        }
+
+        presentationState.setSurfaceState(
+            ExerciseSurfaceState(
+                isVisible: false,
+                isPromptActive: true,
+                isAnswerEnabled: false
+            ),
+            for: .fretboard
+        )
+        let overriddenState = presentationState.surfaceState(for: .fretboard)
+        if overriddenState?.isVisible ?? true
+            || !(overriddenState?.isPromptActive ?? false)
+            || overriddenState?.isAnswerEnabled ?? true {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "显式写入的 surface state 应覆盖默认角色投影。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSharedLayoutPreferencesCoexistWithLegacyPageState()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "shared_layout_preferences_coexist_with_legacy_page_state"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        let defaultStateContext = SettingsPanelStateContext.default
+
+        if defaultStateContext.exerciseLayoutPreferences != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SettingsPanelStateContext.default 应继续携带默认 ExerciseLayoutPreferences。"
+                )
+            )
+        }
+
+        let customPreferences = ExerciseLayoutPreferences.singleFretboardSelfAnswer
+        let stateContext = SettingsPanelStateContext(
+            pageDisplayState: .positionPrompt,
+            exerciseLayoutPreferences: customPreferences,
+            trainerDisplayState: TrainerDisplayState(exerciseMode: .positionPrompt)
+        )
+        if stateContext.pageDisplayState != .positionPrompt {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "并存阶段设置 context 仍应保留 legacy pageDisplayState。"
+                )
+            )
+        }
+        if stateContext.exerciseLayoutPreferences != customPreferences {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "并存阶段设置 context 应能携带新的 ExerciseLayoutPreferences。"
+                )
+            )
+        }
+
+        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
+        if panelModel.sections.first(where: { $0.id == .page }) == nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "在 settings 真正迁移前，shared context 新增字段不应破坏 legacy Page section 的生成。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSharedAnswerContractsDefaultPositionPromptToSamePitchClass()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "shared_answer_contracts_default_position_prompt_to_same_pitch_class"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let defaultConfiguration = TrainerPositionPromptConfiguration.default
+        if defaultConfiguration.answerRule != .samePitchClass {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "PositionPromptAnswerRule 首版默认值应为 samePitchClass。"
+                )
+            )
+        }
+
+        var trainerDisplayState = TrainerDisplayState(exerciseMode: .positionPrompt)
+        if trainerDisplayState.positionPromptAnswerRule != .samePitchClass {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "TrainerDisplayState 应暴露 samePitchClass 作为 positionPrompt 的默认答题规则。"
+                )
+            )
+        }
+        trainerDisplayState.setPositionPromptAnswerRule(.samePitchClass)
+        if trainerDisplayState.positionPromptConfiguration.answerRule
+            != .samePitchClass {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "设置 positionPrompt answer rule 后，应写回到 positionPromptConfiguration。"
+                )
+            )
+        }
+
+        let fretboardCellEvent = ExerciseAnswerEvent.fretboardCell(
+            FretboardCell(stringIndex: 2, fret: 3),
+            from: .fretboard
+        )
+        if fretboardCellEvent.surfaceID != .fretboard
+            || fretboardCellEvent.payload.fretboardCell
+                != FretboardCell(stringIndex: 2, fret: 3) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "ExerciseAnswerEvent 应保留 fretboardCell payload 与来源 surfaceID。"
+                )
+            )
+        }
+
+        let pitchClassEvent = ExerciseAnswerEvent.pitchClass(
+            .c,
+            from: .naturalNoteStrip
+        )
+        if pitchClassEvent.surfaceID != .naturalNoteStrip
+            || pitchClassEvent.payload.pitchClass != .c {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "ExerciseAnswerEvent 应保留 pitchClass payload 与来源 surfaceID。"
                 )
             )
         }
