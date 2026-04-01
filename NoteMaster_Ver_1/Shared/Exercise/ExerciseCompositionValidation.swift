@@ -402,14 +402,16 @@ private extension ExerciseCompositionValidationRunner {
         let fixtureName = "page_state_normalization_preserves_single_fretboard_slot"
         var issues: [ExerciseCompositionValidationIssue] = []
 
-        let topPrioritizedState = ExerciseSceneValidator
-            .normalizedLegacyPageDisplayState(
-                from: PageDisplayState(
-                    topContentMode: .fretboard,
-                    mainContentMode: .fretboard
-                ),
+        let topPrioritizedContentModes = ExerciseSceneValidator
+            .normalizedLegacyPageContentModes(
+                topContentMode: .fretboard,
+                mainContentMode: .fretboard,
                 prioritizingTopContent: true
             )
+        let topPrioritizedState = PageDisplayState(
+            topContentMode: topPrioritizedContentModes.topContentMode,
+            mainContentMode: topPrioritizedContentModes.mainContentMode
+        )
         if topPrioritizedState.topContentMode != .fretboard
             || topPrioritizedState.mainContentMode != .naturalNoteStrip {
             issues.append(
@@ -420,14 +422,16 @@ private extension ExerciseCompositionValidationRunner {
             )
         }
 
-        let mainPrioritizedState = ExerciseSceneValidator
-            .normalizedLegacyPageDisplayState(
-                from: PageDisplayState(
-                    topContentMode: .fretboard,
-                    mainContentMode: .fretboard
-                ),
+        let mainPrioritizedContentModes = ExerciseSceneValidator
+            .normalizedLegacyPageContentModes(
+                topContentMode: .fretboard,
+                mainContentMode: .fretboard,
                 prioritizingTopContent: false
             )
+        let mainPrioritizedState = PageDisplayState(
+            topContentMode: mainPrioritizedContentModes.topContentMode,
+            mainContentMode: mainPrioritizedContentModes.mainContentMode
+        )
         if mainPrioritizedState.topContentMode != .staff
             || mainPrioritizedState.mainContentMode != .fretboard {
             issues.append(

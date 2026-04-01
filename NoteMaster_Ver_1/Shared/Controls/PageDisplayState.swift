@@ -34,12 +34,14 @@ struct PageDisplayState: Equatable, Sendable {
         topContentMode: PageTopContentMode = .staff,
         mainContentMode: PageMainContentMode = .fretboard
     ) {
-        self.topContentMode = topContentMode
-        self.mainContentMode = mainContentMode
-        self = ExerciseSceneValidator.normalizedLegacyPageDisplayState(
-            from: self,
+        let normalizedContentModes = ExerciseSceneValidator
+            .normalizedLegacyPageContentModes(
+            topContentMode: topContentMode,
+            mainContentMode: mainContentMode,
             prioritizingTopContent: true
         )
+        self.topContentMode = normalizedContentModes.topContentMode
+        self.mainContentMode = normalizedContentModes.mainContentMode
     }
 
     var showsFretboardInTopContent: Bool {

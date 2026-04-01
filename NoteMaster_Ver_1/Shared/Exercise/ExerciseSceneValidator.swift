@@ -95,21 +95,44 @@ enum ExerciseSceneValidator {
         from pageDisplayState: PageDisplayState,
         prioritizingTopContent: Bool
     ) -> PageDisplayState {
+        let normalizedContentModes = normalizedLegacyPageContentModes(
+            topContentMode: pageDisplayState.topContentMode,
+            mainContentMode: pageDisplayState.mainContentMode,
+            prioritizingTopContent: prioritizingTopContent
+        )
         var normalized = pageDisplayState
+        normalized.topContentMode = normalizedContentModes.topContentMode
+        normalized.mainContentMode = normalizedContentModes.mainContentMode
+        return normalized
+    }
 
-        let showsFretboardInTopContent = normalized.topContentMode == .fretboard
-        let showsFretboardInMainContent = normalized.mainContentMode == .fretboard
+    static func normalizedLegacyPageContentModes(
+        topContentMode: PageTopContentMode,
+        mainContentMode: PageMainContentMode,
+        prioritizingTopContent: Bool
+    ) -> (topContentMode: PageTopContentMode, mainContentMode: PageMainContentMode) {
+        var normalizedTopContentMode = topContentMode
+        var normalizedMainContentMode = mainContentMode
+
+        let showsFretboardInTopContent = normalizedTopContentMode == .fretboard
+        let showsFretboardInMainContent = normalizedMainContentMode == .fretboard
         guard showsFretboardInTopContent && showsFretboardInMainContent else {
-            return normalized
+            return (
+                topContentMode: normalizedTopContentMode,
+                mainContentMode: normalizedMainContentMode
+            )
         }
 
         if prioritizingTopContent {
-            normalized.mainContentMode = .naturalNoteStrip
+            normalizedMainContentMode = .naturalNoteStrip
         } else {
-            normalized.topContentMode = .staff
+            normalizedTopContentMode = .staff
         }
 
-        return normalized
+        return (
+            topContentMode: normalizedTopContentMode,
+            mainContentMode: normalizedMainContentMode
+        )
     }
 
     static func legacyPageDisplayState(
