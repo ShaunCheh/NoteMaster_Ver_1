@@ -671,6 +671,7 @@ final class macOSViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let contentView = NSView()
     private let pianoDemoContainerView = NSView()
+    private var sceneViewportHeightConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
@@ -811,6 +812,11 @@ final class macOSViewController: NSViewController {
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
+        sceneViewportHeightConstraint = exerciseSceneRenderer.sceneContainerView
+            .heightAnchor.constraint(
+                equalTo: safeArea.heightAnchor,
+                constant: -(Layout.contentTopInset + Layout.bottomInset)
+            )
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
@@ -897,11 +903,13 @@ final class macOSViewController: NSViewController {
         ])
 
         applySettingsPresentationState()
+        updateSceneViewportHeightConstraint()
         logLifecycle("configureLayout end")
     }
 
     private func renderExercisePresentationState() {
         logLifecycle("renderExercisePresentationState begin")
+        updateSceneViewportHeightConstraint()
         exerciseSceneRenderer.render(
             presentationState: exercisePresentationState,
             fretboardDisplayState: displayState
@@ -911,6 +919,11 @@ final class macOSViewController: NSViewController {
         exerciseSceneRenderer.handleLayoutPass()
         updateLayoutIfNeeded()
         logLifecycle("renderExercisePresentationState end")
+    }
+
+    private func updateSceneViewportHeightConstraint() {
+        sceneViewportHeightConstraint?.isActive = exercisePresentationState.scene
+            .hasVerticalFitContentSplit
     }
 
     private func applyDisplayState() {

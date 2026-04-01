@@ -87,6 +87,12 @@ final class macOSExerciseSceneRenderer {
         currentPresentationState?.isSurfaceVisible(.fretboard) ?? false
     }
 
+    private var prefersFlexibleVerticalFretboardHeight: Bool {
+        currentPresentationState?.scene.hasVerticalFitContentSplit(
+            containing: .fretboard
+        ) ?? false
+    }
+
     private func configureStaticHierarchy() {
         sceneContainerView.translatesAutoresizingMaskIntoConstraints = false
         sceneContentView.translatesAutoresizingMaskIntoConstraints = false
@@ -279,6 +285,19 @@ final class macOSExerciseSceneRenderer {
             render(node: child.node, in: childHostViews[index])
         }
 
+        if axis == .vertical {
+            for (index, childHostView) in childHostViews.enumerated() {
+                guard children[index].sizing == .fitContent else {
+                    continue
+                }
+                childHostView.setContentHuggingPriority(.required, for: .vertical)
+                childHostView.setContentCompressionResistancePriority(
+                    .required,
+                    for: .vertical
+                )
+            }
+        }
+
         for childHostView in childHostViews {
             switch axis {
             case .vertical:
@@ -319,6 +338,23 @@ final class macOSExerciseSceneRenderer {
             }
         }
 
+        let proportionalIndices: [Int]
+        switch axis {
+        case .vertical:
+            let fillIndices = children.indices.filter {
+                children[$0].sizing == .fill
+            }
+            proportionalIndices = fillIndices.isEmpty
+                ? Array(children.indices)
+                : fillIndices
+        case .horizontal:
+            proportionalIndices = Array(children.indices)
+        }
+
+        guard let referenceIndex = proportionalIndices.first else {
+            return
+        }
+
         for index in 1..<childHostViews.count {
             let previousHostView = childHostViews[index - 1]
             let childHostView = childHostViews[index]
@@ -340,21 +376,25 @@ final class macOSExerciseSceneRenderer {
                 )
             }
 
-            let firstWeight = max(children[0].weight, 0.0001)
+            guard proportionalIndices.contains(index), index != referenceIndex else {
+                continue
+            }
+
+            let referenceWeight = max(children[referenceIndex].weight, 0.0001)
             let childWeight = max(children[index].weight, 0.0001)
             switch axis {
             case .vertical:
                 activeSceneConstraints.append(
-                    childHostViews[0].heightAnchor.constraint(
+                    childHostViews[referenceIndex].heightAnchor.constraint(
                         equalTo: childHostView.heightAnchor,
-                        multiplier: firstWeight / childWeight
+                        multiplier: referenceWeight / childWeight
                     )
                 )
             case .horizontal:
                 activeSceneConstraints.append(
-                    childHostViews[0].widthAnchor.constraint(
+                    childHostViews[referenceIndex].widthAnchor.constraint(
                         equalTo: childHostView.widthAnchor,
-                        multiplier: firstWeight / childWeight
+                        multiplier: referenceWeight / childWeight
                     )
                 )
             }
@@ -620,6 +660,9 @@ final class macOSExerciseSceneRenderer {
             equalTo: safeAreaHeightAnchor,
             multiplier: currentFretboardDisplayState.verticalHostHeightRatio
         )
+        verticalFretboardHostHeightConstraint?.priority = prefersFlexibleVerticalFretboardHeight
+            ? .defaultHigh
+            : .required
     }
 
     private func updateFretboardLayoutModeConstraints() {

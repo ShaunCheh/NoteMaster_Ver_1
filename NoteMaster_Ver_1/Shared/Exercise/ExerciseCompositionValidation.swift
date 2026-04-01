@@ -155,6 +155,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSharedSceneContractsCoverBasicLayouts
             ),
             ExerciseCompositionValidationFixture(
+                name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
+                validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "shared_surface_state_defaults_follow_surface_roles",
                 validate: validateSharedSurfaceStateDefaultsFollowSurfaceRoles
             ),
@@ -201,6 +205,7 @@ private extension ExerciseCompositionValidationRunner {
             "确认单 `fretboard` 自答时，点击同音位置会走统一 answer router，并在正确反馈结束后推进到下一题。",
             "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoAccessoryVisible`。",
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
+            "确认 `positionPrompt` 下方的 `natural note strip` 不再被拉伸到超出首屏；无需向下滚动就能看见按钮文字。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后会按当前 `Accessory Presentation` 进入 docked / floating / collapsible scene，关闭后主 prompt/answer 组合不发生漂移。",
             "确认在 `single/sequence` 下打开 `Natural Strip Visible` 时，strip 会作为 accessory surface 参与布局，但不会抢走 answer surface 角色。",
             "确认 `Collapsible` accessory 收起时，隐藏的 accessory 不可见也不可交互；重新展开后恢复到原来的 surface。",
@@ -685,6 +690,142 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "singleSurface scene 的根节点应为 surface。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateVerticalFitContentSplitSizingTracksSurfaceKinds()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "vertical_fit_content_split_sizing_tracks_surface_kinds"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let staffStackedScene = ExerciseScene.stacked(
+            top: .staffPrompt,
+            bottom: .fretboardAnswer
+        )
+        switch staffStackedScene.root {
+        case let .split(axis, children):
+            if axis != .vertical
+                || children.count != 2
+                || children[0].sizing != .fitContent
+                || children[1].sizing != .fill {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "staff -> fretboard 的 vertical split 应保持上方 prompt fitContent、下方 fretboard fill。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard stacked scene 应继续落成 vertical split。"
+                )
+            )
+        }
+
+        let positionPromptScene = ExerciseCompositionPolicy.makeScene(
+            preferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardToNaturalNoteStrip,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            )
+        )
+        switch positionPromptScene.root {
+        case let .split(axis, children):
+            if axis != .vertical
+                || children.count != 2
+                || children[0].sizing != .fill
+                || children[1].sizing != .fitContent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "fretboard -> natural note strip 的 vertical split 应保持上方 fretboard fill、下方 strip fitContent。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的主视觉 scene 应继续落成 vertical split。"
+                )
+            )
+        }
+        if !positionPromptScene.hasVerticalFitContentSplit {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "包含 natural note strip answer 的 vertical split 应触发 fitContent scene 语义。"
+                )
+            )
+        }
+
+        let threePaneScene = ExerciseCompositionPolicy.makeScene(
+            preferences: ExerciseLayoutPreferences(
+                compositionPreset: .staffToFretboard,
+                layoutPreset: .threePane,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: true
+            )
+        )
+        switch threePaneScene.root {
+        case let .split(_, children):
+            guard
+                children.count == 2,
+                case let .split(_, accessoryChildren) = children[1].node
+            else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "threePane accessory subtree 应继续落成承载 strip/piano 的 split。"
+                    )
+                )
+                return issues
+            }
+            if accessoryChildren.count != 2
+                || accessoryChildren[0].sizing != .fitContent
+                || accessoryChildren[1].sizing != .fill {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "threePane accessory split 应保持 strip fitContent、piano fill。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "threePane scene 应继续以 split 承载主视觉与 accessory subtree。"
+                )
+            )
+        }
+
+        let sideBySideScene = ExerciseCompositionPolicy.makeScene(
+            preferences: ExerciseLayoutPreferences(
+                compositionPreset: .targetPromptToFretboard,
+                layoutPreset: .sideBySide,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: false,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            )
+        )
+        if sideBySideScene.hasVerticalFitContentSplit {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide scene 不应误触发 vertical fitContent split 语义。"
                 )
             )
         }

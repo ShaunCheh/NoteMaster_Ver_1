@@ -32,6 +32,11 @@ enum ExerciseSceneAxis: String, Equatable, Hashable, Sendable {
     case horizontal
 }
 
+enum ExerciseSceneSplitChildSizing: String, Equatable, Hashable, Sendable {
+    case fill
+    case fitContent
+}
+
 struct ExerciseSurfaceNode: Equatable, Sendable {
     var id: ExerciseSurfaceID
     var kind: ExerciseSurfaceKind
@@ -67,10 +72,12 @@ struct ExerciseSurfaceNode: Equatable, Sendable {
 struct ExerciseSceneSplitChild: Equatable, Sendable {
     var node: ExerciseSceneNode
     var weight: Double
+    var sizing: ExerciseSceneSplitChildSizing
 
     init(
         node: ExerciseSceneNode,
-        weight: Double = 1
+        weight: Double = 1,
+        sizing: ExerciseSceneSplitChildSizing = .fill
     ) {
         precondition(
             weight > 0,
@@ -78,6 +85,7 @@ struct ExerciseSceneSplitChild: Equatable, Sendable {
         )
         self.node = node
         self.weight = weight
+        self.sizing = sizing
     }
 }
 
@@ -177,8 +185,14 @@ struct ExerciseScene: Equatable, Sendable {
             root: .makeSplit(
                 axis: .vertical,
                 children: [
-                    ExerciseSceneSplitChild(node: .surface(top)),
-                    ExerciseSceneSplitChild(node: .surface(bottom))
+                    ExerciseSceneSplitChild(
+                        node: .surface(top),
+                        sizing: top.preferredVerticalSplitSizing
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(bottom),
+                        sizing: bottom.preferredVerticalSplitSizing
+                    )
                 ]
             )
         )
@@ -213,6 +227,15 @@ struct ExerciseScene: Equatable, Sendable {
 }
 
 extension ExerciseSurfaceNode {
+    var preferredVerticalSplitSizing: ExerciseSceneSplitChildSizing {
+        switch kind {
+        case .staff, .targetPrompt, .naturalNoteStrip:
+            return .fitContent
+        case .fretboard, .piano:
+            return .fill
+        }
+    }
+
     static let staffPrompt = ExerciseSurfaceNode(
         id: .staff,
         kind: .staff,
@@ -253,4 +276,65 @@ extension ExerciseSurfaceNode {
         kind: .piano,
         roles: [.auxiliary]
     )
+}
+
+extension ExerciseSceneNode {
+    var hasVerticalFitContentSplit: Bool {
+        switch self {
+        case .surface:
+            return false
+        case let .split(axis, children):
+            let hasCurrentFitContentSplit = axis == .vertical
+                && children.contains(where: { $0.sizing == .fitContent })
+                && children.contains(where: { $0.sizing == .fill })
+            return hasCurrentFitContentSplit
+                || children.contains { $0.node.hasVerticalFitContentSplit }
+        case let .overlay(base, floating):
+            return base.hasVerticalFitContentSplit
+                || floating.contains { $0.hasVerticalFitContentSplit }
+        case let .collapsible(main, accessory, _):
+            return main.hasVerticalFitContentSplit
+                || accessory.hasVerticalFitContentSplit
+        }
+    }
+
+    func hasVerticalFitContentSplit(
+        containing surfaceID: ExerciseSurfaceID
+    ) -> Bool {
+        switch self {
+        case .surface:
+            return false
+        case let .split(axis, children):
+            let hasCurrentFitContentSplit = axis == .vertical
+                && children.contains(where: { $0.sizing == .fitContent })
+                && children.contains(where: { $0.sizing == .fill })
+                && children.contains {
+                    $0.node.surfaceNode(for: surfaceID) != nil
+                }
+            return hasCurrentFitContentSplit
+                || children.contains {
+                    $0.node.hasVerticalFitContentSplit(containing: surfaceID)
+                }
+        case let .overlay(base, floating):
+            return base.hasVerticalFitContentSplit(containing: surfaceID)
+                || floating.contains {
+                    $0.hasVerticalFitContentSplit(containing: surfaceID)
+                }
+        case let .collapsible(main, accessory, _):
+            return main.hasVerticalFitContentSplit(containing: surfaceID)
+                || accessory.hasVerticalFitContentSplit(containing: surfaceID)
+        }
+    }
+}
+
+extension ExerciseScene {
+    var hasVerticalFitContentSplit: Bool {
+        root.hasVerticalFitContentSplit
+    }
+
+    func hasVerticalFitContentSplit(
+        containing surfaceID: ExerciseSurfaceID
+    ) -> Bool {
+        root.hasVerticalFitContentSplit(containing: surfaceID)
+    }
 }

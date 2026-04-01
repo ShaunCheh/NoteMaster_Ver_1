@@ -110,18 +110,19 @@ enum ExerciseCompositionPolicy {
             from: sceneSurfaces,
             preferences: preferences
         )
-        let accessorySceneNode = makeAccessorySceneNode(
+        let accessoryScene = makeAccessorySceneNode(
             preferences: preferences
         )
 
-        guard let accessorySceneNode else {
+        guard let accessoryScene else {
             return ExerciseScene(root: mainSceneNode)
         }
 
         return ExerciseScene(
             root: wrapMainSceneNode(
                 mainSceneNode,
-                accessorySceneNode: accessorySceneNode,
+                accessorySceneNode: accessoryScene.node,
+                accessorySizing: accessoryScene.sizing,
                 preferences: preferences
             )
         )
@@ -175,8 +176,8 @@ enum ExerciseCompositionPolicy {
             return .makeSplit(
                 axis: .vertical,
                 children: [
-                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.prompt)),
-                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.answer))
+                    makeVerticalSceneChild(for: sceneSurfaces.prompt),
+                    makeVerticalSceneChild(for: sceneSurfaces.answer)
                 ]
             )
         case .sideBySide:
@@ -193,8 +194,8 @@ enum ExerciseCompositionPolicy {
             return .makeSplit(
                 axis: .vertical,
                 children: [
-                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.prompt)),
-                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.answer))
+                    makeVerticalSceneChild(for: sceneSurfaces.prompt),
+                    makeVerticalSceneChild(for: sceneSurfaces.answer)
                 ]
             )
         }
@@ -215,14 +216,14 @@ enum ExerciseCompositionPolicy {
 
     private static func makeAccessorySceneNode(
         preferences: ExerciseLayoutPreferences
-    ) -> ExerciseSceneNode? {
+    ) -> (node: ExerciseSceneNode, sizing: ExerciseSceneSplitChildSizing)? {
         var accessoryChildren: [ExerciseSceneSplitChild] = []
 
         if preferences.isNaturalNoteStripVisible,
            preferences.compositionPreset != .fretboardToNaturalNoteStrip {
             accessoryChildren.append(
-                ExerciseSceneSplitChild(
-                    node: .surface(.naturalNoteStripAccessory),
+                makeVerticalSceneChild(
+                    for: .naturalNoteStripAccessory,
                     weight: 0.7
                 )
             )
@@ -230,8 +231,8 @@ enum ExerciseCompositionPolicy {
 
         if preferences.isPianoAccessoryVisible {
             accessoryChildren.append(
-                ExerciseSceneSplitChild(
-                    node: .surface(.pianoAccessory),
+                makeVerticalSceneChild(
+                    for: .pianoAccessory,
                     weight: 1.3
                 )
             )
@@ -241,11 +242,17 @@ enum ExerciseCompositionPolicy {
         case 0:
             return nil
         case 1:
-            return accessoryChildren[0].node
+            return (
+                node: accessoryChildren[0].node,
+                sizing: accessoryChildren[0].sizing
+            )
         default:
-            return .makeSplit(
-                axis: .vertical,
-                children: accessoryChildren
+            return (
+                node: .makeSplit(
+                    axis: .vertical,
+                    children: accessoryChildren
+                ),
+                sizing: .fill
             )
         }
     }
@@ -253,6 +260,7 @@ enum ExerciseCompositionPolicy {
     private static func wrapMainSceneNode(
         _ mainSceneNode: ExerciseSceneNode,
         accessorySceneNode: ExerciseSceneNode,
+        accessorySizing: ExerciseSceneSplitChildSizing,
         preferences: ExerciseLayoutPreferences
     ) -> ExerciseSceneNode {
         switch resolvedAccessoryStrategy(for: preferences) {
@@ -266,7 +274,8 @@ enum ExerciseCompositionPolicy {
                     ),
                     ExerciseSceneSplitChild(
                         node: accessorySceneNode,
-                        weight: accessoryWeight(for: accessorySceneNode)
+                        weight: accessoryWeight(for: accessorySceneNode),
+                        sizing: accessorySizing
                     )
                 ]
             )
@@ -316,6 +325,17 @@ enum ExerciseCompositionPolicy {
         case (false, false):
             return 1
         }
+    }
+
+    private static func makeVerticalSceneChild(
+        for surface: ExerciseSurfaceNode,
+        weight: Double = 1
+    ) -> ExerciseSceneSplitChild {
+        ExerciseSceneSplitChild(
+            node: .surface(surface),
+            weight: weight,
+            sizing: surface.preferredVerticalSplitSizing
+        )
     }
 
     private static func fallbackLegacyCompatiblePreferences(

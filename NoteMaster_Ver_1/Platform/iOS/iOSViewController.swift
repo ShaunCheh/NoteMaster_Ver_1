@@ -677,6 +677,7 @@ final class iOSViewController: UIViewController {
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let pianoDemoContainerView = UIView()
+    private var sceneViewportHeightConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: iOSFretboardView = {
         let fretboardView = iOSFretboardView(configuration: displayState.configuration)
@@ -815,6 +816,11 @@ final class iOSViewController: UIViewController {
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
+        sceneViewportHeightConstraint = exerciseSceneRenderer.sceneContainerView
+            .heightAnchor.constraint(
+                equalTo: safeArea.heightAnchor,
+                constant: -(Layout.contentTopInset + Layout.bottomInset)
+            )
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
@@ -902,11 +908,13 @@ final class iOSViewController: UIViewController {
         ])
 
         applySettingsPresentationState()
+        updateSceneViewportHeightConstraint()
         logLifecycle("configureLayout end")
     }
 
     private func renderExercisePresentationState() {
         logLifecycle("renderExercisePresentationState begin")
+        updateSceneViewportHeightConstraint()
         exerciseSceneRenderer.render(
             presentationState: exercisePresentationState,
             fretboardDisplayState: displayState
@@ -916,6 +924,11 @@ final class iOSViewController: UIViewController {
         exerciseSceneRenderer.handleLayoutPass()
         updateLayoutIfNeeded()
         logLifecycle("renderExercisePresentationState end")
+    }
+
+    private func updateSceneViewportHeightConstraint() {
+        sceneViewportHeightConstraint?.isActive = exercisePresentationState.scene
+            .hasVerticalFitContentSplit
     }
 
     private func applyDisplayState() {
