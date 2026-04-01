@@ -618,6 +618,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             configuration: configuration,
             filter: normalizedFilter,
             excluding: nil,
+            carryingOver: nil,
             using: &generator
         )
         print(
@@ -803,6 +804,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                 configuration: configuration,
                 filter: filter,
                 excluding: promptCell,
+                carryingOver: session.schedulingState,
                 using: &generator
             )
             session = nextSession
@@ -927,6 +929,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         configuration: FretboardConfiguration,
         filter: PositionPromptCandidateFilter,
         excluding excludedCell: FretboardCell?,
+        carryingOver schedulingState: PositionPromptSession.SchedulingState?,
         using generator: inout R
     ) -> PositionPromptSession {
         let normalizedFilter = normalizedPositionPromptFilter(filter)
@@ -947,24 +950,20 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         print(
             "[PositionPrompt][Trainer] selectPrompt candidates count=\(candidates.count)"
         )
-        let filteredCandidates = candidates.filter { cell in
-            cell != excludedCell
-        }
-        print(
-            "[PositionPrompt][Trainer] selectPrompt filtered count=\(filteredCandidates.count)"
+        let candidatePoolSignature = positionPromptCandidatePoolSignature(
+            in: configuration,
+            filter: normalizedFilter,
+            candidateCells: candidates
         )
-        let resolvedCandidates = filteredCandidates.isEmpty
-            ? candidates
-            : filteredCandidates
-        print(
-            "[PositionPrompt][Trainer] selectPrompt resolved count=\(resolvedCandidates.count)"
+        let candidatesByString = positionPromptCandidateCellsByString(candidates)
+        let selection = selectPositionPromptCell(
+            candidatesByString: candidatesByString,
+            candidatePoolSignature: candidatePoolSignature,
+            excluding: excludedCell,
+            carryingOver: schedulingState,
+            using: &generator
         )
-
-        guard let promptCell = resolvedCandidates.randomElement(using: &generator) else {
-            preconditionFailure(
-                "Position prompt candidates should never be empty."
-            )
-        }
+        let promptCell = selection.promptCell
         print(
             "[PositionPrompt][Trainer] selectPrompt selectedCell string=\(promptCell.stringIndex) fret=\(promptCell.fret)"
         )
@@ -981,18 +980,10 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             "Position prompt candidate pitch class must be natural."
         )
 
-        let candidatePoolSignature = positionPromptCandidatePoolSignature(
-            in: configuration,
-            filter: normalizedFilter,
-            candidateCells: candidates
-        )
         let session = PositionPromptSession(
             promptCell: promptCell,
             promptPitchClass: promptPitchClass,
-            schedulingState: .initial(
-                promptCell: promptCell,
-                candidatePoolSignature: candidatePoolSignature
-            )
+            schedulingState: selection.schedulingState
         )
         print("[PositionPrompt][Trainer] selectPrompt end")
         return session
@@ -1033,6 +1024,19 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return cells
     }
 
+    private static func positionPromptCandidateCellsByString(
+        _ candidateCells: [FretboardCell]
+    ) -> [Int: [FretboardCell]] {
+        var cellsByString: [Int: [FretboardCell]] = [:]
+        cellsByString.reserveCapacity(candidateCells.count)
+
+        for cell in candidateCells {
+            cellsByString[cell.stringIndex, default: []].append(cell)
+        }
+
+        return cellsByString
+    }
+
     static func positionPromptCandidatePoolSignature(
         in configuration: FretboardConfiguration,
         filter: PositionPromptCandidateFilter
@@ -1060,6 +1064,88 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             filter: filter,
             availableStringIndices: Set(candidateCells.map(\.stringIndex))
         )
+    }
+
+    private static func selectPositionPromptCell<R: RandomNumberGenerator>(
+        candidatesByString: [Int: [FretboardCell]],
+        candidatePoolSignature: PositionPromptSession.SchedulingState.CandidatePoolSignature,
+        excluding excludedCell: FretboardCell?,
+        carryingOver schedulingState: PositionPromptSession.SchedulingState?,
+        using generator: inout R
+    ) -> (
+        promptCell: FretboardCell,
+        schedulingState: PositionPromptSession.SchedulingState
+    ) {
+        let seedState = seededPositionPromptSchedulingState(
+            carryingOver: schedulingState,
+            candidatePoolSignature: candidatePoolSignature
+        )
+        let activeRoundStrings = seedState.remainingStringsInRound.isEmpty
+            ? candidatePoolSignature.availableStringIndices
+            : seedState.remainingStringsInRound
+        let orderedActiveRoundStrings = activeRoundStrings.sorted()
+        guard let selectedStringIndex = orderedActiveRoundStrings.randomElement(
+            using: &generator
+        ) else {
+            preconditionFailure(
+                "Position prompt candidate strings should never be empty."
+            )
+        }
+        guard let stringCandidates = candidatesByString[selectedStringIndex],
+              !stringCandidates.isEmpty else {
+            preconditionFailure(
+                "Position prompt selected string should always have at least one candidate cell."
+            )
+        }
+
+        let minimumHitCount = stringCandidates.map {
+            seedState.hitCount(for: $0)
+        }.min() ?? 0
+        let preferredCandidates = stringCandidates.filter {
+            seedState.hitCount(for: $0) == minimumHitCount
+        }
+        let filteredPreferredCandidates = preferredCandidates.filter {
+            $0 != excludedCell
+        }
+        let resolvedCandidates = filteredPreferredCandidates.isEmpty
+            ? preferredCandidates
+            : filteredPreferredCandidates
+        guard let promptCell = resolvedCandidates.randomElement(using: &generator) else {
+            preconditionFailure(
+                "Position prompt resolved candidates should never be empty."
+            )
+        }
+
+        var nextHitCounts = seedState.cellHitCounts
+        nextHitCounts[promptCell, default: 0] += 1
+        let nextSchedulingState = PositionPromptSession.SchedulingState(
+            remainingStringsInRound: activeRoundStrings.subtracting([
+                selectedStringIndex
+            ]),
+            cellHitCounts: nextHitCounts,
+            candidatePoolSignature: candidatePoolSignature
+        )
+        return (
+            promptCell: promptCell,
+            schedulingState: nextSchedulingState
+        )
+    }
+
+    private static func seededPositionPromptSchedulingState(
+        carryingOver schedulingState: PositionPromptSession.SchedulingState?,
+        candidatePoolSignature: PositionPromptSession.SchedulingState.CandidatePoolSignature
+    ) -> PositionPromptSession.SchedulingState {
+        guard let schedulingState,
+              schedulingState.candidatePoolSignature == candidatePoolSignature else {
+            // 候选池身份变化后，旧轮次与命中统计全部失效，重新从当前候选弦集合开始。
+            return PositionPromptSession.SchedulingState(
+                remainingStringsInRound: candidatePoolSignature.availableStringIndices,
+                cellHitCounts: [:],
+                candidatePoolSignature: candidatePoolSignature
+            )
+        }
+
+        return schedulingState
     }
 
     private static func normalizedPositionPromptFilter(
