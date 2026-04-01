@@ -1427,6 +1427,174 @@ private extension FretboardValidationRunner {
             }
         }
 
+        typealias PositionPromptCandidatePoolSignature =
+            FretboardNaturalNoteTrainerState.PositionPromptSession.SchedulingState.CandidatePoolSignature
+
+        func positionPromptCandidateCellsByString(
+            _ candidateCells: [FretboardCell]
+        ) -> [Int: [FretboardCell]] {
+            var cellsByString: [Int: [FretboardCell]] = [:]
+            cellsByString.reserveCapacity(candidateCells.count)
+
+            for cell in candidateCells {
+                cellsByString[cell.stringIndex, default: []].append(cell)
+            }
+
+            return cellsByString
+        }
+
+        func validatePositionPromptSessionState(
+            scenario name: String,
+            stage: String,
+            session: FretboardNaturalNoteTrainerState.PositionPromptSession,
+            filter: PositionPromptCandidateFilter,
+            candidateCellSet: Set<FretboardCell>,
+            candidateCellsByString: [Int: [FretboardCell]],
+            expectedSignature: PositionPromptCandidatePoolSignature
+        ) {
+            if !session.promptPitchClass.isNatural {
+                record("position prompt trainer \(name) \(stage) 的 promptPitchClass 应保持自然音。")
+            }
+            if !candidateCellSet.contains(session.promptCell) {
+                record("position prompt trainer \(name) \(stage) 的 promptCell 未落在当前候选池内。")
+            }
+            if !matchesPositionPromptFilter(session.promptCell, filter: filter) {
+                record("position prompt trainer \(name) \(stage) 的 promptCell 未命中当前 active filter。")
+            }
+            if configuration.pitchClass(for: session.promptCell) != session.promptPitchClass {
+                record("position prompt trainer \(name) \(stage) 的 promptPitchClass 未与 configuration 对齐。")
+            }
+            if session.schedulingState.candidatePoolSignature != expectedSignature {
+                record("position prompt trainer \(name) \(stage) 的 candidatePoolSignature 未对齐当前候选池身份。")
+            }
+            if session.schedulingState.remainingStringsInRound.contains(
+                session.promptCell.stringIndex
+            ) {
+                record("position prompt trainer \(name) \(stage) 的当前弦不应仍保留在 remainingStringsInRound 中。")
+            }
+            if !session.schedulingState.remainingStringsInRound.isSubset(
+                of: expectedSignature.availableStringIndices
+            ) {
+                record("position prompt trainer \(name) \(stage) 的 remainingStringsInRound 超出了当前候选弦集合。")
+            }
+            let trackedCells = Set(session.schedulingState.cellHitCounts.keys)
+            if !trackedCells.isSubset(of: candidateCellSet) {
+                record("position prompt trainer \(name) \(stage) 的 cellHitCounts 包含了候选池之外的格子。")
+            }
+            if !session.schedulingState.cellHitCounts.values.allSatisfy({ $0 > 0 }) {
+                record("position prompt trainer \(name) \(stage) 的 cellHitCounts 应全部为正数。")
+            }
+            if session.schedulingState.hitCount(for: session.promptCell) <= 0 {
+                record("position prompt trainer \(name) \(stage) 的当前 promptCell 应已有命中记录。")
+            }
+            if candidateCellsByString[session.promptCell.stringIndex] == nil {
+                record("position prompt trainer \(name) \(stage) 的 promptCell 所在弦缺少按弦分组候选。")
+            }
+        }
+
+        func validateCorrectAdvance(
+            scenario name: String,
+            from previousSession: FretboardNaturalNoteTrainerState.PositionPromptSession,
+            evaluation: FretboardNaturalNoteTrainerState.PositionPromptEvaluation,
+            to nextSession: FretboardNaturalNoteTrainerState.PositionPromptSession,
+            filter: PositionPromptCandidateFilter,
+            candidateCellSet: Set<FretboardCell>,
+            candidateCellsByString: [Int: [FretboardCell]],
+            expectedSignature: PositionPromptCandidatePoolSignature
+        ) {
+            validatePositionPromptSessionState(
+                scenario: name,
+                stage: "correctAdvance-nextSession",
+                session: nextSession,
+                filter: filter,
+                candidateCellSet: candidateCellSet,
+                candidateCellsByString: candidateCellsByString,
+                expectedSignature: expectedSignature
+            )
+            if evaluation.promptCell != previousSession.promptCell {
+                record("position prompt trainer \(name) 正确作答时 evaluation.promptCell 未对齐旧题。")
+            }
+            if evaluation.expectedPitchClass != previousSession.promptPitchClass {
+                record("position prompt trainer \(name) 正确作答时 expectedPitchClass 未对齐旧题。")
+            }
+            if evaluation.answeredPitchClass != previousSession.promptPitchClass {
+                record("position prompt trainer \(name) 正确作答时 answeredPitchClass 未保留正确按钮输入。")
+            }
+            if !evaluation.isCorrect {
+                record("position prompt trainer \(name) 未把正确按钮输入判定为 correct。")
+            }
+            if !evaluation.didAdvancePrompt {
+                record("position prompt trainer \(name) 正确作答后应推进到下一题。")
+            }
+            if evaluation.nextPromptCell != nextSession.promptCell {
+                record("position prompt trainer \(name) 正确作答后 evaluation.nextPromptCell 未与 session.promptCell 同步。")
+            }
+            if evaluation.nextPromptPitchClass != nextSession.promptPitchClass {
+                record("position prompt trainer \(name) 正确作答后 evaluation.nextPromptPitchClass 未与 session.promptPitchClass 同步。")
+            }
+            if !evaluation.nextPromptPitchClass.isNatural {
+                record("position prompt trainer \(name) 正确作答后切换到了非自然音题目。")
+            }
+            if !matchesPositionPromptFilter(
+                evaluation.nextPromptCell,
+                filter: filter
+            ) {
+                record("position prompt trainer \(name) 正确作答后 nextPromptCell 应继续命中当前 active filter。")
+            }
+
+            let availableStrings = expectedSignature.availableStringIndices
+            let remainingStringsBeforeSelection = previousSession
+                .schedulingState
+                .remainingStringsInRound
+                .isEmpty
+                ? availableStrings
+                : previousSession.schedulingState.remainingStringsInRound
+            let nextStringIndex = nextSession.promptCell.stringIndex
+            if !remainingStringsBeforeSelection.contains(nextStringIndex) {
+                record("position prompt trainer \(name) 正确作答后 nextPromptCell 所在弦未遵循当前轮剩余弦集合。")
+            }
+            let expectedRemainingStrings = remainingStringsBeforeSelection.subtracting(
+                [nextStringIndex]
+            )
+            if nextSession.schedulingState.remainingStringsInRound != expectedRemainingStrings {
+                record("position prompt trainer \(name) 正确作答后 remainingStringsInRound 未按轮巡语义更新。")
+            }
+
+            guard let stringCandidates = candidateCellsByString[nextStringIndex] else {
+                record("position prompt trainer \(name) 正确作答后缺少 nextPromptCell 所在弦的候选分组。")
+                return
+            }
+            let minimumHitCount = stringCandidates.map {
+                previousSession.schedulingState.hitCount(for: $0)
+            }.min() ?? 0
+            let preferredCandidates = stringCandidates.filter {
+                previousSession.schedulingState.hitCount(for: $0) == minimumHitCount
+            }
+            let filteredPreferredCandidates = preferredCandidates.filter {
+                $0 != previousSession.promptCell
+            }
+            let allowedCandidates = filteredPreferredCandidates.isEmpty
+                ? preferredCandidates
+                : filteredPreferredCandidates
+            if !allowedCandidates.contains(nextSession.promptCell) {
+                record("position prompt trainer \(name) 正确作答后 nextPromptCell 未遵循最低命中优先或排除当前格规则。")
+            }
+
+            for cell in candidateCellSet {
+                let previousHitCount = previousSession.schedulingState.hitCount(for: cell)
+                let nextHitCount = nextSession.schedulingState.hitCount(for: cell)
+                if cell == nextSession.promptCell {
+                    if nextHitCount != previousHitCount + 1 {
+                        record("position prompt trainer \(name) 正确作答后新题格子的 hitCount 未按预期加一。")
+                        break
+                    }
+                } else if nextHitCount != previousHitCount {
+                    record("position prompt trainer \(name) 正确作答后非新题格子的 hitCount 不应变化。")
+                    break
+                }
+            }
+        }
+
         func validateFilterScenario(
             name: String,
             filter: PositionPromptCandidateFilter,
@@ -1453,24 +1621,19 @@ private extension FretboardValidationRunner {
                candidateCells.contains(where: { $0.fret == 0 }) {
                 record("position prompt trainer \(name) 候选池不应包含空弦。")
             }
-
-            let firstCandidateCell = candidateCells[0]
-            let secondCandidateCell = candidateCells[1]
-            guard let firstCandidatePitchClass = configuration.pitchClass(for: firstCandidateCell) else {
-                record("position prompt trainer \(name) 首个候选 cell 无法解析 PitchClass。")
-                return
-            }
-            guard let secondCandidatePitchClass = configuration.pitchClass(for: secondCandidateCell) else {
-                record("position prompt trainer \(name) 第二个候选 cell 无法解析 PitchClass。")
-                return
-            }
-
-            if !firstCandidatePitchClass.isNatural || !secondCandidatePitchClass.isNatural {
-                record("position prompt trainer \(name) 的候选基准 cell 应为自然音。")
-            }
-            if !matchesPositionPromptFilter(firstCandidateCell, filter: normalizedFilter)
-                || !matchesPositionPromptFilter(secondCandidateCell, filter: normalizedFilter) {
-                record("position prompt trainer \(name) 的候选基准 cell 应命中当前 active filter。")
+            let candidateCellSet = Set(candidateCells)
+            let candidateCellsByString = positionPromptCandidateCellsByString(
+                candidateCells
+            )
+            let expectedSignature =
+                FretboardNaturalNoteTrainerState
+                .positionPromptCandidatePoolSignature(
+                    in: configuration,
+                    filter: normalizedFilter
+                )
+            if expectedSignature.availableStringIndices
+                != Set(candidateCellsByString.keys) {
+                record("position prompt trainer \(name) 的 candidatePoolSignature 候选弦集合未对齐按弦分组结果。")
             }
 
             logStage("\(name)-initialSession")
@@ -1486,31 +1649,27 @@ private extension FretboardValidationRunner {
             print(
                 "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) initialSessionCreated cell=string=\(initialSession.promptCell.stringIndex) fret=\(initialSession.promptCell.fret) pitch=\(initialSession.promptPitchClass.displayText())"
             )
-            if initialSession.promptCell != firstCandidateCell {
-                record("position prompt trainer \(name) 新建 session 的 promptCell 未对齐首个自然音候选。")
-            }
-            if initialSession.promptPitchClass != firstCandidatePitchClass {
-                record("position prompt trainer \(name) 新建 session 的 promptPitchClass 与配置解析结果不一致。")
-            }
-            if !initialSession.promptPitchClass.isNatural {
-                record("position prompt trainer \(name) 新建 session 的 promptPitchClass 应为自然音。")
-            }
-            if !matchesPositionPromptFilter(initialSession.promptCell, filter: normalizedFilter) {
-                record("position prompt trainer \(name) 新建 session 不应落在当前 active filter 之外。")
-            }
-
-            print(
-                "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) resolveWrongAnswer firstCandidatePitch=\(firstCandidatePitchClass.displayText()) naturalCases=\(PitchClass.naturalCasesInOrder.map { $0.displayText() }.joined(separator: ","))"
+            validatePositionPromptSessionState(
+                scenario: name,
+                stage: "initialSession",
+                session: initialSession,
+                filter: normalizedFilter,
+                candidateCellSet: candidateCellSet,
+                candidateCellsByString: candidateCellsByString,
+                expectedSignature: expectedSignature
             )
-            guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
-                $0 != firstCandidatePitchClass
-            }) else {
-                record("position prompt trainer \(name) 无法构造不同于首题答案的自然音错误按钮。")
-                return
+            let expectedInitialRemainingStrings =
+                expectedSignature.availableStringIndices.subtracting([
+                    initialSession.promptCell.stringIndex
+                ])
+            if initialSession.schedulingState.remainingStringsInRound
+                != expectedInitialRemainingStrings {
+                record("position prompt trainer \(name) 新建 session 的 remainingStringsInRound 未对齐首题后的剩余弦集合。")
             }
-            print(
-                "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) wrongAnswerResolved pitch=\(wrongAnswer.displayText())"
-            )
+            if initialSession.schedulingState.cellHitCounts
+                != [initialSession.promptCell: 1] {
+                record("position prompt trainer \(name) 新建 session 的 cellHitCounts 未对齐首题初始化语义。")
+            }
 
             logStage("\(name)-wrongAnswer")
             var wrongGenerator = DeterministicRandomNumberGenerator()
@@ -1522,6 +1681,24 @@ private extension FretboardValidationRunner {
                 filter: normalizedFilter,
                 using: &wrongGenerator
             )
+            validatePositionPromptSessionState(
+                scenario: name,
+                stage: "wrongAnswer-sessionBeforeAnswer",
+                session: wrongSession,
+                filter: normalizedFilter,
+                candidateCellSet: candidateCellSet,
+                candidateCellsByString: candidateCellsByString,
+                expectedSignature: expectedSignature
+            )
+            guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
+                $0 != wrongSession.promptPitchClass
+            }) else {
+                record("position prompt trainer \(name) 无法构造不同于当前题答案的自然音错误按钮。")
+                return
+            }
+            print(
+                "[FretboardValidation][fixture=\(fixture.name)][validatePositionPromptTrainer] scenario=\(name) wrongAnswerResolved pitch=\(wrongAnswer.displayText())"
+            )
             let wrongSessionSnapshot = wrongSession
             switch wrongTrainer.handlePositionPromptAnswer(
                 wrongAnswer,
@@ -1531,10 +1708,10 @@ private extension FretboardValidationRunner {
                 using: &wrongGenerator
             ) {
             case let .evaluated(evaluation):
-                if evaluation.promptCell != firstCandidateCell {
+                if evaluation.promptCell != wrongSessionSnapshot.promptCell {
                     record("position prompt trainer \(name) 错误作答时 promptCell 未对齐当前题目。")
                 }
-                if evaluation.expectedPitchClass != firstCandidatePitchClass {
+                if evaluation.expectedPitchClass != wrongSessionSnapshot.promptPitchClass {
                     record("position prompt trainer \(name) 错误作答时 expectedPitchClass 与当前题目不一致。")
                 }
                 if evaluation.answeredPitchClass != wrongAnswer {
@@ -1549,10 +1726,10 @@ private extension FretboardValidationRunner {
                 if evaluation.didChangePromptCell {
                     record("position prompt trainer \(name) 错误作答后不应切换 promptCell。")
                 }
-                if evaluation.nextPromptCell != firstCandidateCell {
+                if evaluation.nextPromptCell != wrongSessionSnapshot.promptCell {
                     record("position prompt trainer \(name) 错误作答后 nextPromptCell 不应改变。")
                 }
-                if evaluation.nextPromptPitchClass != firstCandidatePitchClass {
+                if evaluation.nextPromptPitchClass != wrongSessionSnapshot.promptPitchClass {
                     record("position prompt trainer \(name) 错误作答后 nextPromptPitchClass 不应改变。")
                 }
                 if !matchesPositionPromptFilter(
@@ -1565,67 +1742,84 @@ private extension FretboardValidationRunner {
             if wrongSession != wrongSessionSnapshot {
                 record("position prompt trainer \(name) 错误作答后 session 不应变化。")
             }
+            validatePositionPromptSessionState(
+                scenario: name,
+                stage: "wrongAnswer-sessionAfterAnswer",
+                session: wrongSession,
+                filter: normalizedFilter,
+                candidateCellSet: candidateCellSet,
+                candidateCellsByString: candidateCellsByString,
+                expectedSignature: expectedSignature
+            )
 
-            logStage("\(name)-correctAnswer")
-            var correctGenerator = DeterministicRandomNumberGenerator()
-            var correctTrainer = FretboardNaturalNoteTrainerState(
+            logStage("\(name)-roundRobinSequence")
+            var sequenceGenerator = DeterministicRandomNumberGenerator()
+            var sequenceTrainer = FretboardNaturalNoteTrainerState(
                 positionPromptMode: ()
             )
-            var correctSession = correctTrainer.makePositionPromptSession(
+            var sequenceSession = sequenceTrainer.makePositionPromptSession(
                 configuration: configuration,
                 filter: normalizedFilter,
-                using: &correctGenerator
+                using: &sequenceGenerator
             )
-            switch correctTrainer.handlePositionPromptAnswer(
-                correctSession.promptPitchClass,
-                configuration: configuration,
-                filter: normalizedFilter,
-                session: &correctSession,
-                using: &correctGenerator
-            ) {
-            case let .evaluated(evaluation):
-                if evaluation.promptCell != firstCandidateCell {
-                    record("position prompt trainer \(name) 正确作答时 promptCell 未对齐首题。")
+            let roundLength = max(
+                expectedSignature.availableStringIndices.count,
+                1
+            )
+            let observedPromptCount = max(roundLength * 2, 2)
+            var observedStringsByPrompt: [Int] = []
+            observedStringsByPrompt.reserveCapacity(observedPromptCount)
+
+            for promptIndex in 0..<observedPromptCount {
+                validatePositionPromptSessionState(
+                    scenario: name,
+                    stage: "roundSequence-step\(promptIndex + 1)",
+                    session: sequenceSession,
+                    filter: normalizedFilter,
+                    candidateCellSet: candidateCellSet,
+                    candidateCellsByString: candidateCellsByString,
+                    expectedSignature: expectedSignature
+                )
+                observedStringsByPrompt.append(
+                    sequenceSession.promptCell.stringIndex
+                )
+
+                guard promptIndex < observedPromptCount - 1 else {
+                    break
                 }
-                if evaluation.expectedPitchClass != firstCandidatePitchClass {
-                    record("position prompt trainer \(name) 正确作答时 expectedPitchClass 与配置解析结果不一致。")
-                }
-                if evaluation.answeredPitchClass != firstCandidatePitchClass {
-                    record("position prompt trainer \(name) 正确作答时 answeredPitchClass 未保留按钮输入。")
-                }
-                if !evaluation.isCorrect {
-                    record("position prompt trainer \(name) 未把正确按钮输入判定为 correct。")
-                }
-                if !evaluation.didAdvancePrompt {
-                    record("position prompt trainer \(name) 正确作答后应推进到下一题。")
-                }
-                if !evaluation.didChangePromptCell {
-                    record("position prompt trainer \(name) 在存在多个候选位置时，正确作答后应切换到新的 promptCell。")
-                }
-                if evaluation.nextPromptCell != secondCandidateCell {
-                    record("position prompt trainer \(name) 正确作答后 nextPromptCell 未切换到排除当前题后的首个候选。")
-                }
-                if evaluation.nextPromptPitchClass != secondCandidatePitchClass {
-                    record("position prompt trainer \(name) 正确作答后 nextPromptPitchClass 与新题不一致。")
-                }
-                if !evaluation.nextPromptPitchClass.isNatural {
-                    record("position prompt trainer \(name) 正确作答后切换到了非自然音题目。")
-                }
-                if !matchesPositionPromptFilter(
-                    evaluation.nextPromptCell,
-                    filter: normalizedFilter
+
+                let previousSession = sequenceSession
+                switch sequenceTrainer.handlePositionPromptAnswer(
+                    previousSession.promptPitchClass,
+                    configuration: configuration,
+                    filter: normalizedFilter,
+                    session: &sequenceSession,
+                    using: &sequenceGenerator
                 ) {
-                    record("position prompt trainer \(name) 正确作答后 nextPromptCell 应继续命中当前 active filter。")
+                case let .evaluated(evaluation):
+                    validateCorrectAdvance(
+                        scenario: name,
+                        from: previousSession,
+                        evaluation: evaluation,
+                        to: sequenceSession,
+                        filter: normalizedFilter,
+                        candidateCellSet: candidateCellSet,
+                        candidateCellsByString: candidateCellsByString,
+                        expectedSignature: expectedSignature
+                    )
                 }
             }
-            if correctSession.promptCell != secondCandidateCell {
-                record("position prompt trainer \(name) 正确作答后 session.promptCell 未推进到新题。")
-            }
-            if correctSession.promptPitchClass != secondCandidatePitchClass {
-                record("position prompt trainer \(name) 正确作答后 session.promptPitchClass 未与新题同步。")
-            }
-            if !matchesPositionPromptFilter(correctSession.promptCell, filter: normalizedFilter) {
-                record("position prompt trainer \(name) 正确作答后 session.promptCell 应继续命中当前 active filter。")
+
+            for roundIndex in 0..<2 {
+                let start = roundIndex * roundLength
+                let end = start + roundLength
+                let roundStrings = Array(observedStringsByPrompt[start..<end])
+                if Set(roundStrings) != expectedSignature.availableStringIndices {
+                    record("position prompt trainer \(name) 第 \(roundIndex + 1) 轮未完整覆盖当前候选弦集合。")
+                }
+                if Set(roundStrings).count != roundStrings.count {
+                    record("position prompt trainer \(name) 第 \(roundIndex + 1) 轮出现了重复弦，未遵循每轮每弦一次的语义。")
+                }
             }
         }
 
