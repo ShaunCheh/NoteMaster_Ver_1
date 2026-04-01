@@ -188,6 +188,13 @@ final class iOSViewController: UIViewController {
         trainerDisplayState.positionPromptConfiguration.activeFilter
     }
 
+    private var currentPositionPromptCandidatePoolSignature: FretboardNaturalNoteTrainerState.PositionPromptSession.SchedulingState.CandidatePoolSignature {
+        FretboardNaturalNoteTrainerState.positionPromptCandidatePoolSignature(
+            in: displayState.configuration,
+            filter: currentPositionPromptFilter
+        )
+    }
+
     private var currentPositionPromptOverlayPhase: FretboardFeedbackOverlayState.PositionPromptPhase {
         positionPromptOverlayPhase ?? .neutralWhite
     }
@@ -317,6 +324,9 @@ final class iOSViewController: UIViewController {
         guard case .positionPrompt = fretboardTrainerState.mode else {
             return false
         }
+        guard positionPromptSchedulingMatchesCurrentTrainer(session) else {
+            return false
+        }
 
         let visiblePrompt = currentPositionPromptVisiblePrompt(
             for: session
@@ -325,6 +335,13 @@ final class iOSViewController: UIViewController {
             visiblePrompt.cell,
             expectedPitchClass: visiblePrompt.pitchClass
         )
+    }
+
+    private func positionPromptSchedulingMatchesCurrentTrainer(
+        _ session: FretboardNaturalNoteTrainerState.PositionPromptSession
+    ) -> Bool {
+        session.schedulingState.candidatePoolSignature
+            == currentPositionPromptCandidatePoolSignature
     }
 
     private func currentPositionPromptVisiblePrompt(
@@ -1527,8 +1544,7 @@ final class iOSViewController: UIViewController {
             staffDisplayState = baseStaffDisplayState
         }
 
-        if reason == "positionPromptFilterChanged",
-           currentPositionPromptOverlayPhase != .neutralWhite {
+        if reason == "positionPromptFilterChanged" {
             resetPositionPromptInteractionState()
         }
 
