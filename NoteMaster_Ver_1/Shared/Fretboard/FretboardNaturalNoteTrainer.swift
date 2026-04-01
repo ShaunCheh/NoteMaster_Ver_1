@@ -167,19 +167,88 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     }
 
     struct PositionPromptSession: Equatable, Sendable {
+        struct SchedulingState: Equatable, Sendable {
+            struct CandidatePoolSignature: Equatable, Sendable {
+                var tuning: InstrumentTuning
+                var maxFret: Int
+                var filter: PositionPromptCandidateFilter
+                var availableStringIndices: Set<Int>
+            }
+
+            var remainingStringsInRound: Set<Int>
+            var cellHitCounts: [FretboardCell: Int]
+            var candidatePoolSignature: CandidatePoolSignature
+
+            init(
+                remainingStringsInRound: Set<Int>,
+                cellHitCounts: [FretboardCell: Int],
+                candidatePoolSignature: CandidatePoolSignature
+            ) {
+                let invalidRemainingStrings = remainingStringsInRound.subtracting(
+                    candidatePoolSignature.availableStringIndices
+                )
+                precondition(
+                    invalidRemainingStrings.isEmpty,
+                    "Position prompt scheduling remaining strings must stay within the current candidate pool."
+                )
+                precondition(
+                    cellHitCounts.values.allSatisfy { $0 > 0 },
+                    "Position prompt scheduling hit counts must stay positive."
+                )
+                self.remainingStringsInRound = remainingStringsInRound
+                self.cellHitCounts = cellHitCounts
+                self.candidatePoolSignature = candidatePoolSignature
+            }
+
+            func hitCount(for cell: FretboardCell) -> Int {
+                cellHitCounts[cell, default: 0]
+            }
+
+            static func initial(
+                promptCell: FretboardCell,
+                candidatePoolSignature: CandidatePoolSignature
+            ) -> SchedulingState {
+                SchedulingState(
+                    remainingStringsInRound: candidatePoolSignature.availableStringIndices
+                        .subtracting([promptCell.stringIndex]),
+                    cellHitCounts: [promptCell: 1],
+                    candidatePoolSignature: candidatePoolSignature
+                )
+            }
+        }
+
         var promptCell: FretboardCell
         var promptPitchClass: PitchClass
+        var schedulingState: SchedulingState
 
         init(
             promptCell: FretboardCell,
-            promptPitchClass: PitchClass
+            promptPitchClass: PitchClass,
+            schedulingState: SchedulingState
         ) {
             precondition(
                 promptPitchClass.isNatural,
                 "Position prompt session pitch class must be a natural note."
             )
+            precondition(
+                schedulingState.candidatePoolSignature.availableStringIndices.contains(
+                    promptCell.stringIndex
+                ),
+                "Position prompt session prompt string must stay within the current candidate pool."
+            )
+            precondition(
+                !schedulingState.remainingStringsInRound.contains(
+                    promptCell.stringIndex
+                ),
+                "Position prompt scheduling should treat the current prompt string as consumed for the active round."
+            )
+            precondition(
+                schedulingState.hitCount(for: promptCell) > 0,
+                "Position prompt scheduling must record at least one hit for the current prompt cell."
+            )
             self.promptCell = promptCell
             self.promptPitchClass = promptPitchClass
+            self.schedulingState = schedulingState
         }
     }
 
@@ -912,9 +981,18 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             "Position prompt candidate pitch class must be natural."
         )
 
+        let candidatePoolSignature = positionPromptCandidatePoolSignature(
+            in: configuration,
+            filter: normalizedFilter,
+            candidateCells: candidates
+        )
         let session = PositionPromptSession(
             promptCell: promptCell,
-            promptPitchClass: promptPitchClass
+            promptPitchClass: promptPitchClass,
+            schedulingState: .initial(
+                promptCell: promptCell,
+                candidatePoolSignature: candidatePoolSignature
+            )
         )
         print("[PositionPrompt][Trainer] selectPrompt end")
         return session
@@ -953,6 +1031,35 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         return cells
+    }
+
+    static func positionPromptCandidatePoolSignature(
+        in configuration: FretboardConfiguration,
+        filter: PositionPromptCandidateFilter
+    ) -> PositionPromptSession.SchedulingState.CandidatePoolSignature {
+        let normalizedFilter = normalizedPositionPromptFilter(filter)
+        let candidateCells = positionPromptCandidateCells(
+            in: configuration,
+            filter: normalizedFilter
+        )
+        return positionPromptCandidatePoolSignature(
+            in: configuration,
+            filter: normalizedFilter,
+            candidateCells: candidateCells
+        )
+    }
+
+    private static func positionPromptCandidatePoolSignature(
+        in configuration: FretboardConfiguration,
+        filter: PositionPromptCandidateFilter,
+        candidateCells: [FretboardCell]
+    ) -> PositionPromptSession.SchedulingState.CandidatePoolSignature {
+        PositionPromptSession.SchedulingState.CandidatePoolSignature(
+            tuning: configuration.tuning,
+            maxFret: configuration.maxFret,
+            filter: filter,
+            availableStringIndices: Set(candidateCells.map(\.stringIndex))
+        )
     }
 
     private static func normalizedPositionPromptFilter(
@@ -1052,6 +1159,32 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         precondition(
             resolvedPromptPitchClass == session.promptPitchClass,
             "\(function) position prompt session pitch class must match the current configuration."
+        )
+        precondition(
+            session.schedulingState.candidatePoolSignature.availableStringIndices.contains(
+                session.promptCell.stringIndex
+            ),
+            "\(function) position prompt session prompt string must stay within the stored candidate pool."
+        )
+        precondition(
+            !session.schedulingState.remainingStringsInRound.contains(
+                session.promptCell.stringIndex
+            ),
+            "\(function) position prompt session current prompt string must already be consumed in the active round."
+        )
+        precondition(
+            session.schedulingState.remainingStringsInRound.isSubset(
+                of: session.schedulingState.candidatePoolSignature.availableStringIndices
+            ),
+            "\(function) position prompt session remaining strings must stay within the stored candidate pool."
+        )
+        precondition(
+            session.schedulingState.cellHitCounts.values.allSatisfy { $0 > 0 },
+            "\(function) position prompt session hit counts must stay positive."
+        )
+        precondition(
+            session.schedulingState.hitCount(for: session.promptCell) > 0,
+            "\(function) position prompt session current prompt cell must have recorded history."
         )
     }
 
