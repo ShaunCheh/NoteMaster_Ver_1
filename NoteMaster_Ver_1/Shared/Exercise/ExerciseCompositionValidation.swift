@@ -175,7 +175,7 @@ private extension ExerciseCompositionValidationRunner {
         var checklist = [
             "确认 `single` 与 `sequence` 继续使用上方 `staff`、下方 `fretboard` 的主视觉组合。",
             "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合。",
-            "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoVisible`。",
+            "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoAccessoryVisible`。",
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
             "确认 `Piano Visible` 默认关闭；打开后只追加钢琴区域，关闭后主 prompt/answer 组合不发生漂移。",
             "确认 `vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 后该滑块消失，切回后沿用上次值。"
@@ -241,16 +241,29 @@ private extension ExerciseCompositionValidationRunner {
             trainerDisplayState: TrainerDisplayState(exerciseMode: exerciseMode)
         )
         let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
-        guard let trainerSection = panelModel.sections.first(where: {
-            $0.id == .trainer
+        guard let exerciseSection = panelModel.sections.first(where: {
+            $0.id == .exercise
         }) else {
             issues.append(
                 issue(
                     fixtureName,
-                    "settings snapshot 应继续保留 Trainer section。"
+                    "settings snapshot 应保留 Exercise section。"
                 )
             )
             return issues
+        }
+
+        if exerciseSection.rows.map(\.id) != [
+            .choice(.exerciseMode),
+            .choice(.compositionPreset),
+            .choice(.layoutPreset)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 2 的 Exercise section 应稳定暴露 Exercise Mode / Composition Preset / Layout Preset。"
+                )
+            )
         }
 
         switch exerciseMode {
@@ -273,14 +286,20 @@ private extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
-            let expectedTrainerRowIDs: [SettingsRowID] = [
-                .choice(.exerciseMode)
-            ]
-            if trainerSection.rows.map(\.id) != expectedTrainerRowIDs {
+            if panelModel.sections.contains(where: { $0.id == .positionPrompt }) {
                 issues.append(
                     issue(
                         fixtureName,
-                        "single / sequence 模式下 Trainer settings 应只保留 Exercise Mode 行。"
+                        "single / sequence 模式下不应继续暴露 Position Prompt section。"
+                    )
+                )
+            }
+            if panelModel.choiceRow(for: .compositionPreset)?.choices.filter(\.isSelected)
+                .map(\.id) != [.setCompositionPresetStaffToFretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "single / sequence 的 legacy baseline 应把 Composition Preset 映射为 Staff -> Fretboard。"
                     )
                 )
             }
@@ -303,16 +322,47 @@ private extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
-            let expectedTrainerRowIDs: [SettingsRowID] = [
+            let expectedPositionPromptRowIDs: [SettingsRowID] = [
                 .choice(.exerciseMode),
-                .choice(.positionPromptFilterMode),
-                .positionFilter(.positionPromptFilterOptions)
+                .choice(.compositionPreset),
+                .choice(.layoutPreset)
             ]
-            if trainerSection.rows.map(\.id) != expectedTrainerRowIDs {
+            if exerciseSection.rows.map(\.id) != expectedPositionPromptRowIDs {
                 issues.append(
                     issue(
                         fixtureName,
-                        "positionPrompt 模式下 Trainer settings 应继续暴露 Exercise Mode / Filter / Position Filter 三行。"
+                        "positionPrompt 模式下 Exercise section 应继续保留 3 行基础预设入口。"
+                    )
+                )
+            }
+            guard let positionPromptSection = panelModel.sections.first(where: {
+                $0.id == .positionPrompt
+            }) else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "positionPrompt 模式下应继续暴露 Position Prompt section。"
+                    )
+                )
+                return issues
+            }
+            if positionPromptSection.rows.map(\.id) != [
+                .choice(.positionPromptFilterMode),
+                .positionFilter(.positionPromptFilterOptions)
+            ] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "positionPrompt 模式下 Position Prompt section 应继续暴露 Filter / Position Filter 两行。"
+                    )
+                )
+            }
+            if panelModel.choiceRow(for: .compositionPreset)?.choices.filter(\.isSelected)
+                .map(\.id) != [.setCompositionPresetFretboardToNaturalNoteStrip] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "positionPrompt 的 legacy baseline 应把 Composition Preset 映射为 Fretboard -> Natural Note Strip。"
                     )
                 )
             }
@@ -401,12 +451,12 @@ private extension ExerciseCompositionValidationRunner {
         }
 
         guard let pianoVisibleToggle = defaultPanelModel.toggleRow(
-            for: .pianoVisible
+            for: .pianoAccessoryVisible
         ) else {
             issues.append(
                 issue(
                     fixtureName,
-                    "default settings snapshot 应继续暴露 Piano Visible 开关。"
+                    "default settings snapshot 应继续暴露 Piano Accessory Visible 开关。"
                 )
             )
             return issues
@@ -415,7 +465,7 @@ private extension ExerciseCompositionValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "default settings snapshot 中的 Piano Visible 开关应继续默认关闭。"
+                    "default settings snapshot 中的 Piano Accessory Visible 开关应继续默认关闭。"
                 )
             )
         }
@@ -429,12 +479,15 @@ private extension ExerciseCompositionValidationRunner {
         }
 
         var visibleStateContext = defaultStateContext
-        SettingsToggleID.pianoVisible.apply(value: true, to: &visibleStateContext)
+        SettingsToggleID.pianoAccessoryVisible.apply(
+            value: true,
+            to: &visibleStateContext
+        )
         if !visibleStateContext.pianoPanelState.isVisible {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Visible 开关写回后应继续把 pianoPanelState.isVisible 置为 true。"
+                    "Piano Accessory Visible 开关写回后应继续把 pianoPanelState.isVisible 置为 true。"
                 )
             )
         }
@@ -442,13 +495,13 @@ private extension ExerciseCompositionValidationRunner {
             from: visibleStateContext
         )
         let visiblePianoVisibleValue = visiblePanelModel.toggleRow(
-            for: .pianoVisible
+            for: .pianoAccessoryVisible
         )?.isOn ?? false
         if !visiblePianoVisibleValue {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Visible 开关写回后，settings snapshot 也应继续回显为开启。"
+                    "Piano Accessory Visible 开关写回后，settings snapshot 也应继续回显为开启。"
                 )
             )
         }
@@ -651,11 +704,11 @@ private extension ExerciseCompositionValidationRunner {
         var issues: [ExerciseCompositionValidationIssue] = []
         let defaultStateContext = SettingsPanelStateContext.default
 
-        if defaultStateContext.exerciseLayoutPreferences != .default {
+        if defaultStateContext.exerciseLayoutPreferences != .legacyPositionPrompt {
             issues.append(
                 issue(
                     fixtureName,
-                    "SettingsPanelStateContext.default 应继续携带默认 ExerciseLayoutPreferences。"
+                    "SettingsPanelStateContext.default 应对齐 positionPrompt 的 legacy ExerciseLayoutPreferences。"
                 )
             )
         }
@@ -684,11 +737,11 @@ private extension ExerciseCompositionValidationRunner {
         }
 
         let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
-        if panelModel.sections.first(where: { $0.id == .page }) == nil {
+        if panelModel.sections.first(where: { $0.id == .exercise }) == nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "在 settings 真正迁移前，shared context 新增字段不应破坏 legacy Page section 的生成。"
+                    "阶段 2 中，shared context 新增字段不应破坏新 Exercise section 的生成。"
                 )
             )
         }

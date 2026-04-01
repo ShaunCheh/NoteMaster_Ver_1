@@ -1891,20 +1891,20 @@ private extension FretboardValidationRunner {
                 trainerDisplayState: .default
             )
         )
-        if let startupTrainerSection = startupSettingsModel.sections.first(where: {
-            $0.id == .trainer
+        if let startupExerciseSection = startupSettingsModel.sections.first(where: {
+            $0.id == .exercise
         }) {
-            let expectedStartupTrainerRowIDs: [SettingsRowID] = [
+            let expectedStartupExerciseRowIDs: [SettingsRowID] = [
                 .choice(.exerciseMode),
-                .choice(.positionPromptFilterMode),
-                .positionFilter(.positionPromptFilterOptions)
+                .choice(.compositionPreset),
+                .choice(.layoutPreset)
             ]
-            if startupTrainerSection.rows.map(\.id) != expectedStartupTrainerRowIDs {
-                record("startup settings model 的 Trainer row 顺序未对齐 Exercise Mode / Filter / Position Filter。")
+            if startupExerciseSection.rows.map(\.id) != expectedStartupExerciseRowIDs {
+                record("startup settings model 的 Exercise row 顺序未对齐 Exercise Mode / Composition Preset / Layout Preset。")
             }
             if let exerciseModeRow = resolveChoiceRow(
                 .exerciseMode,
-                in: startupTrainerSection
+                in: startupExerciseSection
             ) {
                 if let positionPromptChoice = exerciseModeRow.choices.first(where: {
                     $0.id == .setExerciseModePositionPrompt
@@ -1919,9 +1919,40 @@ private extension FretboardValidationRunner {
                 record("startup settings model 缺少 Exercise Mode row。")
             }
 
+            if let compositionRow = resolveChoiceRow(
+                .compositionPreset,
+                in: startupExerciseSection
+            ) {
+                if let stripChoice = compositionRow.choices.first(where: {
+                    $0.id == .setCompositionPresetFretboardToNaturalNoteStrip
+                }) {
+                    if !stripChoice.isSelected {
+                        record("startup settings model 的 Composition Preset 默认应选中 Fretboard -> Natural Note Strip。")
+                    }
+                } else {
+                    record("startup settings model 的 Composition Preset row 缺少 Strip 选项。")
+                }
+            } else {
+                record("startup settings model 缺少 Composition Preset row。")
+            }
+        } else {
+            record("startup settings model 缺少 Exercise section，无法验证 position prompt 默认回显。")
+        }
+
+        if let startupPositionPromptSection = startupSettingsModel.sections.first(where: {
+            $0.id == .positionPrompt
+        }) {
+            let expectedStartupPositionPromptRowIDs: [SettingsRowID] = [
+                .choice(.positionPromptFilterMode),
+                .positionFilter(.positionPromptFilterOptions)
+            ]
+            if startupPositionPromptSection.rows.map(\.id)
+                != expectedStartupPositionPromptRowIDs {
+                record("startup settings model 的 Position Prompt row 顺序未对齐 Filter / Position Filter。")
+            }
             if let filterModeRow = resolveChoiceRow(
                 .positionPromptFilterMode,
-                in: startupTrainerSection
+                in: startupPositionPromptSection
             ) {
                 if filterModeRow.title != "Filter" {
                     record("startup settings model 的 position prompt filter mode row 标题应为 Filter。")
@@ -1957,7 +1988,7 @@ private extension FretboardValidationRunner {
 
             if let startupPositionFilterRow = resolvePositionFilterRow(
                 .positionPromptFilterOptions,
-                in: startupTrainerSection
+                in: startupPositionPromptSection
             ) {
                 if startupPositionFilterRow.title != "Note Names" {
                     record("startup settings model 的 Position Filter row 默认标题应为 Note Names。")
@@ -1985,7 +2016,7 @@ private extension FretboardValidationRunner {
                 record("startup settings model 缺少 Position Filter options row。")
             }
         } else {
-            record("startup settings model 缺少 Trainer section，无法验证 position prompt 默认回显。")
+            record("startup settings model 缺少 Position Prompt section，无法验证默认 filter 回显。")
         }
 
         logStage("lastSelectedPitchClassGuard")
@@ -2449,7 +2480,7 @@ private extension FretboardValidationRunner {
             "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",
             "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
             "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。",
-            "在 `single` 与 `sequence` 模式下确认页面继续保持上方 `staff`、下方 `fretboard`；切回 `positionPrompt` 后确认恢复为上方 `fretboard`、下方 `natural note strip`，且不受 `pianoVisible` 与 viewport 调整影响。",
+            "在 `single` 与 `sequence` 模式下确认页面继续保持上方 `staff`、下方 `fretboard`；切回 `positionPrompt` 后确认恢复为上方 `fretboard`、下方 `natural note strip`，且不受 `pianoAccessoryVisible` 与 viewport 调整影响。",
             "应用启动后不做额外切换，直接打开设置面板；确认 `Trainer` 分区第一眼看到 `Exercise Mode = Position Prompt`、`Filter = Note Names`，并且多选按钮默认回显 `C / E / F / B`。",
             "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Filter` 与位置题多选过滤行；切到 `positionPrompt` 后确认出现 `Filter = Note Names`，且默认选中 `C / E / F / B`。",
             "在 `positionPrompt` 默认 `Filter = Note Names`、默认 `C / E / F / B` 状态下连续答对至少 6 次，确认当前题与下一题都只落在这些音名；若当前有 6 根候选弦，则一轮 6 题内 6 根弦各出现 1 次，再进入下一轮时重新开始轮巡。",

@@ -13,21 +13,30 @@ struct SettingsPanelStateContext: Equatable, Sendable {
     var trainerDisplayState: TrainerDisplayState
     var pianoPanelState: PianoPanelState
 
-    static let `default` = SettingsPanelStateContext()
+    static let `default` = SettingsPanelStateContext(
+        pageDisplayState: .positionPrompt,
+        trainerDisplayState: .default,
+        pianoPanelState: .init()
+    )
 
     init(
         fretboardDisplayState: FretboardDisplayState = .default,
         staffDisplayState: StaffDisplayState = .default,
         pageDisplayState: PageDisplayState = .default,
-        exerciseLayoutPreferences: ExerciseLayoutPreferences = .default,
+        exerciseLayoutPreferences: ExerciseLayoutPreferences? = nil,
         trainerDisplayState: TrainerDisplayState = .default,
         pianoPanelState: PianoPanelState = .init()
     ) {
         self.fretboardDisplayState = fretboardDisplayState
         self.staffDisplayState = staffDisplayState
         self.pageDisplayState = pageDisplayState
-        self.exerciseLayoutPreferences = exerciseLayoutPreferences
         self.trainerDisplayState = trainerDisplayState
         self.pianoPanelState = pianoPanelState
+        self.exerciseLayoutPreferences = exerciseLayoutPreferences
+            ?? LegacyPageLayoutAdapter.inferredPreferences(
+                pageDisplayState: pageDisplayState,
+                trainerDisplayState: trainerDisplayState,
+                pianoPanelState: pianoPanelState
+            )
     }
 }

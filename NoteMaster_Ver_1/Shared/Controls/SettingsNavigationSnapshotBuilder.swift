@@ -152,6 +152,90 @@ enum SettingsNavigationSnapshotBuilder {
         for sectionID: SettingsSectionID
     ) -> [ChildPageSpec]? {
         switch sectionID {
+        case .exercise:
+            return [
+                ChildPageSpec(
+                    route: .exerciseMode,
+                    title: SettingsRouteID.exerciseMode.fallbackTitle,
+                    subtitle: "Single, sequence, or position",
+                    rowIDs: [
+                        .choice(.exerciseMode)
+                    ]
+                ),
+                ChildPageSpec(
+                    route: .exerciseComposition,
+                    title: SettingsRouteID.exerciseComposition.fallbackTitle,
+                    subtitle: "Prompt and answer pairing",
+                    rowIDs: [
+                        .choice(.compositionPreset)
+                    ]
+                ),
+                ChildPageSpec(
+                    route: .exerciseLayout,
+                    title: SettingsRouteID.exerciseLayout.fallbackTitle,
+                    subtitle: "Stacked for now",
+                    rowIDs: [
+                        .choice(.layoutPreset)
+                    ]
+                )
+            ]
+        case .positionPrompt:
+            return [
+                ChildPageSpec(
+                    route: .positionPromptFilter,
+                    title: SettingsRouteID.positionPromptFilter.fallbackTitle,
+                    subtitle: "Note names or frets",
+                    rowIDs: [
+                        .choice(.positionPromptFilterMode),
+                        .positionFilter(.positionPromptFilterOptions)
+                    ]
+                )
+            ]
+        case .accessories:
+            return [
+                ChildPageSpec(
+                    route: .accessoryVisibility,
+                    title: SettingsRouteID.accessoryVisibility.fallbackTitle,
+                    subtitle: "Natural strip and piano",
+                    rowIDs: [
+                        .toggle(.naturalStripVisible),
+                        .toggle(.pianoAccessoryVisible)
+                    ]
+                ),
+                ChildPageSpec(
+                    route: .accessoryPresentation,
+                    title: SettingsRouteID.accessoryPresentation.fallbackTitle,
+                    subtitle: "Docked for now",
+                    rowIDs: [
+                        .choice(.accessoryPresentation),
+                        .toggle(.accessoryExpanded)
+                    ]
+                )
+            ]
+        case .fretboard:
+            return [
+                ChildPageSpec(
+                    route: .fretboardDisplay,
+                    title: SettingsRouteID.fretboardDisplay.fallbackTitle,
+                    subtitle: "Instrument and labels",
+                    rowIDs: [
+                        .choice(.instrument),
+                        .choice(.displayMode),
+                        .choice(.stringThickness),
+                        .choice(.labels),
+                        .choice(.spelling),
+                        .choice(.octave)
+                    ]
+                ),
+                ChildPageSpec(
+                    route: .fretboardViewport,
+                    title: SettingsRouteID.fretboardViewport.fallbackTitle,
+                    subtitle: "Vertical sizing",
+                    rowIDs: [
+                        .slider(.verticalHostHeightRatio)
+                    ]
+                )
+            ]
         case .trainer:
             return [
                 ChildPageSpec(
@@ -198,9 +282,8 @@ enum SettingsNavigationSnapshotBuilder {
                 ChildPageSpec(
                     route: .pianoBehavior,
                     title: SettingsRouteID.pianoBehavior.fallbackTitle,
-                    subtitle: "Visibility and movement",
+                    subtitle: "Rows and movement",
                     rowIDs: [
-                        .toggle(.pianoVisible),
                         .slider(.pianoRowCount),
                         .choice(.pianoMovementScope),
                         .toggle(.pianoSnapEnabled)
@@ -215,7 +298,7 @@ enum SettingsNavigationSnapshotBuilder {
                     ]
                 )
             ]
-        case .page, .fretboard, .layout, .debug:
+        case .page, .layout, .debug:
             return nil
         }
     }

@@ -12,11 +12,14 @@ enum SettingsPanelSnapshotBuilder {
     static func makeModel(
         from stateContext: SettingsPanelStateContext
     ) -> SettingsPanelModel {
-        SettingsPanelModel(
+        var normalizedStateContext = stateContext
+        LegacyPageLayoutAdapter.reconcile(&normalizedStateContext)
+
+        return SettingsPanelModel(
             sections: SettingsSectionID.allCases.compactMap {
                 makeSection(
                     id: $0,
-                    stateContext: stateContext
+                    stateContext: normalizedStateContext
                 )
             }
         )

@@ -236,7 +236,7 @@ private extension PianoValidationRunner {
             "确认 B 区连续拖动离开区域后会立即停止；开启吸附时应先保留连续位置，再以短动画收口到最近锚点。",
             "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
-            "确认 `Piano Visible` 默认关闭；打开后才出现钢琴区域，关闭后会恢复主内容底边约束而不是改变 prompt/answer 主组合。",
+            "确认 `Piano Accessory Visible` 默认关闭；打开后才出现钢琴区域，关闭后会恢复主内容底边约束而不是改变 prompt/answer 主组合。",
             "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。",
             "确认 macOS 归一化后顶行仍显示在最上方，A/B/C 区命中与 iOS 保持一致。"
         ]
@@ -305,16 +305,19 @@ private extension PianoValidationRunner {
         if inferredState.isVisible {
             issues.append(issue(fixtureName, "PianoPanelState.inferred(...) 默认应继续保持 isVisible=false。"))
         }
-        if SettingsToggleID.pianoVisible.resolvedValue(in: settingsStateContext) {
-            issues.append(issue(fixtureName, "settings snapshot 的 Piano Visible 默认不应回显为开启。"))
+        if SettingsToggleID.pianoAccessoryVisible.resolvedValue(in: settingsStateContext) {
+            issues.append(issue(fixtureName, "settings snapshot 的 Piano Accessory Visible 默认不应回显为开启。"))
         }
 
-        SettingsToggleID.pianoVisible.apply(value: true, to: &settingsStateContext)
+        SettingsToggleID.pianoAccessoryVisible.apply(
+            value: true,
+            to: &settingsStateContext
+        )
         if !settingsStateContext.pianoPanelState.isVisible {
-            issues.append(issue(fixtureName, "Piano Visible toggle 写回后应把 pianoPanelState.isVisible 置为 true。"))
+            issues.append(issue(fixtureName, "Piano Accessory Visible toggle 写回后应把 pianoPanelState.isVisible 置为 true。"))
         }
-        if !SettingsToggleID.pianoVisible.resolvedValue(in: settingsStateContext) {
-            issues.append(issue(fixtureName, "Piano Visible toggle 写回后应继续在 settings snapshot 中回显为开启。"))
+        if !SettingsToggleID.pianoAccessoryVisible.resolvedValue(in: settingsStateContext) {
+            issues.append(issue(fixtureName, "Piano Accessory Visible toggle 写回后应继续在 settings snapshot 中回显为开启。"))
         }
 
         return issues

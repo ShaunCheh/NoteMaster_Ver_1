@@ -10,6 +10,14 @@ import Foundation
 enum SettingsRouteID: Equatable, Hashable, Sendable {
     case root
     case section(SettingsSectionID)
+    case exerciseMode
+    case exerciseComposition
+    case exerciseLayout
+    case positionPromptFilter
+    case accessoryVisibility
+    case accessoryPresentation
+    case fretboardDisplay
+    case fretboardViewport
     case trainerExercise
     case trainerPositionFilter
     case staffClef
@@ -23,6 +31,22 @@ enum SettingsRouteID: Equatable, Hashable, Sendable {
             return "Settings"
         case let .section(sectionID):
             return sectionID.title
+        case .exerciseMode:
+            return "Mode"
+        case .exerciseComposition:
+            return "Composition"
+        case .exerciseLayout:
+            return "Layout"
+        case .positionPromptFilter:
+            return "Filter"
+        case .accessoryVisibility:
+            return "Visibility"
+        case .accessoryPresentation:
+            return "Presentation"
+        case .fretboardDisplay:
+            return "Display"
+        case .fretboardViewport:
+            return "Vertical Viewport"
         case .trainerExercise:
             return "Exercise"
         case .trainerPositionFilter:
@@ -44,6 +68,22 @@ enum SettingsRouteID: Equatable, Hashable, Sendable {
             return "root"
         case let .section(sectionID):
             return "section-\(String(describing: sectionID))"
+        case .exerciseMode:
+            return "exercise-mode"
+        case .exerciseComposition:
+            return "exercise-composition"
+        case .exerciseLayout:
+            return "exercise-layout"
+        case .positionPromptFilter:
+            return "position-prompt-filter"
+        case .accessoryVisibility:
+            return "accessory-visibility"
+        case .accessoryPresentation:
+            return "accessory-presentation"
+        case .fretboardDisplay:
+            return "fretboard-display"
+        case .fretboardViewport:
+            return "fretboard-viewport"
         case .trainerExercise:
             return "trainer-exercise"
         case .trainerPositionFilter:

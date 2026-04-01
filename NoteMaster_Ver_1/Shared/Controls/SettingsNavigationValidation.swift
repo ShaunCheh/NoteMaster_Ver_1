@@ -137,20 +137,20 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateSplitSectionsProduceExpectedPageTree
             ),
             SettingsNavigationValidationFixture(
-                name: "trainer_route_visibility_tracks_exercise_mode",
-                validate: validateTrainerRouteVisibilityTracksExerciseMode
+                name: "position_prompt_section_visibility_tracks_exercise_mode",
+                validate: validatePositionPromptSectionVisibilityTracksExerciseMode
             ),
             SettingsNavigationValidationFixture(
-                name: "layout_route_visibility_tracks_display_mode",
-                validate: validateLayoutRouteVisibilityTracksDisplayMode
+                name: "fretboard_viewport_route_visibility_tracks_display_mode",
+                validate: validateFretboardViewportRouteVisibilityTracksDisplayMode
             ),
             SettingsNavigationValidationFixture(
                 name: "fretboard_string_thickness_option_tracks_state",
                 validate: validateFretboardStringThicknessOptionTracksState
             ),
             SettingsNavigationValidationFixture(
-                name: "legacy_page_rows_and_piano_visibility_state_remain_stable",
-                validate: validateLegacyPageRowsAndPianoVisibilityStateRemainStable
+                name: "phase2_exercise_and_accessory_rows_remain_stable",
+                validate: validatePhase2ExerciseAndAccessoryRowsRemainStable
             ),
             SettingsNavigationValidationFixture(
                 name: "reconciled_path_falls_back_to_existing_parent",
@@ -173,10 +173,11 @@ private extension SettingsNavigationValidationRunner {
         [
             "在 \(platform.displayName) 上确认 close 永远关闭整个 settings card，而不是只关闭当前子页。",
             "确认在 root 页隐藏返回按钮；进入 section 或更深页面后显示返回按钮，点击后只回退卡片内一层。",
-            "确认 root -> Trainer / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
-            "确认当停留在 Trainer Position Filter 深层页时切换 exercise mode，卡片会自动退回最近仍有效的 Trainer 父页，而不会停留在失效子页。",
-            "确认切换到 horizontal 指板布局时 Layout route 会消失；切回 vertical 后 Layout route 会恢复。",
-            "确认阶段 0 期间 `Page` 分区仍保留 `Top Content / Main Content` 两行，`Piano > Behavior` 仍保留 `Visible` 开关。后续阶段替换前，这些旧入口不应先漂移。",
+            "确认 root -> Exercise / Accessories / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
+            "确认切换到 `single` / `sequence` 时 `Position Prompt` section 会消失；切回 `positionPrompt` 后会恢复。",
+            "确认切换到 horizontal 指板布局时 `Fretboard > Vertical Viewport` 深层页会消失；切回 vertical 后会恢复。",
+            "确认 `Exercise` 分区只显示 `Exercise Mode / Composition Preset / Layout Preset`，不再出现 `Top Content / Main Content`。",
+            "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
     }
@@ -240,8 +241,20 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
-        guard let trainerSection = resolveSection(.trainer, in: panelModel) else {
-            issues.append(issue(fixtureName, "default state 应保留 Trainer section。"))
+        guard let exerciseSection = resolveSection(.exercise, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Exercise section。"))
+            return issues
+        }
+        guard let positionPromptSection = resolveSection(.positionPrompt, in: panelModel) else {
+            issues.append(issue(fixtureName, "positionPrompt 默认态应保留 Position Prompt section。"))
+            return issues
+        }
+        guard let accessoriesSection = resolveSection(.accessories, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Accessories section。"))
+            return issues
+        }
+        guard let fretboardSection = resolveSection(.fretboard, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Fretboard section。"))
             return issues
         }
         guard let staffSection = resolveSection(.staff, in: panelModel) else {
@@ -252,109 +265,205 @@ private extension SettingsNavigationValidationRunner {
             issues.append(issue(fixtureName, "default state 应保留 Piano section。"))
             return issues
         }
-        guard let pageSection = resolveSection(.page, in: panelModel) else {
-            issues.append(issue(fixtureName, "default state 应保留 Page section。"))
-            return issues
-        }
-        guard let fretboardSection = resolveSection(.fretboard, in: panelModel) else {
-            issues.append(issue(fixtureName, "default state 应保留 Fretboard section。"))
-            return issues
-        }
-        guard let layoutSection = resolveSection(.layout, in: panelModel) else {
-            issues.append(issue(fixtureName, "default state 应保留 Layout section。"))
-            return issues
-        }
         guard let debugSection = resolveSection(.debug, in: panelModel) else {
             issues.append(issue(fixtureName, "default state 应保留 Debug section。"))
             return issues
         }
 
-        assertFormPage(
-            route: .section(.page),
-            expectedTitle: pageSection.title,
-            expectedSection: pageSection,
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Page section",
-            issues: &issues
-        )
-        assertFormPage(
-            route: .section(.fretboard),
-            expectedTitle: fretboardSection.title,
-            expectedSection: fretboardSection,
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Fretboard section",
-            issues: &issues
-        )
-        assertFormPage(
-            route: .section(.layout),
-            expectedTitle: layoutSection.title,
-            expectedSection: layoutSection,
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Layout section",
-            issues: &issues
-        )
-        assertFormPage(
-            route: .section(.debug),
-            expectedTitle: debugSection.title,
-            expectedSection: debugSection,
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Debug section",
-            issues: &issues
-        )
+        if resolveSection(.page, in: panelModel) != nil {
+            issues.append(issue(fixtureName, "default state 不应再保留 Page section。"))
+        }
+        if resolveSection(.layout, in: panelModel) != nil {
+            issues.append(issue(fixtureName, "default state 不应再保留 Layout section。"))
+        }
 
         assertIndexPage(
-            route: .section(.trainer),
-            expectedTitle: trainerSection.title,
+            route: .section(.exercise),
+            expectedTitle: exerciseSection.title,
             expectedRouteItems: [
                 SettingsRouteItem(
-                    title: SettingsRouteID.trainerExercise.fallbackTitle,
-                    subtitle: "Mode",
-                    route: .trainerExercise
+                    title: SettingsRouteID.exerciseMode.fallbackTitle,
+                    subtitle: "Single, sequence, or position",
+                    route: .exerciseMode
                 ),
                 SettingsRouteItem(
-                    title: SettingsRouteID.trainerPositionFilter.fallbackTitle,
-                    subtitle: "Note names or frets",
-                    route: .trainerPositionFilter
+                    title: SettingsRouteID.exerciseComposition.fallbackTitle,
+                    subtitle: "Prompt and answer pairing",
+                    route: .exerciseComposition
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.exerciseLayout.fallbackTitle,
+                    subtitle: "Stacked for now",
+                    route: .exerciseLayout
                 )
             ],
             in: navigationModel,
             fixtureName: fixtureName,
-            pageDescription: "Trainer section",
+            pageDescription: "Exercise section",
             issues: &issues
         )
         assertFormPage(
-            route: .trainerExercise,
-            expectedTitle: SettingsRouteID.trainerExercise.fallbackTitle,
+            route: .exerciseMode,
+            expectedTitle: SettingsRouteID.exerciseMode.fallbackTitle,
             expectedSection: makeExpectedChildSection(
-                title: SettingsRouteID.trainerExercise.fallbackTitle,
-                from: trainerSection,
+                title: SettingsRouteID.exerciseMode.fallbackTitle,
+                from: exerciseSection,
                 keepingRowIDs: [
                     .choice(.exerciseMode)
                 ]
             ),
             in: navigationModel,
             fixtureName: fixtureName,
-            pageDescription: "Trainer Exercise",
+            pageDescription: "Exercise Mode",
             issues: &issues
         )
         assertFormPage(
-            route: .trainerPositionFilter,
-            expectedTitle: SettingsRouteID.trainerPositionFilter.fallbackTitle,
+            route: .exerciseComposition,
+            expectedTitle: SettingsRouteID.exerciseComposition.fallbackTitle,
             expectedSection: makeExpectedChildSection(
-                title: SettingsRouteID.trainerPositionFilter.fallbackTitle,
-                from: trainerSection,
+                title: SettingsRouteID.exerciseComposition.fallbackTitle,
+                from: exerciseSection,
                 keepingRowIDs: [
-                    .choice(.positionPromptFilterMode),
-                    .positionFilter(.positionPromptFilterOptions)
+                    .choice(.compositionPreset)
                 ]
             ),
             in: navigationModel,
             fixtureName: fixtureName,
-            pageDescription: "Trainer Position Filter",
+            pageDescription: "Exercise Composition",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .exerciseLayout,
+            expectedTitle: SettingsRouteID.exerciseLayout.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.exerciseLayout.fallbackTitle,
+                from: exerciseSection,
+                keepingRowIDs: [
+                    .choice(.layoutPreset)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Exercise Layout",
+            issues: &issues
+        )
+
+        assertFormPage(
+            route: .section(.positionPrompt),
+            expectedTitle: positionPromptSection.title,
+            expectedSection: positionPromptSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Position Prompt section",
+            issues: &issues
+        )
+
+        assertIndexPage(
+            route: .section(.accessories),
+            expectedTitle: accessoriesSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.accessoryVisibility.fallbackTitle,
+                    subtitle: "Natural strip and piano",
+                    route: .accessoryVisibility
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.accessoryPresentation.fallbackTitle,
+                    subtitle: "Docked for now",
+                    route: .accessoryPresentation
+                )
+            ],
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Accessories section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .accessoryVisibility,
+            expectedTitle: SettingsRouteID.accessoryVisibility.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.accessoryVisibility.fallbackTitle,
+                from: accessoriesSection,
+                keepingRowIDs: [
+                    .toggle(.naturalStripVisible),
+                    .toggle(.pianoAccessoryVisible)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Accessory Visibility",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .accessoryPresentation,
+            expectedTitle: SettingsRouteID.accessoryPresentation.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.accessoryPresentation.fallbackTitle,
+                from: accessoriesSection,
+                keepingRowIDs: [
+                    .choice(.accessoryPresentation),
+                    .toggle(.accessoryExpanded)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Accessory Presentation",
+            issues: &issues
+        )
+
+        assertIndexPage(
+            route: .section(.fretboard),
+            expectedTitle: fretboardSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.fretboardDisplay.fallbackTitle,
+                    subtitle: "Instrument and labels",
+                    route: .fretboardDisplay
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.fretboardViewport.fallbackTitle,
+                    subtitle: "Vertical sizing",
+                    route: .fretboardViewport
+                )
+            ],
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Fretboard section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .fretboardDisplay,
+            expectedTitle: SettingsRouteID.fretboardDisplay.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.fretboardDisplay.fallbackTitle,
+                from: fretboardSection,
+                keepingRowIDs: [
+                    .choice(.instrument),
+                    .choice(.displayMode),
+                    .choice(.stringThickness),
+                    .choice(.labels),
+                    .choice(.spelling),
+                    .choice(.octave)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Fretboard Display",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .fretboardViewport,
+            expectedTitle: SettingsRouteID.fretboardViewport.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.fretboardViewport.fallbackTitle,
+                from: fretboardSection,
+                keepingRowIDs: [
+                    .slider(.verticalHostHeightRatio)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Fretboard Viewport",
             issues: &issues
         )
 
@@ -417,7 +526,7 @@ private extension SettingsNavigationValidationRunner {
             expectedRouteItems: [
                 SettingsRouteItem(
                     title: SettingsRouteID.pianoBehavior.fallbackTitle,
-                    subtitle: "Visibility and movement",
+                    subtitle: "Rows and movement",
                     route: .pianoBehavior
                 ),
                 SettingsRouteItem(
@@ -438,7 +547,6 @@ private extension SettingsNavigationValidationRunner {
                 title: SettingsRouteID.pianoBehavior.fallbackTitle,
                 from: pianoSection,
                 keepingRowIDs: [
-                    .toggle(.pianoVisible),
                     .slider(.pianoRowCount),
                     .choice(.pianoMovementScope),
                     .toggle(.pianoSnapEnabled)
@@ -465,12 +573,22 @@ private extension SettingsNavigationValidationRunner {
             issues: &issues
         )
 
+        assertFormPage(
+            route: .section(.debug),
+            expectedTitle: debugSection.title,
+            expectedSection: debugSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Debug section",
+            issues: &issues
+        )
+
         return issues
     }
 
-    static func validateTrainerRouteVisibilityTracksExerciseMode()
+    static func validatePositionPromptSectionVisibilityTracksExerciseMode()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "trainer_route_visibility_tracks_exercise_mode"
+        let fixtureName = "position_prompt_section_visibility_tracks_exercise_mode"
         var issues: [SettingsNavigationValidationIssue] = []
 
         let singleTrainerState = TrainerDisplayState(exerciseMode: .single)
@@ -484,28 +602,14 @@ private extension SettingsNavigationValidationRunner {
             from: singleStateContext
         )
 
-        guard let singleTrainerSection = resolveSection(.trainer, in: singlePanelModel) else {
-            issues.append(issue(fixtureName, "single 模式下应保留 Trainer section。"))
-            return issues
-        }
-
-        assertFormPage(
-            route: .section(.trainer),
-            expectedTitle: singleTrainerSection.title,
-            expectedSection: singleTrainerSection,
-            in: singleNavigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Trainer single-mode section",
-            issues: &issues
-        )
-        if singleNavigationModel.page(for: .trainerExercise) != nil {
+        if resolveSection(.positionPrompt, in: singlePanelModel) != nil {
             issues.append(
-                issue(fixtureName, "只有一个 Trainer 子分组时，不应继续暴露 trainerExercise 深层页。")
+                issue(fixtureName, "single 模式下不应继续暴露 Position Prompt section。")
             )
         }
-        if singleNavigationModel.page(for: .trainerPositionFilter) != nil {
+        if singleNavigationModel.page(for: .section(.positionPrompt)) != nil {
             issues.append(
-                issue(fixtureName, "single 模式下不应暴露 trainerPositionFilter 深层页。")
+                issue(fixtureName, "single 模式下不应继续生成 Position Prompt section page。")
             )
         }
 
@@ -517,48 +621,76 @@ private extension SettingsNavigationValidationRunner {
             from: positionPromptStateContext
         )
 
-        guard let trainerPage = positionPromptNavigationModel.page(for: .section(.trainer)) else {
-            issues.append(issue(fixtureName, "position prompt 模式下缺少 Trainer section page。"))
-            return issues
-        }
+        let positionPromptPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: positionPromptStateContext
+        )
 
-        guard let trainerRouteItems = trainerPage.content.routeItems else {
-            issues.append(issue(fixtureName, "position prompt 模式下 Trainer section 应变为 index page。"))
+        guard let positionPromptSection = resolveSection(
+            .positionPrompt,
+            in: positionPromptPanelModel
+        ) else {
+            issues.append(
+                issue(fixtureName, "position prompt 模式下应保留 Position Prompt section。")
+            )
             return issues
         }
-        if trainerRouteItems.map(\.route) != [
-            .trainerExercise,
-            .trainerPositionFilter
-        ] {
+        assertFormPage(
+            route: .section(.positionPrompt),
+            expectedTitle: positionPromptSection.title,
+            expectedSection: positionPromptSection,
+            in: positionPromptNavigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Position Prompt active section",
+            issues: &issues
+        )
+        if positionPromptNavigationModel.page(for: .positionPromptFilter) != nil {
             issues.append(
-                issue(fixtureName, "position prompt 模式下 Trainer index route 顺序应为 Exercise -> Position Filter。")
+                issue(fixtureName, "只有一个 Position Prompt 子分组时，不应继续暴露独立的深层页。")
             )
-        }
-        if positionPromptNavigationModel.page(for: .trainerPositionFilter) == nil {
-            issues.append(issue(fixtureName, "position prompt 模式下应生成 trainerPositionFilter 深层页。"))
         }
 
         return issues
     }
 
-    static func validateLayoutRouteVisibilityTracksDisplayMode()
+    static func validateFretboardViewportRouteVisibilityTracksDisplayMode()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "layout_route_visibility_tracks_display_mode"
+        let fixtureName = "fretboard_viewport_route_visibility_tracks_display_mode"
         var issues: [SettingsNavigationValidationIssue] = []
 
         let verticalStateContext = SettingsPanelStateContext.default
+        let verticalPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: verticalStateContext
+        )
         let verticalNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: verticalStateContext
         )
-        let verticalRootRoutes = verticalNavigationModel.rootPage?.content.routeItems?.map(\.route) ?? []
-        if !verticalRootRoutes.contains(.section(.layout)) {
-            issues.append(
-                issue(fixtureName, "vertical 指板模式下 root route 应包含 Layout。")
-            )
+        guard let verticalFretboardSection = resolveSection(.fretboard, in: verticalPanelModel) else {
+            issues.append(issue(fixtureName, "vertical 指板模式下应保留 Fretboard section。"))
+            return issues
         }
-        if verticalNavigationModel.page(for: .section(.layout)) == nil {
+        assertIndexPage(
+            route: .section(.fretboard),
+            expectedTitle: verticalFretboardSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.fretboardDisplay.fallbackTitle,
+                    subtitle: "Instrument and labels",
+                    route: .fretboardDisplay
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.fretboardViewport.fallbackTitle,
+                    subtitle: "Vertical sizing",
+                    route: .fretboardViewport
+                )
+            ],
+            in: verticalNavigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Vertical Fretboard section",
+            issues: &issues
+        )
+        if verticalNavigationModel.page(for: .fretboardViewport) == nil {
             issues.append(
-                issue(fixtureName, "vertical 指板模式下应生成 Layout detail page。")
+                issue(fixtureName, "vertical 指板模式下应生成 Fretboard Viewport 深层页。")
             )
         }
 
@@ -570,15 +702,25 @@ private extension SettingsNavigationValidationRunner {
         let horizontalNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: horizontalStateContext
         )
-        let horizontalRootRoutes = horizontalNavigationModel.rootPage?.content.routeItems?.map(\.route) ?? []
-        if horizontalRootRoutes.contains(.section(.layout)) {
-            issues.append(
-                issue(fixtureName, "horizontal 指板模式下 root route 不应继续暴露 Layout。")
-            )
+        let horizontalPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: horizontalStateContext
+        )
+        guard let horizontalFretboardSection = resolveSection(.fretboard, in: horizontalPanelModel) else {
+            issues.append(issue(fixtureName, "horizontal 指板模式下仍应保留 Fretboard section。"))
+            return issues
         }
-        if horizontalNavigationModel.page(for: .section(.layout)) != nil {
+        assertFormPage(
+            route: .section(.fretboard),
+            expectedTitle: horizontalFretboardSection.title,
+            expectedSection: horizontalFretboardSection,
+            in: horizontalNavigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Horizontal Fretboard section",
+            issues: &issues
+        )
+        if horizontalNavigationModel.page(for: .fretboardViewport) != nil {
             issues.append(
-                issue(fixtureName, "horizontal 指板模式下不应继续生成 Layout detail page。")
+                issue(fixtureName, "horizontal 指板模式下不应继续生成 Fretboard Viewport 深层页。")
             )
         }
 
@@ -637,9 +779,9 @@ private extension SettingsNavigationValidationRunner {
         return issues
     }
 
-    static func validateLegacyPageRowsAndPianoVisibilityStateRemainStable()
+    static func validatePhase2ExerciseAndAccessoryRowsRemainStable()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "legacy_page_rows_and_piano_visibility_state_remain_stable"
+        let fixtureName = "phase2_exercise_and_accessory_rows_remain_stable"
         let defaultStateContext = SettingsPanelStateContext.default
         let defaultPanelModel = SettingsPanelSnapshotBuilder.makeModel(
             from: defaultStateContext
@@ -649,87 +791,123 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
-        guard let pageSection = resolveSection(.page, in: defaultPanelModel) else {
+        guard let exerciseSection = resolveSection(.exercise, in: defaultPanelModel) else {
             issues.append(
-                issue(fixtureName, "default state 应继续保留 Page section。")
+                issue(fixtureName, "default state 应保留 Exercise section。")
+            )
+            return issues
+        }
+        guard let accessoriesSection = resolveSection(.accessories, in: defaultPanelModel) else {
+            issues.append(
+                issue(fixtureName, "default state 应保留 Accessories section。")
             )
             return issues
         }
 
-        if pageSection.rows.map(\.id) != [
-            .choice(.topContent),
-            .choice(.mainContent)
+        if resolveSection(.page, in: defaultPanelModel) != nil {
+            issues.append(issue(fixtureName, "default state 不应再暴露 Page section。"))
+        }
+        if resolveSection(.layout, in: defaultPanelModel) != nil {
+            issues.append(issue(fixtureName, "default state 不应再暴露 Layout section。"))
+        }
+
+        if exerciseSection.rows.map(\.id) != [
+            .choice(.exerciseMode),
+            .choice(.compositionPreset),
+            .choice(.layoutPreset)
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "Page section row 顺序应继续保持 Top Content -> Main Content。"
+                    "Exercise section row 顺序应保持 Exercise Mode -> Composition Preset -> Layout Preset。"
                 )
             )
         }
 
-        guard let topContentRow = defaultPanelModel.choiceRow(for: .topContent) else {
-            issues.append(issue(fixtureName, "default state 应继续暴露 Top Content row。"))
+        guard let compositionRow = defaultPanelModel.choiceRow(for: .compositionPreset) else {
+            issues.append(issue(fixtureName, "default state 应暴露 Composition Preset row。"))
             return issues
         }
 
-        if topContentRow.choices.map(\.id) != [
-            .setTopContentStaff,
-            .setTopContentTargetPrompt,
-            .setTopContentFretboard
+        if compositionRow.choices.map(\.id) != [
+            .setCompositionPresetStaffToFretboard,
+            .setCompositionPresetTargetPromptToFretboard,
+            .setCompositionPresetFretboardToNaturalNoteStrip,
+            .setCompositionPresetFretboardSelfAnswer
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "Top Content row 选项顺序应继续保持 Staff -> Target -> Fretboard。"
+                    "Composition Preset row 选项顺序应保持 Staff -> Target -> Strip -> Self。"
                 )
             )
         }
-        if topContentRow.choices.filter(\.isSelected).map(\.id) != [
-            .setTopContentStaff
+        if compositionRow.choices.filter(\.isSelected).map(\.id) != [
+            .setCompositionPresetFretboardToNaturalNoteStrip
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "Top Content row 默认应继续选中 Staff。"
+                    "positionPrompt 默认态应选中 Fretboard -> Natural Note Strip 组合。"
                 )
             )
         }
-        let fretboardTopChoiceIsEnabled = topContentRow.choices.first(
-            where: { $0.id == .setTopContentFretboard }
-        )?.isEnabled ?? true
-        if fretboardTopChoiceIsEnabled {
+        if compositionRow.choices.first(
+            where: { $0.id == .setCompositionPresetStaffToFretboard }
+        )?.isEnabled ?? true {
             issues.append(
                 issue(
                     fixtureName,
-                    "Top Content row 中的 Fretboard 选项在 legacy model 下应继续保持禁用。"
+                    "positionPrompt 默认态下 Staff -> Fretboard 不应被标记为可用。"
                 )
             )
         }
 
-        guard let mainContentRow = defaultPanelModel.choiceRow(for: .mainContent) else {
-            issues.append(issue(fixtureName, "default state 应继续暴露 Main Content row。"))
+        guard let layoutRow = defaultPanelModel.choiceRow(for: .layoutPreset) else {
+            issues.append(issue(fixtureName, "default state 应暴露 Layout Preset row。"))
             return issues
         }
 
-        if mainContentRow.choices.map(\.id) != [
-            .setMainContentFretboard,
-            .setMainContentNaturalNotes
+        if layoutRow.choices.map(\.id) != [
+            .setLayoutPresetStacked,
+            .setLayoutPresetSideBySide,
+            .setLayoutPresetSingleSurface
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "Main Content row 选项顺序应继续保持 Fretboard -> Natural Notes。"
+                    "Layout Preset row 选项顺序应保持 Stacked -> Side -> Single。"
                 )
             )
         }
-        if mainContentRow.choices.filter(\.isSelected).map(\.id) != [
-            .setMainContentFretboard
+        if layoutRow.choices.filter(\.isSelected).map(\.id) != [
+            .setLayoutPresetStacked
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "Main Content row 默认应继续选中 Fretboard。"
+                    "default state 应继续默认选中 Stacked layout。"
+                )
+            )
+        }
+        if layoutRow.choices.first(
+            where: { $0.id == .setLayoutPresetSideBySide }
+        )?.isEnabled ?? true {
+            issues.append(
+                issue(fixtureName, "阶段 2 中 Side by Side 还不应提前放开。")
+            )
+        }
+
+        if accessoriesSection.rows.map(\.id) != [
+            .toggle(.naturalStripVisible),
+            .toggle(.pianoAccessoryVisible),
+            .choice(.accessoryPresentation),
+            .toggle(.accessoryExpanded)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Accessories section rows 应保持 Natural Strip / Piano Accessory / Presentation / Expanded。"
                 )
             )
         }
@@ -744,7 +922,6 @@ private extension SettingsNavigationValidationRunner {
         }
 
         if pianoBehaviorSection.rows.map(\.id) != [
-            .toggle(.pianoVisible),
             .slider(.pianoRowCount),
             .choice(.pianoMovementScope),
             .toggle(.pianoSnapEnabled)
@@ -752,30 +929,33 @@ private extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Behavior page rows 应继续保持 Visible / Rows / Row Linking / Snap Drag。"
+                    "Piano Behavior page rows 应保持 Rows / Row Linking / Snap Drag。"
                 )
             )
         }
 
         let defaultPianoVisibleValue = defaultPanelModel.toggleRow(
-            for: .pianoVisible
+            for: .pianoAccessoryVisible
         )?.isOn ?? true
         if defaultPianoVisibleValue {
             issues.append(
                 issue(
                     fixtureName,
-                    "default state 的 Piano Visible 开关应继续默认关闭。"
+                    "default state 的 Piano Accessory Visible 开关应默认关闭。"
                 )
             )
         }
 
         var visibleStateContext = defaultStateContext
-        SettingsToggleID.pianoVisible.apply(value: true, to: &visibleStateContext)
+        SettingsToggleID.pianoAccessoryVisible.apply(
+            value: true,
+            to: &visibleStateContext
+        )
         if !visibleStateContext.pianoPanelState.isVisible {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Visible 开关写回后应继续把 pianoPanelState.isVisible 置为 true。"
+                    "Piano Accessory Visible 开关写回后应把 pianoPanelState.isVisible 置为 true。"
                 )
             )
         }
@@ -784,13 +964,13 @@ private extension SettingsNavigationValidationRunner {
             from: visibleStateContext
         )
         let visiblePianoVisibleValue = visiblePanelModel.toggleRow(
-            for: .pianoVisible
+            for: .pianoAccessoryVisible
         )?.isOn ?? false
         if !visiblePianoVisibleValue {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Visible 开关写回后，settings snapshot 也应继续回显为 true。"
+                    "Piano Accessory Visible 开关写回后，settings snapshot 也应回显为 true。"
                 )
             )
         }
@@ -803,17 +983,19 @@ private extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Visible 打开后仍应继续保留 Piano Behavior page。"
+                    "Piano Accessory Visible 打开后仍应继续保留 Piano Behavior page。"
                 )
             )
             return issues
         }
 
-        if !visiblePianoBehaviorSection.rows.map(\.id).contains(.toggle(.pianoVisible)) {
+        if visiblePianoBehaviorSection.rows.map(\.id).contains(
+            .toggle(.pianoAccessoryVisible)
+        ) {
             issues.append(
                 issue(
                     fixtureName,
-                    "Piano Visible 打开后不应移除 Visible toggle 本身。"
+                    "Piano Behavior page 不应重新混入 Piano Accessory Visible toggle。"
                 )
             )
         }
@@ -826,21 +1008,18 @@ private extension SettingsNavigationValidationRunner {
         let fixtureName = "reconciled_path_falls_back_to_existing_parent"
         var issues: [SettingsNavigationValidationIssue] = []
 
-        let startupStateContext = SettingsPanelStateContext(
-            pageDisplayState: .positionPrompt,
-            trainerDisplayState: .default
-        )
+        let startupStateContext = SettingsPanelStateContext.default
         let startupNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: startupStateContext
         )
-        let availableTrainerPath = startupNavigationModel.reconciledPath([
+        let availableAccessoryPath = startupNavigationModel.reconciledPath([
             .root,
-            .section(.trainer),
-            .trainerPositionFilter
+            .section(.accessories),
+            .accessoryPresentation
         ])
-        if availableTrainerPath != [.root, .section(.trainer), .trainerPositionFilter] {
+        if availableAccessoryPath != [.root, .section(.accessories), .accessoryPresentation] {
             issues.append(
-                issue(fixtureName, "已存在的 Trainer 深层 route 不应被错误回退。")
+                issue(fixtureName, "已存在的 Accessories 深层 route 不应被错误回退。")
             )
         }
 
@@ -849,14 +1028,13 @@ private extension SettingsNavigationValidationRunner {
                 trainerDisplayState: TrainerDisplayState(exerciseMode: .single)
             )
         )
-        let singleTrainerFallbackPath = singleTrainerNavigationModel.reconciledPath([
+        let missingPositionPromptPath = singleTrainerNavigationModel.reconciledPath([
             .root,
-            .section(.trainer),
-            .trainerPositionFilter
+            .section(.positionPrompt)
         ])
-        if singleTrainerFallbackPath != [.root, .section(.trainer)] {
+        if missingPositionPromptPath != [.root] {
             issues.append(
-                issue(fixtureName, "缺失的 Trainer 深层 route 应回退到最近仍有效的 Trainer 父级。")
+                issue(fixtureName, "缺失的 Position Prompt section route 应直接回退到 root。")
             )
         }
 
@@ -867,21 +1045,22 @@ private extension SettingsNavigationValidationRunner {
                 fretboardDisplayState: horizontalFretboardDisplayState
             )
         )
-        let layoutFallbackPath = horizontalNavigationModel.reconciledPath([
-            .section(.layout)
+        let viewportFallbackPath = horizontalNavigationModel.reconciledPath([
+            .section(.fretboard),
+            .fretboardViewport
         ])
-        if layoutFallbackPath != [.root] {
+        if viewportFallbackPath != [.root, .section(.fretboard)] {
             issues.append(
-                issue(fixtureName, "当首个 detail route 不存在时，应直接回退到 root。")
+                issue(fixtureName, "缺失的 Fretboard Viewport route 应回退到最近仍有效的 Fretboard 父级。")
             )
         }
 
         let duplicateRootPath = startupNavigationModel.reconciledPath([
             .root,
             .root,
-            .section(.trainer)
+            .section(.exercise)
         ])
-        if duplicateRootPath != [.root, .section(.trainer)] {
+        if duplicateRootPath != [.root, .section(.exercise)] {
             issues.append(
                 issue(fixtureName, "reconciledPath 应去除重复 route，并保持 root 在首位。")
             )
@@ -898,19 +1077,29 @@ private extension SettingsNavigationValidationRunner {
         if SettingsRouteID.root.fallbackTitle != "Settings" {
             issues.append(issue(fixtureName, "root fallbackTitle 应为 Settings。"))
         }
-        if SettingsRouteID.section(.trainer).fallbackTitle != "Trainer" {
-            issues.append(issue(fixtureName, "section(.trainer) fallbackTitle 应为 Trainer。"))
+        if SettingsRouteID.section(.exercise).fallbackTitle != "Exercise" {
+            issues.append(issue(fixtureName, "section(.exercise) fallbackTitle 应为 Exercise。"))
         }
-        if SettingsRouteID.trainerExercise.fallbackTitle != "Exercise" {
-            issues.append(issue(fixtureName, "trainerExercise fallbackTitle 应为 Exercise。"))
+        if SettingsRouteID.exerciseMode.fallbackTitle != "Mode" {
+            issues.append(issue(fixtureName, "exerciseMode fallbackTitle 应为 Mode。"))
         }
-        if SettingsRouteID.trainerPositionFilter.fallbackTitle != "Position Filter" {
+        if SettingsRouteID.exerciseComposition.fallbackTitle != "Composition" {
             issues.append(
-                issue(fixtureName, "trainerPositionFilter fallbackTitle 应为 Position Filter。")
+                issue(fixtureName, "exerciseComposition fallbackTitle 应为 Composition。")
             )
         }
-        if SettingsRouteID.staffClef.fallbackTitle != "Clef" {
-            issues.append(issue(fixtureName, "staffClef fallbackTitle 应为 Clef。"))
+        if SettingsRouteID.accessoryVisibility.fallbackTitle != "Visibility" {
+            issues.append(issue(fixtureName, "accessoryVisibility fallbackTitle 应为 Visibility。"))
+        }
+        if SettingsRouteID.accessoryPresentation.fallbackTitle != "Presentation" {
+            issues.append(
+                issue(fixtureName, "accessoryPresentation fallbackTitle 应为 Presentation。")
+            )
+        }
+        if SettingsRouteID.fretboardViewport.fallbackTitle != "Vertical Viewport" {
+            issues.append(
+                issue(fixtureName, "fretboardViewport fallbackTitle 应为 Vertical Viewport。")
+            )
         }
         if SettingsRouteID.staffLayout.fallbackTitle != "Layout" {
             issues.append(issue(fixtureName, "staffLayout fallbackTitle 应为 Layout。"))
@@ -945,16 +1134,16 @@ private extension SettingsNavigationValidationRunner {
                 issue(fixtureName, "backButtonIdentifier 应为 settings-navigation-back-button。")
             )
         }
-        if SettingsNavigationAccessibility.routeItemIdentifier(for: .trainerPositionFilter)
-            != "settings-navigation-route-trainer-position-filter" {
+        if SettingsNavigationAccessibility.routeItemIdentifier(for: .accessoryPresentation)
+            != "settings-navigation-route-accessory-presentation" {
             issues.append(
-                issue(fixtureName, "trainerPositionFilter route item identifier 应保持稳定。")
+                issue(fixtureName, "accessoryPresentation route item identifier 应保持稳定。")
             )
         }
-        if SettingsNavigationAccessibility.pageIdentifier(for: .section(.trainer))
-            != "settings-navigation-page-section-trainer" {
+        if SettingsNavigationAccessibility.pageIdentifier(for: .section(.exercise))
+            != "settings-navigation-page-section-exercise" {
             issues.append(
-                issue(fixtureName, "section(.trainer) page identifier 应保持稳定。")
+                issue(fixtureName, "section(.exercise) page identifier 应保持稳定。")
             )
         }
 

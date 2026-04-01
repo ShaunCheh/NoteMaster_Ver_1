@@ -26,6 +26,9 @@ enum SettingsRowID: Equatable, Hashable, Sendable {
 }
 
 enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
+    case exercise
+    case positionPrompt
+    case accessories
     case page
     case trainer
     case fretboard
@@ -34,8 +37,26 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     case piano
     case debug
 
+    static var allCases: [SettingsSectionID] {
+        [
+            .exercise,
+            .positionPrompt,
+            .accessories,
+            .fretboard,
+            .staff,
+            .piano,
+            .debug
+        ]
+    }
+
     var title: String {
         switch self {
+        case .exercise:
+            return "Exercise"
+        case .positionPrompt:
+            return "Position Prompt"
+        case .accessories:
+            return "Accessories"
         case .page:
             return "Page"
         case .trainer:
@@ -55,6 +76,24 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var rowIDs: [SettingsRowID] {
         switch self {
+        case .exercise:
+            return [
+                .choice(.exerciseMode),
+                .choice(.compositionPreset),
+                .choice(.layoutPreset)
+            ]
+        case .positionPrompt:
+            return [
+                .choice(.positionPromptFilterMode),
+                .positionFilter(.positionPromptFilterOptions)
+            ]
+        case .accessories:
+            return [
+                .toggle(.naturalStripVisible),
+                .toggle(.pianoAccessoryVisible),
+                .choice(.accessoryPresentation),
+                .toggle(.accessoryExpanded)
+            ]
         case .page:
             return [
                 .choice(.topContent),
@@ -70,6 +109,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .choice(.instrument),
                 .choice(.displayMode),
+                .slider(.verticalHostHeightRatio),
                 .choice(.stringThickness),
                 .choice(.labels),
                 .choice(.spelling),
@@ -88,7 +128,6 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             ]
         case .piano:
             return [
-                .toggle(.pianoVisible),
                 .slider(.pianoRowCount),
                 .choice(.pianoMovementScope),
                 .choice(.pianoWhiteKeyStyle),
@@ -108,7 +147,7 @@ enum SettingsPositionFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
     var sectionID: SettingsSectionID {
         switch self {
         case .positionPromptFilterOptions:
-            return .trainer
+            return .positionPrompt
         }
     }
 
@@ -145,7 +184,10 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     case topContent
     case mainContent
     case exerciseMode
+    case compositionPreset
+    case layoutPreset
     case positionPromptFilterMode
+    case accessoryPresentation
     case instrument
     case displayMode
     case stringThickness
@@ -160,8 +202,12 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .topContent, .mainContent:
             return .page
-        case .exerciseMode, .positionPromptFilterMode:
-            return .trainer
+        case .exerciseMode, .compositionPreset, .layoutPreset:
+            return .exercise
+        case .positionPromptFilterMode:
+            return .positionPrompt
+        case .accessoryPresentation:
+            return .accessories
         case .instrument, .displayMode, .stringThickness, .labels, .spelling, .octave:
             return .fretboard
         case .clef:
@@ -181,8 +227,14 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Main Content"
         case .exerciseMode:
             return "Exercise Mode"
+        case .compositionPreset:
+            return "Composition Preset"
+        case .layoutPreset:
+            return "Layout Preset"
         case .positionPromptFilterMode:
             return "Filter"
+        case .accessoryPresentation:
+            return "Accessory Presentation"
         case .instrument:
             return "Instrument"
         case .displayMode:
@@ -212,8 +264,14 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return "Select main content"
         case .exerciseMode:
             return "Select exercise mode"
+        case .compositionPreset:
+            return "Select which prompt and answer surface pairing should be used"
+        case .layoutPreset:
+            return "Select how the current exercise surfaces are arranged on screen"
         case .positionPromptFilterMode:
             return "Select which position filter mode is active"
+        case .accessoryPresentation:
+            return "Select how accessory surfaces should be attached to the main exercise scene"
         case .instrument:
             return "Select instrument"
         case .displayMode:
@@ -240,7 +298,10 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
         case .topContent,
              .mainContent,
              .exerciseMode,
+             .compositionPreset,
+             .layoutPreset,
              .positionPromptFilterMode,
+             .accessoryPresentation,
              .instrument,
              .displayMode,
              .stringThickness,
@@ -266,7 +327,14 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
              .pianoMovementScope,
              .pianoWhiteKeyStyle:
             return .segmented
-        case .instrument, .displayMode, .labels, .spelling, .octave:
+        case .compositionPreset,
+             .layoutPreset,
+             .accessoryPresentation,
+             .instrument,
+             .displayMode,
+             .labels,
+             .spelling,
+             .octave:
             return .chips
         }
     }
@@ -290,10 +358,29 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
                 .setExerciseModeSequence,
                 .setExerciseModePositionPrompt
             ]
+        case .compositionPreset:
+            return [
+                .setCompositionPresetStaffToFretboard,
+                .setCompositionPresetTargetPromptToFretboard,
+                .setCompositionPresetFretboardToNaturalNoteStrip,
+                .setCompositionPresetFretboardSelfAnswer
+            ]
+        case .layoutPreset:
+            return [
+                .setLayoutPresetStacked,
+                .setLayoutPresetSideBySide,
+                .setLayoutPresetSingleSurface
+            ]
         case .positionPromptFilterMode:
             return [
                 .setPositionPromptFilterModeNoteName,
                 .setPositionPromptFilterModeFret
+            ]
+        case .accessoryPresentation:
+            return [
+                .setAccessoryPresentationDocked,
+                .setAccessoryPresentationFloating,
+                .setAccessoryPresentationCollapsible
             ]
         case .instrument:
             return [
@@ -357,8 +444,18 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setExerciseModeSingle
     case setExerciseModeSequence
     case setExerciseModePositionPrompt
+    case setCompositionPresetStaffToFretboard
+    case setCompositionPresetTargetPromptToFretboard
+    case setCompositionPresetFretboardToNaturalNoteStrip
+    case setCompositionPresetFretboardSelfAnswer
+    case setLayoutPresetStacked
+    case setLayoutPresetSideBySide
+    case setLayoutPresetSingleSurface
     case setPositionPromptFilterModeNoteName
     case setPositionPromptFilterModeFret
+    case setAccessoryPresentationDocked
+    case setAccessoryPresentationFloating
+    case setAccessoryPresentationCollapsible
     case setInstrumentGuitar6
     case setInstrumentBass4
     case setInstrumentBass5
@@ -395,9 +492,22 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt:
             return .exerciseMode
+        case .setCompositionPresetStaffToFretboard,
+             .setCompositionPresetTargetPromptToFretboard,
+             .setCompositionPresetFretboardToNaturalNoteStrip,
+             .setCompositionPresetFretboardSelfAnswer:
+            return .compositionPreset
+        case .setLayoutPresetStacked,
+             .setLayoutPresetSideBySide,
+             .setLayoutPresetSingleSurface:
+            return .layoutPreset
         case .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret:
             return .positionPromptFilterMode
+        case .setAccessoryPresentationDocked,
+             .setAccessoryPresentationFloating,
+             .setAccessoryPresentationCollapsible:
+            return .accessoryPresentation
         case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5:
@@ -450,10 +560,30 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Sequence"
         case .setExerciseModePositionPrompt:
             return "Position"
+        case .setCompositionPresetStaffToFretboard:
+            return "Staff"
+        case .setCompositionPresetTargetPromptToFretboard:
+            return "Target"
+        case .setCompositionPresetFretboardToNaturalNoteStrip:
+            return "Strip"
+        case .setCompositionPresetFretboardSelfAnswer:
+            return "Self"
+        case .setLayoutPresetStacked:
+            return "Stacked"
+        case .setLayoutPresetSideBySide:
+            return "Side"
+        case .setLayoutPresetSingleSurface:
+            return "Single"
         case .setPositionPromptFilterModeNoteName:
             return "Note Names"
         case .setPositionPromptFilterModeFret:
             return "Frets"
+        case .setAccessoryPresentationDocked:
+            return "Docked"
+        case .setAccessoryPresentationFloating:
+            return "Floating"
+        case .setAccessoryPresentationCollapsible:
+            return "Collapsible"
         case .setInstrumentGuitar6:
             return "Guitar 6"
         case .setInstrumentBass4:
@@ -519,10 +649,30 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Train a generated note sequence"
         case .setExerciseModePositionPrompt:
             return "Train note names from a highlighted fretboard position"
+        case .setCompositionPresetStaffToFretboard:
+            return "Use the staff as the prompt surface and the fretboard as the answer surface"
+        case .setCompositionPresetTargetPromptToFretboard:
+            return "Use the target prompt as the prompt surface and the fretboard as the answer surface"
+        case .setCompositionPresetFretboardToNaturalNoteStrip:
+            return "Use the fretboard as the prompt surface and the natural note strip as the answer surface"
+        case .setCompositionPresetFretboardSelfAnswer:
+            return "Use a single fretboard as both the prompt surface and the answer surface"
+        case .setLayoutPresetStacked:
+            return "Arrange the exercise surfaces in a top and bottom stack"
+        case .setLayoutPresetSideBySide:
+            return "Arrange the exercise surfaces side by side"
+        case .setLayoutPresetSingleSurface:
+            return "Arrange the exercise as a single shared surface"
         case .setPositionPromptFilterModeNoteName:
             return "Filter highlighted fretboard positions by note name"
         case .setPositionPromptFilterModeFret:
             return "Filter highlighted fretboard positions by fret number"
+        case .setAccessoryPresentationDocked:
+            return "Attach accessories directly below the main exercise content"
+        case .setAccessoryPresentationFloating:
+            return "Show accessories as floating overlays"
+        case .setAccessoryPresentationCollapsible:
+            return "Show accessories in a collapsible area"
         case .setInstrumentGuitar6:
             return "Use 6-string guitar standard tuning"
         case .setInstrumentBass4:
@@ -590,10 +740,40 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.trainerDisplayState.exerciseMode == .sequence
         case .setExerciseModePositionPrompt:
             return stateContext.trainerDisplayState.exerciseMode == .positionPrompt
+        case .setCompositionPresetStaffToFretboard:
+            return stateContext.exerciseLayoutPreferences.compositionPreset
+                == .staffToFretboard
+        case .setCompositionPresetTargetPromptToFretboard:
+            return stateContext.exerciseLayoutPreferences.compositionPreset
+                == .targetPromptToFretboard
+        case .setCompositionPresetFretboardToNaturalNoteStrip:
+            return stateContext.exerciseLayoutPreferences.compositionPreset
+                == .fretboardToNaturalNoteStrip
+        case .setCompositionPresetFretboardSelfAnswer:
+            return stateContext.exerciseLayoutPreferences.compositionPreset
+                == .fretboardSelfAnswer
+        case .setLayoutPresetStacked:
+            return stateContext.exerciseLayoutPreferences.layoutPreset
+                == .stacked
+        case .setLayoutPresetSideBySide:
+            return stateContext.exerciseLayoutPreferences.layoutPreset
+                == .sideBySide
+        case .setLayoutPresetSingleSurface:
+            return stateContext.exerciseLayoutPreferences.layoutPreset
+                == .singleSurface
         case .setPositionPromptFilterModeNoteName:
             return stateContext.trainerDisplayState.positionPromptConfiguration.filterMode == .noteName
         case .setPositionPromptFilterModeFret:
             return stateContext.trainerDisplayState.positionPromptConfiguration.filterMode == .fret
+        case .setAccessoryPresentationDocked:
+            return stateContext.exerciseLayoutPreferences.accessoryPresentation
+                == .docked
+        case .setAccessoryPresentationFloating:
+            return stateContext.exerciseLayoutPreferences.accessoryPresentation
+                == .floating
+        case .setAccessoryPresentationCollapsible:
+            return stateContext.exerciseLayoutPreferences.accessoryPresentation
+                == .collapsible
         case .setInstrumentGuitar6:
             return stateContext.fretboardDisplayState.configuration.instrument == .guitar6
         case .setInstrumentBass4:
@@ -642,9 +822,49 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     }
 
     func isEnabled(
-        in _: SettingsPanelStateContext
+        in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
+        case .setCompositionPresetStaffToFretboard:
+            return LegacyPageLayoutAdapter.isCompositionPresetSupported(
+                .staffToFretboard,
+                for: stateContext.trainerDisplayState.exerciseMode
+            )
+        case .setCompositionPresetTargetPromptToFretboard:
+            return LegacyPageLayoutAdapter.isCompositionPresetSupported(
+                .targetPromptToFretboard,
+                for: stateContext.trainerDisplayState.exerciseMode
+            )
+        case .setCompositionPresetFretboardToNaturalNoteStrip:
+            return LegacyPageLayoutAdapter.isCompositionPresetSupported(
+                .fretboardToNaturalNoteStrip,
+                for: stateContext.trainerDisplayState.exerciseMode
+            )
+        case .setCompositionPresetFretboardSelfAnswer:
+            return LegacyPageLayoutAdapter.isCompositionPresetSupported(
+                .fretboardSelfAnswer,
+                for: stateContext.trainerDisplayState.exerciseMode
+            )
+        case .setLayoutPresetStacked:
+            return LegacyPageLayoutAdapter.isLayoutPresetSupported(.stacked)
+        case .setLayoutPresetSideBySide:
+            return LegacyPageLayoutAdapter.isLayoutPresetSupported(.sideBySide)
+        case .setLayoutPresetSingleSurface:
+            return LegacyPageLayoutAdapter.isLayoutPresetSupported(
+                .singleSurface
+            )
+        case .setAccessoryPresentationDocked:
+            return LegacyPageLayoutAdapter.isAccessoryPresentationSupported(
+                .docked
+            )
+        case .setAccessoryPresentationFloating:
+            return LegacyPageLayoutAdapter.isAccessoryPresentationSupported(
+                .floating
+            )
+        case .setAccessoryPresentationCollapsible:
+            return LegacyPageLayoutAdapter.isAccessoryPresentationSupported(
+                .collapsible
+            )
         case .setTopContentStaff,
              .setTopContentTargetPrompt,
              .setMainContentFretboard,
@@ -692,8 +912,18 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setCompositionPresetStaffToFretboard,
+             .setCompositionPresetTargetPromptToFretboard,
+             .setCompositionPresetFretboardToNaturalNoteStrip,
+             .setCompositionPresetFretboardSelfAnswer,
+             .setLayoutPresetStacked,
+             .setLayoutPresetSideBySide,
+             .setLayoutPresetSingleSurface,
              .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret,
+             .setAccessoryPresentationDocked,
+             .setAccessoryPresentationFloating,
+             .setAccessoryPresentationCollapsible,
              .setPianoMovementScopeCascade,
              .setPianoMovementScopeRowOnly,
              .setPianoWhiteKeyStyleOutlined,
@@ -750,8 +980,18 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setCompositionPresetStaffToFretboard,
+             .setCompositionPresetTargetPromptToFretboard,
+             .setCompositionPresetFretboardToNaturalNoteStrip,
+             .setCompositionPresetFretboardSelfAnswer,
+             .setLayoutPresetStacked,
+             .setLayoutPresetSideBySide,
+             .setLayoutPresetSingleSurface,
              .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret,
+             .setAccessoryPresentationDocked,
+             .setAccessoryPresentationFloating,
+             .setAccessoryPresentationCollapsible,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -791,8 +1031,18 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
+             .setCompositionPresetStaffToFretboard,
+             .setCompositionPresetTargetPromptToFretboard,
+             .setCompositionPresetFretboardToNaturalNoteStrip,
+             .setCompositionPresetFretboardSelfAnswer,
+             .setLayoutPresetStacked,
+             .setLayoutPresetSideBySide,
+             .setLayoutPresetSingleSurface,
              .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret,
+             .setAccessoryPresentationDocked,
+             .setAccessoryPresentationFloating,
+             .setAccessoryPresentationCollapsible,
              .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
@@ -827,10 +1077,22 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.setExerciseMode(.sequence)
         case .setExerciseModePositionPrompt:
             displayState.setExerciseMode(.positionPrompt)
+        case .setCompositionPresetStaffToFretboard,
+             .setCompositionPresetTargetPromptToFretboard,
+             .setCompositionPresetFretboardToNaturalNoteStrip,
+             .setCompositionPresetFretboardSelfAnswer,
+             .setLayoutPresetStacked,
+             .setLayoutPresetSideBySide,
+             .setLayoutPresetSingleSurface:
+            return
         case .setPositionPromptFilterModeNoteName:
             displayState.setPositionPromptFilterMode(.noteName)
         case .setPositionPromptFilterModeFret:
             displayState.setPositionPromptFilterMode(.fret)
+        case .setAccessoryPresentationDocked,
+             .setAccessoryPresentationFloating,
+             .setAccessoryPresentationCollapsible:
+            return
         case .setTopContentStaff,
              .setTopContentTargetPrompt,
              .setTopContentFretboard,
@@ -874,6 +1136,17 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             pianoPanelState.whiteKeyStyle = .borderlessSeparatedByGaps
         case .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             pianoPanelState.whiteKeyStyle = .skeuomorphicHighlight
+        case .setCompositionPresetStaffToFretboard,
+             .setCompositionPresetTargetPromptToFretboard,
+             .setCompositionPresetFretboardToNaturalNoteStrip,
+             .setCompositionPresetFretboardSelfAnswer,
+             .setLayoutPresetStacked,
+             .setLayoutPresetSideBySide,
+             .setLayoutPresetSingleSurface,
+             .setAccessoryPresentationDocked,
+             .setAccessoryPresentationFloating,
+             .setAccessoryPresentationCollapsible:
+            return
         case .setTopContentStaff,
              .setTopContentTargetPrompt,
              .setTopContentFretboard,
@@ -905,12 +1178,95 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         }
     }
 
+    func apply(
+        to exerciseLayoutPreferences: inout ExerciseLayoutPreferences
+    ) {
+        switch self {
+        case .setCompositionPresetStaffToFretboard:
+            exerciseLayoutPreferences.compositionPreset = .staffToFretboard
+        case .setCompositionPresetTargetPromptToFretboard:
+            exerciseLayoutPreferences.compositionPreset = .targetPromptToFretboard
+        case .setCompositionPresetFretboardToNaturalNoteStrip:
+            exerciseLayoutPreferences.compositionPreset = .fretboardToNaturalNoteStrip
+        case .setCompositionPresetFretboardSelfAnswer:
+            exerciseLayoutPreferences.compositionPreset = .fretboardSelfAnswer
+        case .setLayoutPresetStacked:
+            exerciseLayoutPreferences.layoutPreset = .stacked
+        case .setLayoutPresetSideBySide:
+            exerciseLayoutPreferences.layoutPreset = .sideBySide
+        case .setLayoutPresetSingleSurface:
+            exerciseLayoutPreferences.layoutPreset = .singleSurface
+        case .setAccessoryPresentationDocked:
+            exerciseLayoutPreferences.accessoryPresentation = .docked
+        case .setAccessoryPresentationFloating:
+            exerciseLayoutPreferences.accessoryPresentation = .floating
+        case .setAccessoryPresentationCollapsible:
+            exerciseLayoutPreferences.accessoryPresentation = .collapsible
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt,
+             .setTopContentFretboard,
+             .setMainContentFretboard,
+             .setMainContentNaturalNotes,
+             .setExerciseModeSingle,
+             .setExerciseModeSequence,
+             .setExerciseModePositionPrompt,
+             .setPositionPromptFilterModeNoteName,
+             .setPositionPromptFilterModeFret,
+             .setInstrumentGuitar6,
+             .setInstrumentBass4,
+             .setInstrumentBass5,
+             .setDisplayModeHorizontal,
+             .setDisplayModeVertical,
+             .setStringThicknessUniform,
+             .setStringThicknessGraduated,
+             .setVisibilityAll,
+             .setVisibilityNaturalOnly,
+             .setVisibilityBCEFOnly,
+             .setVisibilityAccidentalOnly,
+             .setVisibilityNone,
+             .setSpellingSharp,
+             .setSpellingFlat,
+             .toggleShowsOctave,
+             .setClefTreble,
+             .setClefBass,
+             .setPianoMovementScopeCascade,
+             .setPianoMovementScopeRowOnly,
+             .setPianoWhiteKeyStyleOutlined,
+             .setPianoWhiteKeyStyleGapOnly,
+             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
+            return
+        }
+    }
+
     func apply(to stateContext: inout SettingsPanelStateContext) {
         apply(to: &stateContext.fretboardDisplayState)
         apply(to: &stateContext.staffDisplayState)
         apply(to: &stateContext.pageDisplayState)
+        apply(to: &stateContext.exerciseLayoutPreferences)
         apply(to: &stateContext.trainerDisplayState)
         apply(to: &stateContext.pianoPanelState)
+        if usesLegacyPagePlacementAction {
+            stateContext.exerciseLayoutPreferences = LegacyPageLayoutAdapter
+                .inferredPreferences(
+                    pageDisplayState: stateContext.pageDisplayState,
+                    trainerDisplayState: stateContext.trainerDisplayState,
+                    pianoPanelState: stateContext.pianoPanelState
+                )
+        }
+        LegacyPageLayoutAdapter.reconcile(&stateContext)
+    }
+
+    private var usesLegacyPagePlacementAction: Bool {
+        switch self {
+        case .setTopContentStaff,
+             .setTopContentTargetPrompt,
+             .setTopContentFretboard,
+             .setMainContentFretboard,
+             .setMainContentNaturalNotes:
+            return true
+        default:
+            return false
+        }
     }
 }
 
@@ -948,14 +1304,20 @@ struct SettingsPositionFilterRow: Equatable, Sendable {
 
 enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
     case showsComponentBounds
-    case pianoVisible
+    case naturalStripVisible
+    case pianoAccessoryVisible
+    case accessoryExpanded
     case pianoSnapEnabled
 
     var sectionID: SettingsSectionID {
         switch self {
         case .showsComponentBounds:
             return .debug
-        case .pianoVisible, .pianoSnapEnabled:
+        case .naturalStripVisible,
+             .pianoAccessoryVisible,
+             .accessoryExpanded:
+            return .accessories
+        case .pianoSnapEnabled:
             return .piano
         }
     }
@@ -964,8 +1326,12 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             return "Component Bounds"
-        case .pianoVisible:
-            return "Visible"
+        case .naturalStripVisible:
+            return "Natural Strip Visible"
+        case .pianoAccessoryVisible:
+            return "Piano Accessory Visible"
+        case .accessoryExpanded:
+            return "Accessory Expanded"
         case .pianoSnapEnabled:
             return "Snap Drag"
         }
@@ -975,8 +1341,12 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             return "Toggle green bounds overlay for fretboard and staff"
-        case .pianoVisible:
-            return "Toggle whether the piano demo is visible in the page layout"
+        case .naturalStripVisible:
+            return "Toggle whether the natural note strip accessory is visible"
+        case .pianoAccessoryVisible:
+            return "Toggle whether the piano accessory is visible beneath the main exercise content"
+        case .accessoryExpanded:
+            return "Toggle whether the accessory area starts expanded"
         case .pianoSnapEnabled:
             return "Toggle whether piano scale dragging snaps to semitone alignment when released"
         }
@@ -989,19 +1359,32 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             return stateContext.fretboardDisplayState.showsComponentBoundsOverlay
                 || stateContext.staffDisplayState.showsComponentBoundsOverlay
-        case .pianoVisible:
-            return stateContext.pianoPanelState.isVisible
+        case .naturalStripVisible:
+            return stateContext.exerciseLayoutPreferences.isNaturalNoteStripVisible
+        case .pianoAccessoryVisible:
+            return stateContext.exerciseLayoutPreferences.isPianoAccessoryVisible
+        case .accessoryExpanded:
+            return stateContext.exerciseLayoutPreferences.isAccessoryExpanded
         case .pianoSnapEnabled:
             return stateContext.pianoPanelState.snapEnabled
         }
     }
 
     func isEnabled(
-        in _: SettingsPanelStateContext
+        in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
-        case .showsComponentBounds, .pianoVisible, .pianoSnapEnabled:
+        case .showsComponentBounds, .pianoAccessoryVisible, .pianoSnapEnabled:
             return true
+        case .naturalStripVisible:
+            return LegacyPageLayoutAdapter.isNaturalStripToggleSupported(
+                in: stateContext
+            )
+        case .accessoryExpanded:
+            return LegacyPageLayoutAdapter.isAccessoryExpandedSupported(
+                accessoryPresentation: stateContext.exerciseLayoutPreferences
+                    .accessoryPresentation
+            )
         }
     }
 
@@ -1009,7 +1392,10 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
-        case .pianoVisible, .pianoSnapEnabled:
+        case .naturalStripVisible,
+             .pianoAccessoryVisible,
+             .accessoryExpanded,
+             .pianoSnapEnabled:
             return
         }
     }
@@ -1018,7 +1404,10 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
-        case .pianoVisible, .pianoSnapEnabled:
+        case .naturalStripVisible,
+             .pianoAccessoryVisible,
+             .accessoryExpanded,
+             .pianoSnapEnabled:
             return
         }
     }
@@ -1031,8 +1420,15 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             apply(value: value, to: &stateContext.fretboardDisplayState)
             apply(value: value, to: &stateContext.staffDisplayState)
-        case .pianoVisible:
-            stateContext.pianoPanelState.isVisible = value
+        case .naturalStripVisible:
+            stateContext.exerciseLayoutPreferences.isNaturalNoteStripVisible = value
+            LegacyPageLayoutAdapter.reconcile(&stateContext)
+        case .pianoAccessoryVisible:
+            stateContext.exerciseLayoutPreferences.isPianoAccessoryVisible = value
+            LegacyPageLayoutAdapter.reconcile(&stateContext)
+        case .accessoryExpanded:
+            stateContext.exerciseLayoutPreferences.isAccessoryExpanded = value
+            LegacyPageLayoutAdapter.reconcile(&stateContext)
         case .pianoSnapEnabled:
             stateContext.pianoPanelState.snapEnabled = value
         }
@@ -1059,7 +1455,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
             return .staff
         case .verticalHostHeightRatio:
-            return .layout
+            return .fretboard
         case .pianoRowCount:
             return .piano
         }
@@ -1074,7 +1470,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .clefAnchorYOffset:
             return "Anchor Y Offset"
         case .verticalHostHeightRatio:
-            return "Viewport Height"
+            return "Vertical Viewport Height"
         case .pianoRowCount:
             return "Rows"
         }
@@ -1089,7 +1485,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .clefAnchorYOffset:
             return "Adjust clef anchor vertical offset"
         case .verticalHostHeightRatio:
-            return "Adjust vertical fretboard viewport height. Increasing height may require horizontal scrolling."
+            return "Adjust the visible height of the vertical fretboard viewport. Increasing height may require horizontal scrolling."
         case .pianoRowCount:
             return "Adjust the number of visible piano rows"
         }
