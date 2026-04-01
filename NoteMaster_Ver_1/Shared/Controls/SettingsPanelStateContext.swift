@@ -14,7 +14,7 @@ struct SettingsPanelStateContext: Equatable, Sendable {
     var pianoPanelState: PianoPanelState
 
     static let `default` = SettingsPanelStateContext(
-        pageDisplayState: .positionPrompt,
+        exerciseLayoutPreferences: .legacyPositionPrompt,
         trainerDisplayState: .default,
         pianoPanelState: .init()
     )
@@ -22,21 +22,57 @@ struct SettingsPanelStateContext: Equatable, Sendable {
     init(
         fretboardDisplayState: FretboardDisplayState = .default,
         staffDisplayState: StaffDisplayState = .default,
-        pageDisplayState: PageDisplayState = .default,
+        pageDisplayState: PageDisplayState? = nil,
         exerciseLayoutPreferences: ExerciseLayoutPreferences? = nil,
         trainerDisplayState: TrainerDisplayState = .default,
         pianoPanelState: PianoPanelState = .init()
     ) {
         self.fretboardDisplayState = fretboardDisplayState
         self.staffDisplayState = staffDisplayState
-        self.pageDisplayState = pageDisplayState
         self.trainerDisplayState = trainerDisplayState
         self.pianoPanelState = pianoPanelState
-        self.exerciseLayoutPreferences = exerciseLayoutPreferences
-            ?? LegacyPageLayoutAdapter.inferredPreferences(
+        self.exerciseLayoutPreferences = Self.resolvedLayoutPreferences(
+            pageDisplayState: pageDisplayState,
+            exerciseLayoutPreferences: exerciseLayoutPreferences,
+            trainerDisplayState: trainerDisplayState,
+            pianoPanelState: pianoPanelState
+        )
+        self.pageDisplayState = pageDisplayState
+            ?? LegacyPageLayoutAdapter.projectedPageDisplayState(
+                from: self.exerciseLayoutPreferences,
+                trainerDisplayState: trainerDisplayState
+            )
+        LegacyPageLayoutAdapter.reconcile(&self)
+    }
+
+    private static func resolvedLayoutPreferences(
+        pageDisplayState: PageDisplayState?,
+        exerciseLayoutPreferences: ExerciseLayoutPreferences?,
+        trainerDisplayState: TrainerDisplayState,
+        pianoPanelState: PianoPanelState
+    ) -> ExerciseLayoutPreferences {
+        if let exerciseLayoutPreferences {
+            return LegacyPageLayoutAdapter.normalizedPreferences(
+                exerciseLayoutPreferences,
+                trainerDisplayState: trainerDisplayState
+            )
+        }
+
+        if let pageDisplayState {
+            return LegacyPageLayoutAdapter.inferredPreferences(
                 pageDisplayState: pageDisplayState,
                 trainerDisplayState: trainerDisplayState,
                 pianoPanelState: pianoPanelState
             )
+        }
+
+        var fallbackPreferences = trainerDisplayState.isPositionPromptMode
+            ? ExerciseLayoutPreferences.legacyPositionPrompt
+            : .default
+        fallbackPreferences.isPianoAccessoryVisible = pianoPanelState.isVisible
+        return LegacyPageLayoutAdapter.normalizedPreferences(
+            fallbackPreferences,
+            trainerDisplayState: trainerDisplayState
+        )
     }
 }

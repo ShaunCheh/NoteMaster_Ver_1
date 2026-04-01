@@ -298,7 +298,7 @@ enum SettingsNavigationSnapshotBuilder {
                     ]
                 )
             ]
-        case .page, .layout, .debug:
+        case .layout, .debug:
             return nil
         }
     }

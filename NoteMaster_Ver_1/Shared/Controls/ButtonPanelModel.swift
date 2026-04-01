@@ -93,8 +93,7 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
         settingsActionID.isSelected(
             in: SettingsPanelStateContext(
                 fretboardDisplayState: displayState,
-                staffDisplayState: .default,
-                pageDisplayState: .default
+                staffDisplayState: .default
             )
         )
     }
@@ -103,8 +102,7 @@ enum ButtonPanelActionID: CaseIterable, Equatable, Hashable, Sendable {
         settingsActionID.isEnabled(
             in: SettingsPanelStateContext(
                 fretboardDisplayState: displayState,
-                staffDisplayState: .default,
-                pageDisplayState: .default
+                staffDisplayState: .default
             )
         )
     }

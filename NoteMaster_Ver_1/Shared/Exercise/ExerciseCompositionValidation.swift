@@ -432,24 +432,15 @@ private extension ExerciseCompositionValidationRunner {
             )
         }
 
-        var delegatedTopPrioritizedState = PageDisplayState.default
-        delegatedTopPrioritizedState.setTopContentMode(.fretboard)
-        if delegatedTopPrioritizedState != topPrioritizedState {
+        let initNormalizedState = PageDisplayState(
+            topContentMode: .fretboard,
+            mainContentMode: .fretboard
+        )
+        if initNormalizedState != topPrioritizedState {
             issues.append(
                 issue(
                     fixtureName,
-                    "PageDisplayState.setTopContentMode 应委托 shared validator 的 top 优先归一化规则。"
-                )
-            )
-        }
-
-        var delegatedMainPrioritizedState = PageDisplayState.positionPrompt
-        delegatedMainPrioritizedState.setMainContentMode(.fretboard)
-        if delegatedMainPrioritizedState != mainPrioritizedState {
-            issues.append(
-                issue(
-                    fixtureName,
-                    "PageDisplayState.setMainContentMode 应委托 shared validator 的 main 优先归一化规则。"
+                    "PageDisplayState 初始化仍应保持 top 优先的 legacy 归一化结果。"
                 )
             )
         }
@@ -566,7 +557,8 @@ private extension ExerciseCompositionValidationRunner {
             from: SettingsPanelStateContext(
                 fretboardDisplayState: horizontalFretboardDisplayState,
                 staffDisplayState: defaultStateContext.staffDisplayState,
-                pageDisplayState: defaultStateContext.pageDisplayState,
+                exerciseLayoutPreferences: defaultStateContext
+                    .exerciseLayoutPreferences,
                 trainerDisplayState: defaultStateContext.trainerDisplayState,
                 pianoPanelState: defaultStateContext.pianoPanelState
             )
@@ -772,7 +764,6 @@ private extension ExerciseCompositionValidationRunner {
 
         let customPreferences = ExerciseLayoutPreferences.singleFretboardSelfAnswer
         let stateContext = SettingsPanelStateContext(
-            pageDisplayState: .positionPrompt,
             exerciseLayoutPreferences: customPreferences,
             trainerDisplayState: TrainerDisplayState(exerciseMode: .positionPrompt)
         )
@@ -780,7 +771,7 @@ private extension ExerciseCompositionValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "并存阶段设置 context 仍应保留 legacy pageDisplayState。"
+                    "设置 context 应继续从 ExerciseLayoutPreferences 投影 legacy page bridge。"
                 )
             )
         }

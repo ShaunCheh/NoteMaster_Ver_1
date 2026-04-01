@@ -52,14 +52,13 @@ final class iOSViewController: UIViewController {
         configuration: initialPianoDemoConfiguration,
         rows: initialPianoDemoRows
     )
-    private static let initialExerciseLayoutPreferences = LegacyPageLayoutAdapter
-        .inferredPreferences(
-            pageDisplayState: .default,
-            trainerDisplayState: .default,
-            pianoPanelState: initialPianoPanelState
+    private static let initialExerciseLayoutPreferences = ExerciseSceneValidator
+        .normalizedPreferences(
+            .legacyPositionPrompt,
+            trainerDisplayState: .default
         )
     private static let initialExercisePresentationState = ExerciseCompositionPolicy
-        .makeLegacyCompatiblePresentation(
+        .makePresentation(
             from: ExerciseCompositionPolicyInput(
                 trainerDisplayState: .default,
                 fretboardTrainerState: .init(positionPromptMode: ()),
@@ -90,16 +89,6 @@ final class iOSViewController: UIViewController {
                 baseStaffDisplayState = staffDisplayState
             }
             applyStaffDisplayState()
-        }
-    }
-    private var pageDisplayState = iOSViewController.initialExercisePresentationState
-        .legacyPageDisplayState ?? .default {
-        didSet {
-            guard isViewLoaded else {
-                return
-            }
-
-            applySettingsPanelState()
         }
     }
     private var exerciseLayoutPreferences = iOSViewController
@@ -164,8 +153,8 @@ final class iOSViewController: UIViewController {
     private func debugStateSnapshot() -> String {
         "trainerDisplay=\(String(describing: trainerDisplayState.exerciseMode)) " +
         "trainerCore=\(String(describing: fretboardTrainerState.mode)) " +
-        "pageTop=\(String(describing: pageDisplayState.topContentMode)) " +
-        "pageMain=\(String(describing: pageDisplayState.mainContentMode)) " +
+        "composition=\(String(describing: exerciseLayoutPreferences.compositionPreset)) " +
+        "layout=\(String(describing: exerciseLayoutPreferences.layoutPreset)) " +
         "displayMode=\(String(describing: displayState.displayMode)) " +
         "showsFretboard=\(isShowingFretboard) " +
         "settingsPresented=\(isSettingsPresented)"
@@ -542,7 +531,6 @@ final class iOSViewController: UIViewController {
         SettingsPanelStateContext(
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState,
-            pageDisplayState: pageDisplayState,
             exerciseLayoutPreferences: exerciseLayoutPreferences,
             trainerDisplayState: trainerDisplayState,
             pianoPanelState: pianoPanelState
@@ -570,24 +558,6 @@ final class iOSViewController: UIViewController {
             != semanticPresentationState.resolvedLayoutPreferences {
             exerciseLayoutPreferences = semanticPresentationState
                 .resolvedLayoutPreferences
-        }
-
-        var legacyCompatibleInput = exerciseCompositionPolicyInput
-        legacyCompatibleInput.layoutPreferences = semanticPresentationState
-            .resolvedLayoutPreferences
-        let legacyCompatiblePresentationState = ExerciseCompositionPolicy
-            .makeLegacyCompatiblePresentation(from: legacyCompatibleInput)
-
-        guard let legacyPageDisplayState = legacyCompatiblePresentationState
-            .legacyPageDisplayState else {
-            logLifecycle(
-                "synchronizeExerciseCompositionState reason=\(reason) legacyProjection=unavailable"
-            )
-            return
-        }
-
-        if pageDisplayState != legacyPageDisplayState {
-            pageDisplayState = legacyPageDisplayState
         }
     }
 

@@ -270,8 +270,21 @@ private extension SettingsNavigationValidationRunner {
             return issues
         }
 
-        if resolveSection(.page, in: panelModel) != nil {
-            issues.append(issue(fixtureName, "default state 不应再保留 Page section。"))
+        if panelModel.sections.map(\.id) != [
+            .exercise,
+            .positionPrompt,
+            .accessories,
+            .fretboard,
+            .staff,
+            .piano,
+            .debug
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 的 section 顺序应保持 Exercise -> Position Prompt -> Accessories -> Fretboard -> Staff -> Piano -> Debug。"
+                )
+            )
         }
         if resolveSection(.layout, in: panelModel) != nil {
             issues.append(issue(fixtureName, "default state 不应再保留 Layout section。"))
@@ -614,7 +627,7 @@ private extension SettingsNavigationValidationRunner {
         }
 
         let positionPromptStateContext = SettingsPanelStateContext(
-            pageDisplayState: .positionPrompt,
+            exerciseLayoutPreferences: .legacyPositionPrompt,
             trainerDisplayState: .default
         )
         let positionPromptNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
@@ -804,9 +817,6 @@ private extension SettingsNavigationValidationRunner {
             return issues
         }
 
-        if resolveSection(.page, in: defaultPanelModel) != nil {
-            issues.append(issue(fixtureName, "default state 不应再暴露 Page section。"))
-        }
         if resolveSection(.layout, in: defaultPanelModel) != nil {
             issues.append(issue(fixtureName, "default state 不应再暴露 Layout section。"))
         }

@@ -57,23 +57,4 @@ struct PageDisplayState: Equatable, Sendable {
     var hasValidFretboardPlacement: Bool {
         !(showsFretboardInTopContent && showsFretboardInMainContent)
     }
-
-    mutating func setTopContentMode(_ mode: PageTopContentMode) {
-        topContentMode = mode
-        normalizeFretboardPlacement(prioritizingTopContent: true)
-    }
-
-    mutating func setMainContentMode(_ mode: PageMainContentMode) {
-        mainContentMode = mode
-        normalizeFretboardPlacement(prioritizingTopContent: false)
-    }
-
-    private mutating func normalizeFretboardPlacement(
-        prioritizingTopContent: Bool
-    ) {
-        self = ExerciseSceneValidator.normalizedLegacyPageDisplayState(
-            from: self,
-            prioritizingTopContent: prioritizingTopContent
-        )
-    }
 }

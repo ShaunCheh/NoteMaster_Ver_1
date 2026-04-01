@@ -29,7 +29,6 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     case exercise
     case positionPrompt
     case accessories
-    case page
     case trainer
     case fretboard
     case staff
@@ -57,8 +56,6 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Position Prompt"
         case .accessories:
             return "Accessories"
-        case .page:
-            return "Page"
         case .trainer:
             return "Trainer"
         case .fretboard:
@@ -93,11 +90,6 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
                 .toggle(.pianoAccessoryVisible),
                 .choice(.accessoryPresentation),
                 .toggle(.accessoryExpanded)
-            ]
-        case .page:
-            return [
-                .choice(.topContent),
-                .choice(.mainContent)
             ]
         case .trainer:
             return [
@@ -181,8 +173,6 @@ enum SettingsPositionFilterOptionID: Equatable, Hashable, Sendable {
 }
 
 enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
-    case topContent
-    case mainContent
     case exerciseMode
     case compositionPreset
     case layoutPreset
@@ -200,8 +190,6 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var sectionID: SettingsSectionID {
         switch self {
-        case .topContent, .mainContent:
-            return .page
         case .exerciseMode, .compositionPreset, .layoutPreset:
             return .exercise
         case .positionPromptFilterMode:
@@ -221,10 +209,6 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var title: String {
         switch self {
-        case .topContent:
-            return "Top Content"
-        case .mainContent:
-            return "Main Content"
         case .exerciseMode:
             return "Exercise Mode"
         case .compositionPreset:
@@ -258,10 +242,6 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var accessibilityLabel: String {
         switch self {
-        case .topContent:
-            return "Select top content"
-        case .mainContent:
-            return "Select main content"
         case .exerciseMode:
             return "Select exercise mode"
         case .compositionPreset:
@@ -295,9 +275,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var selectionStyle: SettingsSelectionStyle {
         switch self {
-        case .topContent,
-             .mainContent,
-             .exerciseMode,
+        case .exerciseMode,
              .compositionPreset,
              .layoutPreset,
              .positionPromptFilterMode,
@@ -318,9 +296,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var presentationStyle: SettingsPresentationStyle {
         switch self {
-        case .topContent,
-             .mainContent,
-             .exerciseMode,
+        case .exerciseMode,
              .positionPromptFilterMode,
              .stringThickness,
              .clef,
@@ -341,17 +317,6 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var actionIDs: [SettingsActionID] {
         switch self {
-        case .topContent:
-            return [
-                .setTopContentStaff,
-                .setTopContentTargetPrompt,
-                .setTopContentFretboard
-            ]
-        case .mainContent:
-            return [
-                .setMainContentFretboard,
-                .setMainContentNaturalNotes
-            ]
         case .exerciseMode:
             return [
                 .setExerciseModeSingle,
@@ -436,11 +401,6 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 }
 
 enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
-    case setTopContentStaff
-    case setTopContentTargetPrompt
-    case setTopContentFretboard
-    case setMainContentFretboard
-    case setMainContentNaturalNotes
     case setExerciseModeSingle
     case setExerciseModeSequence
     case setExerciseModePositionPrompt
@@ -481,13 +441,6 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var rowID: SettingsChoiceRowID {
         switch self {
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard:
-            return .topContent
-        case .setMainContentFretboard,
-             .setMainContentNaturalNotes:
-            return .mainContent
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt:
@@ -544,16 +497,6 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var title: String {
         switch self {
-        case .setTopContentStaff:
-            return "Staff"
-        case .setTopContentTargetPrompt:
-            return "Target"
-        case .setTopContentFretboard:
-            return "Fretboard"
-        case .setMainContentFretboard:
-            return "Fretboard"
-        case .setMainContentNaturalNotes:
-            return "Natural Notes"
         case .setExerciseModeSingle:
             return "Single"
         case .setExerciseModeSequence:
@@ -633,16 +576,6 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var accessibilityLabel: String {
         switch self {
-        case .setTopContentStaff:
-            return "Show staff in the top content area"
-        case .setTopContentTargetPrompt:
-            return "Show target note prompt in the top content area"
-        case .setTopContentFretboard:
-            return "Show fretboard in the top content area"
-        case .setMainContentFretboard:
-            return "Show fretboard in the main content area"
-        case .setMainContentNaturalNotes:
-            return "Show natural note buttons in the main content area"
         case .setExerciseModeSingle:
             return "Train a single target note"
         case .setExerciseModeSequence:
@@ -724,16 +657,6 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
-        case .setTopContentStaff:
-            return stateContext.pageDisplayState.topContentMode == .staff
-        case .setTopContentTargetPrompt:
-            return stateContext.pageDisplayState.topContentMode == .targetPrompt
-        case .setTopContentFretboard:
-            return stateContext.pageDisplayState.topContentMode == .fretboard
-        case .setMainContentFretboard:
-            return stateContext.pageDisplayState.mainContentMode == .fretboard
-        case .setMainContentNaturalNotes:
-            return stateContext.pageDisplayState.mainContentMode == .naturalNoteStrip
         case .setExerciseModeSingle:
             return stateContext.trainerDisplayState.exerciseMode == .single
         case .setExerciseModeSequence:
@@ -872,11 +795,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return LegacyPageLayoutAdapter.isAccessoryPresentationSupported(
                 .collapsible
             )
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes,
-             .setExerciseModeSingle,
+        case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setPositionPromptFilterModeNoteName,
@@ -904,19 +823,12 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setPianoWhiteKeyStyleGapOnly,
              .setPianoWhiteKeyStyleSkeuomorphicHighlight:
             return true
-        case .setTopContentFretboard:
-            return false
         }
     }
 
     func apply(to displayState: inout FretboardDisplayState) {
         switch self {
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes,
-             .setExerciseModeSingle,
+        case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setCompositionPresetStaffToFretboard,
@@ -979,62 +891,6 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.configuration.clef = .treble
         case .setClefBass:
             displayState.configuration.clef = .bass
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes,
-             .setExerciseModeSingle,
-             .setExerciseModeSequence,
-             .setExerciseModePositionPrompt,
-             .setCompositionPresetStaffToFretboard,
-             .setCompositionPresetTargetPromptToFretboard,
-             .setCompositionPresetFretboardToNaturalNoteStrip,
-             .setCompositionPresetFretboardSelfAnswer,
-             .setLayoutPresetStacked,
-             .setLayoutPresetSideBySide,
-             .setLayoutPresetSingleSurface,
-             .setPositionPromptFilterModeNoteName,
-             .setPositionPromptFilterModeFret,
-             .setAccessoryPresentationDocked,
-             .setAccessoryPresentationFloating,
-             .setAccessoryPresentationCollapsible,
-             .setInstrumentGuitar6,
-             .setInstrumentBass4,
-             .setInstrumentBass5,
-             .setDisplayModeHorizontal,
-             .setDisplayModeVertical,
-             .setStringThicknessUniform,
-             .setStringThicknessGraduated,
-             .setVisibilityAll,
-             .setVisibilityNaturalOnly,
-             .setVisibilityBCEFOnly,
-             .setVisibilityAccidentalOnly,
-             .setVisibilityNone,
-             .setSpellingSharp,
-             .setSpellingFlat,
-             .toggleShowsOctave,
-             .setPianoMovementScopeCascade,
-             .setPianoMovementScopeRowOnly,
-             .setPianoWhiteKeyStyleOutlined,
-             .setPianoWhiteKeyStyleGapOnly,
-             .setPianoWhiteKeyStyleSkeuomorphicHighlight:
-            return
-        }
-    }
-
-    func apply(to displayState: inout PageDisplayState) {
-        switch self {
-        case .setTopContentStaff:
-            displayState.setTopContentMode(.staff)
-        case .setTopContentTargetPrompt:
-            displayState.setTopContentMode(.targetPrompt)
-        case .setTopContentFretboard:
-            displayState.setTopContentMode(.fretboard)
-        case .setMainContentFretboard:
-            displayState.setMainContentMode(.fretboard)
-        case .setMainContentNaturalNotes:
-            displayState.setMainContentMode(.naturalNoteStrip)
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
@@ -1065,8 +921,6 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setSpellingSharp,
              .setSpellingFlat,
              .toggleShowsOctave,
-             .setClefTreble,
-             .setClefBass,
              .setPianoMovementScopeCascade,
              .setPianoMovementScopeRowOnly,
              .setPianoWhiteKeyStyleOutlined,
@@ -1100,12 +954,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setAccessoryPresentationFloating,
              .setAccessoryPresentationCollapsible:
             return
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes,
-             .setInstrumentGuitar6,
+        case .setInstrumentGuitar6,
              .setInstrumentBass4,
              .setInstrumentBass5,
              .setDisplayModeHorizontal,
@@ -1154,12 +1003,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setAccessoryPresentationFloating,
              .setAccessoryPresentationCollapsible:
             return
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes,
-             .setExerciseModeSingle,
+        case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setPositionPromptFilterModeNoteName,
@@ -1209,12 +1053,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             exerciseLayoutPreferences.accessoryPresentation = .floating
         case .setAccessoryPresentationCollapsible:
             exerciseLayoutPreferences.accessoryPresentation = .collapsible
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes,
-             .setExerciseModeSingle,
+        case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setPositionPromptFilterModeNoteName,
@@ -1248,32 +1087,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     func apply(to stateContext: inout SettingsPanelStateContext) {
         apply(to: &stateContext.fretboardDisplayState)
         apply(to: &stateContext.staffDisplayState)
-        apply(to: &stateContext.pageDisplayState)
         apply(to: &stateContext.exerciseLayoutPreferences)
         apply(to: &stateContext.trainerDisplayState)
         apply(to: &stateContext.pianoPanelState)
-        if usesLegacyPagePlacementAction {
-            stateContext.exerciseLayoutPreferences = LegacyPageLayoutAdapter
-                .inferredPreferences(
-                    pageDisplayState: stateContext.pageDisplayState,
-                    trainerDisplayState: stateContext.trainerDisplayState,
-                    pianoPanelState: stateContext.pianoPanelState
-                )
-        }
         LegacyPageLayoutAdapter.reconcile(&stateContext)
-    }
-
-    private var usesLegacyPagePlacementAction: Bool {
-        switch self {
-        case .setTopContentStaff,
-             .setTopContentTargetPrompt,
-             .setTopContentFretboard,
-             .setMainContentFretboard,
-             .setMainContentNaturalNotes:
-            return true
-        default:
-            return false
-        }
     }
 }
 
