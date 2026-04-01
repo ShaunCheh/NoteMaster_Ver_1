@@ -149,8 +149,8 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateFretboardStringThicknessOptionTracksState
             ),
             SettingsNavigationValidationFixture(
-                name: "phase2_exercise_and_accessory_rows_remain_stable",
-                validate: validatePhase2ExerciseAndAccessoryRowsRemainStable
+                name: "exercise_and_accessory_rows_match_stage7_capabilities",
+                validate: validateExerciseAndAccessoryRowsMatchStage7Capabilities
             ),
             SettingsNavigationValidationFixture(
                 name: "reconciled_path_falls_back_to_existing_parent",
@@ -178,6 +178,8 @@ private extension SettingsNavigationValidationRunner {
             "确认切换到 horizontal 指板布局时 `Fretboard > Vertical Viewport` 深层页会消失；切回 vertical 后会恢复。",
             "确认 `Exercise` 分区只显示 `Exercise Mode / Composition Preset / Layout Preset`，不再出现 `Top Content / Main Content`。",
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
+            "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
+            "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
     }
@@ -306,7 +308,7 @@ private extension SettingsNavigationValidationRunner {
                 ),
                 SettingsRouteItem(
                     title: SettingsRouteID.exerciseLayout.fallbackTitle,
-                    subtitle: "Stacked for now",
+                    subtitle: "Stacked, side, or single",
                     route: .exerciseLayout
                 )
             ],
@@ -382,7 +384,7 @@ private extension SettingsNavigationValidationRunner {
                 ),
                 SettingsRouteItem(
                     title: SettingsRouteID.accessoryPresentation.fallbackTitle,
-                    subtitle: "Docked for now",
+                    subtitle: "Docked, floating, or collapsible",
                     route: .accessoryPresentation
                 )
             ],
@@ -792,9 +794,9 @@ private extension SettingsNavigationValidationRunner {
         return issues
     }
 
-    static func validatePhase2ExerciseAndAccessoryRowsRemainStable()
+    static func validateExerciseAndAccessoryRowsMatchStage7Capabilities()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "phase2_exercise_and_accessory_rows_remain_stable"
+        let fixtureName = "exercise_and_accessory_rows_match_stage7_capabilities"
         let defaultStateContext = SettingsPanelStateContext.default
         let defaultPanelModel = SettingsPanelSnapshotBuilder.makeModel(
             from: defaultStateContext
@@ -900,11 +902,24 @@ private extension SettingsNavigationValidationRunner {
                 )
             )
         }
-        if layoutRow.choices.first(
+        if !(layoutRow.choices.first(
             where: { $0.id == .setLayoutPresetSideBySide }
-        )?.isEnabled ?? true {
+        )?.isEnabled ?? false) {
             issues.append(
-                issue(fixtureName, "阶段 2 中 Side by Side 还不应提前放开。")
+                issue(
+                    fixtureName,
+                    "default state 应继续允许切换到 Side by Side layout。"
+                )
+            )
+        }
+        if layoutRow.choices.first(
+            where: { $0.id == .setLayoutPresetSingleSurface }
+        )?.isEnabled ?? false {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "默认的多 surface 组合不应把 Single Surface layout 标记为可用。"
+                )
             )
         }
 
@@ -918,6 +933,90 @@ private extension SettingsNavigationValidationRunner {
                 issue(
                     fixtureName,
                     "Accessories section rows 应保持 Natural Strip / Piano Accessory / Presentation / Expanded。"
+                )
+            )
+        }
+
+        guard let accessoryPresentationRow = defaultPanelModel.choiceRow(
+            for: .accessoryPresentation
+        ) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 应暴露 Accessory Presentation row。"
+                )
+            )
+            return issues
+        }
+        if accessoryPresentationRow.choices.map(\.id) != [
+            .setAccessoryPresentationDocked,
+            .setAccessoryPresentationFloating,
+            .setAccessoryPresentationCollapsible
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Accessory Presentation row 选项顺序应保持 Docked -> Floating -> Collapsible。"
+                )
+            )
+        }
+        if accessoryPresentationRow.choices.contains(where: { !$0.isEnabled }) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 7 后 Docked / Floating / Collapsible 三种 accessory presentation 都应可用。"
+                )
+            )
+        }
+        if defaultPanelModel.toggleRow(for: .naturalStripVisible)?.isEnabled ?? true {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 默认态下的 Natural Strip Visible toggle 应保持禁用，因为 strip 已承担主 answer surface。"
+                )
+            )
+        }
+        if defaultPanelModel.toggleRow(for: .accessoryExpanded)?.isEnabled ?? true {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "默认的 Docked accessory presentation 不应提前启用 Accessory Expanded toggle。"
+                )
+            )
+        }
+
+        let singleModeAccessoryStateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: .default,
+            trainerDisplayState: TrainerDisplayState(exerciseMode: .single)
+        )
+        let singleModeAccessoryPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: singleModeAccessoryStateContext
+        )
+        if !(singleModeAccessoryPanelModel.toggleRow(
+            for: .naturalStripVisible
+        )?.isEnabled ?? false) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "single 模式下 Natural Strip Visible toggle 应允许把 strip 作为 accessory surface 打开。"
+                )
+            )
+        }
+
+        var collapsibleStateContext = singleModeAccessoryStateContext
+        SettingsActionID.setAccessoryPresentationCollapsible.apply(
+            to: &collapsibleStateContext
+        )
+        let collapsiblePanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: collapsibleStateContext
+        )
+        if !(collapsiblePanelModel.toggleRow(
+            for: .accessoryExpanded
+        )?.isEnabled ?? false) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "选择 Collapsible presentation 后，Accessory Expanded toggle 应被启用。"
                 )
             )
         }

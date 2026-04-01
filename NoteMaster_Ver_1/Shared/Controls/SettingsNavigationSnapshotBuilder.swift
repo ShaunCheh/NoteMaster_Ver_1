@@ -173,7 +173,7 @@ enum SettingsNavigationSnapshotBuilder {
                 ChildPageSpec(
                     route: .exerciseLayout,
                     title: SettingsRouteID.exerciseLayout.fallbackTitle,
-                    subtitle: "Stacked for now",
+                    subtitle: "Stacked, side, or single",
                     rowIDs: [
                         .choice(.layoutPreset)
                     ]
@@ -205,7 +205,7 @@ enum SettingsNavigationSnapshotBuilder {
                 ChildPageSpec(
                     route: .accessoryPresentation,
                     title: SettingsRouteID.accessoryPresentation.fallbackTitle,
-                    subtitle: "Docked for now",
+                    subtitle: "Docked, floating, or collapsible",
                     rowIDs: [
                         .choice(.accessoryPresentation),
                         .toggle(.accessoryExpanded)

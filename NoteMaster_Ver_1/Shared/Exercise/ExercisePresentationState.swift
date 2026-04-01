@@ -61,11 +61,25 @@ struct ExerciseSurfaceState: Equatable, Sendable {
     ) {
         self.init(
             isVisible: isVisible,
-            isPromptActive: surface.isPromptSurface,
-            isAnswerEnabled: surface.isAnswerSurface,
-            isInteractionEnabled: surface.isAnswerSurface
-                || surface.isAuxiliarySurface
+            isPromptActive: isVisible && surface.isPromptSurface,
+            isAnswerEnabled: isVisible && surface.isAnswerSurface,
+            isInteractionEnabled: isVisible
+                && Self.defaultInteractionEnabled(for: surface)
         )
+    }
+
+    private static func defaultInteractionEnabled(
+        for surface: ExerciseSurfaceNode
+    ) -> Bool {
+        if surface.isAnswerSurface {
+            return true
+        }
+
+        if surface.isAuxiliarySurface {
+            return surface.id == .piano
+        }
+
+        return false
     }
 }
 
@@ -94,11 +108,11 @@ struct ExercisePresentationState: Equatable, Sendable {
             return state
         }
 
-        guard let surface = scene.surfaceNode(for: surfaceID) else {
-            return nil
-        }
-
-        return ExerciseSurfaceState(surface: surface)
+        return defaultSurfaceState(
+            for: surfaceID,
+            in: scene.root,
+            inheritedVisibility: true
+        )
     }
 
     mutating func setSurfaceState(
@@ -106,6 +120,61 @@ struct ExercisePresentationState: Equatable, Sendable {
         for surfaceID: ExerciseSurfaceID
     ) {
         surfaceStates[surfaceID] = state
+    }
+
+    private func defaultSurfaceState(
+        for surfaceID: ExerciseSurfaceID,
+        in node: ExerciseSceneNode,
+        inheritedVisibility: Bool
+    ) -> ExerciseSurfaceState? {
+        switch node {
+        case let .surface(surface):
+            guard surface.id == surfaceID else {
+                return nil
+            }
+            return ExerciseSurfaceState(
+                surface: surface,
+                isVisible: inheritedVisibility
+            )
+        case let .split(_, children):
+            return children.compactMap {
+                defaultSurfaceState(
+                    for: surfaceID,
+                    in: $0.node,
+                    inheritedVisibility: inheritedVisibility
+                )
+            }.first
+        case let .overlay(base, floating):
+            if let match = defaultSurfaceState(
+                for: surfaceID,
+                in: base,
+                inheritedVisibility: inheritedVisibility
+            ) {
+                return match
+            }
+
+            return floating.compactMap {
+                defaultSurfaceState(
+                    for: surfaceID,
+                    in: $0,
+                    inheritedVisibility: inheritedVisibility
+                )
+            }.first
+        case let .collapsible(main, accessory, isExpanded):
+            if let match = defaultSurfaceState(
+                for: surfaceID,
+                in: main,
+                inheritedVisibility: inheritedVisibility
+            ) {
+                return match
+            }
+
+            return defaultSurfaceState(
+                for: surfaceID,
+                in: accessory,
+                inheritedVisibility: inheritedVisibility && isExpanded
+            )
+        }
     }
 }
 

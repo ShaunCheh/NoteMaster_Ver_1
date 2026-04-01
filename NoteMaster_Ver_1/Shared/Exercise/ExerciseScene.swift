@@ -243,6 +243,11 @@ extension ExerciseSurfaceNode {
         kind: .naturalNoteStrip,
         roles: [.answer]
     )
+    static let naturalNoteStripAccessory = ExerciseSurfaceNode(
+        id: .naturalNoteStrip,
+        kind: .naturalNoteStrip,
+        roles: [.auxiliary]
+    )
     static let pianoAccessory = ExerciseSurfaceNode(
         id: .piano,
         kind: .piano,

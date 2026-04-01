@@ -1166,9 +1166,9 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             return "Toggle green bounds overlay for fretboard and staff"
         case .naturalStripVisible:
-            return "Toggle whether the natural note strip accessory is visible"
+            return "Toggle whether the natural note strip participates as an accessory surface"
         case .pianoAccessoryVisible:
-            return "Toggle whether the piano accessory is visible beneath the main exercise content"
+            return "Toggle whether the piano participates as an accessory surface"
         case .accessoryExpanded:
             return "Toggle whether the accessory area starts expanded"
         case .pianoSnapEnabled:

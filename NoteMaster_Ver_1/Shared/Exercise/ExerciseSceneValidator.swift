@@ -68,7 +68,11 @@ enum ExerciseSceneValidator {
                 normalized.layoutPreset = .stacked
             }
         case .fretboardSelfAnswer:
-            normalized.layoutPreset = .singleSurface
+            if !isSelfAnswerLayoutSemanticallySupported(
+                normalized.layoutPreset
+            ) {
+                normalized.layoutPreset = .singleSurface
+            }
         }
 
         if !isAccessoryPresentationSemanticallySupported(
@@ -80,8 +84,9 @@ enum ExerciseSceneValidator {
             normalized.isAccessoryExpanded = true
         }
 
-        normalized.isNaturalNoteStripVisible = normalized.compositionPreset
-            == .fretboardToNaturalNoteStrip
+        if normalized.compositionPreset == .fretboardToNaturalNoteStrip {
+            normalized.isNaturalNoteStripVisible = true
+        }
 
         return normalized
     }
@@ -171,12 +176,27 @@ enum ExerciseSceneValidator {
         _ preset: ExerciseLayoutPreset
     ) -> Bool {
         switch preset {
-        case .stacked, .sideBySide:
+        case .stacked,
+             .sideBySide,
+             .threePane,
+             .overlay,
+             .collapsibleAccessory:
             return true
+        case .singleSurface:
+            return false
+        }
+    }
+
+    static func isSelfAnswerLayoutSemanticallySupported(
+        _ preset: ExerciseLayoutPreset
+    ) -> Bool {
+        switch preset {
         case .singleSurface,
              .threePane,
              .overlay,
              .collapsibleAccessory:
+            return true
+        case .stacked, .sideBySide:
             return false
         }
     }
@@ -184,6 +204,9 @@ enum ExerciseSceneValidator {
     static func isAccessoryPresentationSemanticallySupported(
         _ presentation: ExerciseAccessoryPresentation
     ) -> Bool {
-        presentation == .docked
+        switch presentation {
+        case .docked, .floating, .collapsible:
+            return true
+        }
     }
 }

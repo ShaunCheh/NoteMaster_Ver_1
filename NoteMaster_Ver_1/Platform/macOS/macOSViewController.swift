@@ -155,6 +155,8 @@ final class macOSViewController: NSViewController {
         "trainerCore=\(String(describing: fretboardTrainerState.mode)) " +
         "composition=\(String(describing: exerciseLayoutPreferences.compositionPreset)) " +
         "layout=\(String(describing: exerciseLayoutPreferences.layoutPreset)) " +
+        "accessory=\(String(describing: exerciseLayoutPreferences.accessoryPresentation)) " +
+        "piano=\(exerciseLayoutPreferences.isPianoAccessoryVisible) " +
         "displayMode=\(String(describing: displayState.displayMode)) " +
         "showsFretboard=\(isShowingFretboard) " +
         "settingsPresented=\(isSettingsPresented)"
@@ -669,8 +671,6 @@ final class macOSViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let contentView = NSView()
     private let pianoDemoContainerView = NSView()
-    private var pianoDemoBottomToContentConstraint: NSLayoutConstraint?
-    private var mainContentBottomToContentConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: macOSFretboardView = {
         let fretboardView = macOSFretboardView(configuration: displayState.configuration)
@@ -716,6 +716,7 @@ final class macOSViewController: NSViewController {
         staffView: staffView,
         targetNotePromptView: targetNotePromptView,
         naturalNoteStripView: naturalNoteStripView,
+        pianoAccessoryView: pianoDemoContainerView,
         fretboardView: fretboardView
     )
 
@@ -802,7 +803,6 @@ final class macOSViewController: NSViewController {
         scrollView.documentView = contentView
         view.addSubview(scrollView)
         contentView.addSubview(exerciseSceneRenderer.sceneContainerView)
-        contentView.addSubview(pianoDemoContainerView)
         pianoDemoContainerView.addSubview(pianoDemoTitleLabel)
         pianoDemoContainerView.addSubview(pianoDemoStatusLabel)
         pianoDemoContainerView.addSubview(pianoKeyboardView)
@@ -811,15 +811,6 @@ final class macOSViewController: NSViewController {
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
-        pianoDemoBottomToContentConstraint = pianoDemoContainerView.bottomAnchor.constraint(
-            equalTo: contentView.bottomAnchor,
-            constant: -Layout.bottomInset
-        )
-        mainContentBottomToContentConstraint = exerciseSceneRenderer.sceneContainerView.bottomAnchor.constraint(
-            equalTo: contentView.bottomAnchor,
-            constant: -Layout.bottomInset
-        )
-
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
@@ -839,19 +830,10 @@ final class macOSViewController: NSViewController {
             exerciseSceneRenderer.sceneContainerView.trailingAnchor.constraint(
                 equalTo: contentView.trailingAnchor
             ),
-            pianoDemoContainerView.topAnchor.constraint(
-                equalTo: exerciseSceneRenderer.sceneContainerView.bottomAnchor,
-                constant: Layout.verticalSpacing
+            exerciseSceneRenderer.sceneContainerView.bottomAnchor.constraint(
+                equalTo: contentView.bottomAnchor,
+                constant: -Layout.bottomInset
             ),
-            pianoDemoContainerView.leadingAnchor.constraint(
-                equalTo: contentView.leadingAnchor,
-                constant: Layout.horizontalInset
-            ),
-            pianoDemoContainerView.trailingAnchor.constraint(
-                equalTo: contentView.trailingAnchor,
-                constant: -Layout.horizontalInset
-            ),
-            pianoDemoBottomToContentConstraint!,
             pianoDemoTitleLabel.leadingAnchor.constraint(
                 equalTo: pianoDemoContainerView.leadingAnchor,
                 constant: Layout.pianoDemoInnerInset
@@ -1596,9 +1578,6 @@ final class macOSViewController: NSViewController {
         pianoKeyboardView.configuration = resolvedPianoDemoConfiguration
         pianoKeyboardView.rows = resolvedPianoDemoRows
         pianoKeyboardView.showsComponentBoundsOverlay = false
-        pianoDemoContainerView.isHidden = !pianoPanelState.isVisible
-        pianoDemoBottomToContentConstraint?.isActive = pianoPanelState.isVisible
-        mainContentBottomToContentConstraint?.isActive = !pianoPanelState.isVisible
         updatePianoDemoStatusLabel()
         updateLayoutIfNeeded()
         exerciseSceneRenderer.handleLayoutPass()

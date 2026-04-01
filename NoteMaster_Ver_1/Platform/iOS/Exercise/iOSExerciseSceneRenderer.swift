@@ -18,10 +18,7 @@ final class iOSExerciseSceneRenderer {
 
     let sceneContainerView = UIView()
 
-    private let primarySurfaceHostView = UIView()
-    private let primarySurfaceContentView = UIView()
-    private let secondarySurfaceHostView = UIView()
-    private let secondarySurfaceContentView = UIView()
+    private let sceneContentView = UIView()
     private let fretboardHostView = UIView()
     private let fretboardViewportScrollView = UIScrollView()
     private let fretboardScrollContentView = UIView()
@@ -32,14 +29,13 @@ final class iOSExerciseSceneRenderer {
     private let staffView: iOSStaffView
     private let targetNotePromptView: iOSTargetNotePromptView
     private let naturalNoteStripView: iOSNaturalNoteStripView
+    private let pianoAccessoryView: UIView
     private let fretboardView: iOSFretboardView
 
     private var currentPresentationState: ExercisePresentationState?
     private var currentFretboardDisplayState = FretboardDisplayState.default
 
-    private var activeArrangementConstraints: [NSLayoutConstraint] = []
-    private var primarySurfaceConstraints: [NSLayoutConstraint] = []
-    private var secondarySurfaceConstraints: [NSLayoutConstraint] = []
+    private var activeSceneConstraints: [NSLayoutConstraint] = []
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
     private var horizontalFretboardContentWidthConstraint: NSLayoutConstraint?
     private var verticalFretboardContentWidthConstraint: NSLayoutConstraint?
@@ -51,6 +47,7 @@ final class iOSExerciseSceneRenderer {
         staffView: iOSStaffView,
         targetNotePromptView: iOSTargetNotePromptView,
         naturalNoteStripView: iOSNaturalNoteStripView,
+        pianoAccessoryView: UIView,
         fretboardView: iOSFretboardView
     ) {
         self.safeAreaHeightAnchor = safeAreaHeightAnchor
@@ -59,6 +56,7 @@ final class iOSExerciseSceneRenderer {
         self.staffView = staffView
         self.targetNotePromptView = targetNotePromptView
         self.naturalNoteStripView = naturalNoteStripView
+        self.pianoAccessoryView = pianoAccessoryView
         self.fretboardView = fretboardView
 
         configureStaticHierarchy()
@@ -71,33 +69,8 @@ final class iOSExerciseSceneRenderer {
         currentPresentationState = presentationState
         currentFretboardDisplayState = fretboardDisplayState
 
-        guard let resolvedLayout = resolvedLayout(from: presentationState) else {
-            hideAllSurfaceHosts()
-            rebuildVerticalFretboardHostHeightConstraint()
-            updateFretboardLayoutModeConstraints()
-            return
-        }
-
-        applyArrangement(resolvedLayout)
-        apply(
-            resolvedLayout.primarySurface,
-            to: primarySurfaceContentView,
-            storedConstraints: &primarySurfaceConstraints
-        )
-        if let secondarySurface = resolvedLayout.secondarySurface {
-            apply(
-                secondarySurface,
-                to: secondarySurfaceContentView,
-                storedConstraints: &secondarySurfaceConstraints
-            )
-        } else {
-            clearSurfaceHost(
-                secondarySurfaceContentView,
-                storedConstraints: &secondarySurfaceConstraints
-            )
-        }
-
-        updateSurfaceVisibility(for: resolvedLayout)
+        rebuildSceneHierarchy(for: presentationState.scene.root)
+        updateSurfaceVisibility()
         rebuildVerticalFretboardHostHeightConstraint()
         updateFretboardLayoutModeConstraints()
     }
@@ -113,10 +86,7 @@ final class iOSExerciseSceneRenderer {
 
     private func configureStaticHierarchy() {
         sceneContainerView.translatesAutoresizingMaskIntoConstraints = false
-        primarySurfaceHostView.translatesAutoresizingMaskIntoConstraints = false
-        primarySurfaceContentView.translatesAutoresizingMaskIntoConstraints = false
-        secondarySurfaceHostView.translatesAutoresizingMaskIntoConstraints = false
-        secondarySurfaceContentView.translatesAutoresizingMaskIntoConstraints = false
+        sceneContentView.translatesAutoresizingMaskIntoConstraints = false
         fretboardHostView.translatesAutoresizingMaskIntoConstraints = false
         fretboardViewportScrollView.translatesAutoresizingMaskIntoConstraints = false
         fretboardScrollContentView.translatesAutoresizingMaskIntoConstraints = false
@@ -124,6 +94,7 @@ final class iOSExerciseSceneRenderer {
         staffView.translatesAutoresizingMaskIntoConstraints = false
         targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
         naturalNoteStripView.translatesAutoresizingMaskIntoConstraints = false
+        pianoAccessoryView.translatesAutoresizingMaskIntoConstraints = false
         sequenceRegenerateButton.translatesAutoresizingMaskIntoConstraints = false
 
         fretboardViewportScrollView.alwaysBounceVertical = false
@@ -136,11 +107,8 @@ final class iOSExerciseSceneRenderer {
         fretboardViewportScrollView.panGestureRecognizer.cancelsTouchesInView = true
         fretboardViewportScrollView.contentInsetAdjustmentBehavior = .never
 
-        sceneContainerView.addSubview(primarySurfaceHostView)
-        sceneContainerView.addSubview(secondarySurfaceHostView)
-        primarySurfaceHostView.addSubview(primarySurfaceContentView)
-        primarySurfaceHostView.addSubview(sequenceRegenerateButton)
-        secondarySurfaceHostView.addSubview(secondarySurfaceContentView)
+        sceneContainerView.addSubview(sceneContentView)
+        sceneContainerView.addSubview(sequenceRegenerateButton)
         fretboardHostView.addSubview(fretboardViewportScrollView)
         fretboardViewportScrollView.addSubview(fretboardScrollContentView)
         fretboardScrollContentView.addSubview(fretboardView)
@@ -155,36 +123,24 @@ final class iOSExerciseSceneRenderer {
         )
 
         NSLayoutConstraint.activate([
-            primarySurfaceContentView.leadingAnchor.constraint(
-                equalTo: primarySurfaceHostView.leadingAnchor
+            sceneContentView.leadingAnchor.constraint(
+                equalTo: sceneContainerView.leadingAnchor
             ),
-            primarySurfaceContentView.trailingAnchor.constraint(
-                equalTo: primarySurfaceHostView.trailingAnchor
+            sceneContentView.trailingAnchor.constraint(
+                equalTo: sceneContainerView.trailingAnchor
             ),
-            primarySurfaceContentView.topAnchor.constraint(
-                equalTo: primarySurfaceHostView.topAnchor
+            sceneContentView.topAnchor.constraint(
+                equalTo: sceneContainerView.topAnchor
             ),
-            primarySurfaceContentView.bottomAnchor.constraint(
-                equalTo: primarySurfaceHostView.bottomAnchor
-            ),
-            secondarySurfaceContentView.leadingAnchor.constraint(
-                equalTo: secondarySurfaceHostView.leadingAnchor
-            ),
-            secondarySurfaceContentView.trailingAnchor.constraint(
-                equalTo: secondarySurfaceHostView.trailingAnchor
-            ),
-            secondarySurfaceContentView.topAnchor.constraint(
-                equalTo: secondarySurfaceHostView.topAnchor
-            ),
-            secondarySurfaceContentView.bottomAnchor.constraint(
-                equalTo: secondarySurfaceHostView.bottomAnchor
+            sceneContentView.bottomAnchor.constraint(
+                equalTo: sceneContainerView.bottomAnchor
             ),
             sequenceRegenerateButton.topAnchor.constraint(
-                equalTo: primarySurfaceHostView.topAnchor,
+                equalTo: sceneContainerView.topAnchor,
                 constant: metrics.floatingButtonInset
             ),
             sequenceRegenerateButton.trailingAnchor.constraint(
-                equalTo: primarySurfaceHostView.trailingAnchor,
+                equalTo: sceneContainerView.trailingAnchor,
                 constant: -metrics.floatingButtonInset
             ),
             sequenceRegenerateButton.widthAnchor.constraint(
@@ -235,194 +191,342 @@ final class iOSExerciseSceneRenderer {
         ])
     }
 
-    private func resolvedLayout(
-        from presentationState: ExercisePresentationState
-    ) -> ExerciseRenderedSceneLayout? {
-        if let renderedSceneLayout = presentationState.renderedSceneLayout {
-            return renderedSceneLayout
-        }
+    private func rebuildSceneHierarchy(
+        for rootNode: ExerciseSceneNode
+    ) {
+        NSLayoutConstraint.deactivate(activeSceneConstraints)
+        activeSceneConstraints = []
+        sceneContentView.subviews.forEach { $0.removeFromSuperview() }
 
-        let surfaceNodes = presentationState.scene.surfaceNodes
-        guard let primarySurface = surfaceNodes.first else {
-            return nil
-        }
+        let rootHostView = UIView()
+        rootHostView.translatesAutoresizingMaskIntoConstraints = false
+        sceneContentView.addSubview(rootHostView)
+        activeSceneConstraints.append(contentsOf: [
+            rootHostView.leadingAnchor.constraint(
+                equalTo: sceneContentView.leadingAnchor
+            ),
+            rootHostView.trailingAnchor.constraint(
+                equalTo: sceneContentView.trailingAnchor
+            ),
+            rootHostView.topAnchor.constraint(
+                equalTo: sceneContentView.topAnchor
+            ),
+            rootHostView.bottomAnchor.constraint(
+                equalTo: sceneContentView.bottomAnchor
+            )
+        ])
+        render(node: rootNode, in: rootHostView)
+        NSLayoutConstraint.activate(activeSceneConstraints)
+    }
 
-        if surfaceNodes.count > 1 {
-            return ExerciseRenderedSceneLayout(
-                arrangement: .stacked,
-                primarySurface: primarySurface,
-                primaryWeight: 1,
-                secondarySurface: surfaceNodes[1],
-                secondaryWeight: 1
+    private func render(
+        node: ExerciseSceneNode,
+        in hostView: UIView
+    ) {
+        switch node {
+        case let .surface(surface):
+            renderSurface(surface, in: hostView)
+        case let .split(axis, children):
+            renderSplit(
+                axis: axis,
+                children: children,
+                in: hostView
+            )
+        case let .overlay(base, floating):
+            renderOverlay(
+                base: base,
+                floating: floating,
+                in: hostView
+            )
+        case let .collapsible(main, accessory, isExpanded):
+            renderCollapsible(
+                main: main,
+                accessory: accessory,
+                isExpanded: isExpanded,
+                in: hostView
             )
         }
+    }
 
-        return ExerciseRenderedSceneLayout(
-            arrangement: .singleSurface,
-            primarySurface: primarySurface,
-            primaryWeight: 1,
-            secondarySurface: nil,
-            secondaryWeight: nil
+    private func renderSurface(
+        _ surface: ExerciseSurfaceNode,
+        in hostView: UIView
+    ) {
+        guard let surfaceView = view(for: surface.id) else {
+            return
+        }
+        embed(
+            surfaceView,
+            in: hostView,
+            contentInsets: contentInsets(for: surface)
         )
     }
 
-    private func applyArrangement(
-        _ layout: ExerciseRenderedSceneLayout
+    private func renderSplit(
+        axis: ExerciseSceneAxis,
+        children: [ExerciseSceneSplitChild],
+        in hostView: UIView
     ) {
-        NSLayoutConstraint.deactivate(activeArrangementConstraints)
-        activeArrangementConstraints = []
-
-        primarySurfaceHostView.isHidden = false
-        secondarySurfaceHostView.isHidden = layout.secondarySurface == nil
-
-        switch layout.arrangement {
-        case .singleSurface:
-            activeArrangementConstraints = [
-                primarySurfaceHostView.leadingAnchor.constraint(
-                    equalTo: sceneContainerView.leadingAnchor
-                ),
-                primarySurfaceHostView.trailingAnchor.constraint(
-                    equalTo: sceneContainerView.trailingAnchor
-                ),
-                primarySurfaceHostView.topAnchor.constraint(
-                    equalTo: sceneContainerView.topAnchor
-                ),
-                primarySurfaceHostView.bottomAnchor.constraint(
-                    equalTo: sceneContainerView.bottomAnchor
-                )
-            ]
-        case .stacked:
-            let secondaryWeight = max(layout.secondaryWeight ?? 1, 0.0001)
-            activeArrangementConstraints = [
-                primarySurfaceHostView.leadingAnchor.constraint(
-                    equalTo: sceneContainerView.leadingAnchor
-                ),
-                primarySurfaceHostView.trailingAnchor.constraint(
-                    equalTo: sceneContainerView.trailingAnchor
-                ),
-                primarySurfaceHostView.topAnchor.constraint(
-                    equalTo: sceneContainerView.topAnchor
-                ),
-                secondarySurfaceHostView.leadingAnchor.constraint(
-                    equalTo: sceneContainerView.leadingAnchor
-                ),
-                secondarySurfaceHostView.trailingAnchor.constraint(
-                    equalTo: sceneContainerView.trailingAnchor
-                ),
-                secondarySurfaceHostView.topAnchor.constraint(
-                    equalTo: primarySurfaceHostView.bottomAnchor,
-                    constant: metrics.surfaceSpacing
-                ),
-                secondarySurfaceHostView.bottomAnchor.constraint(
-                    equalTo: sceneContainerView.bottomAnchor
-                ),
-                primarySurfaceHostView.heightAnchor.constraint(
-                    equalTo: secondarySurfaceHostView.heightAnchor,
-                    multiplier: max(layout.primaryWeight, 0.0001) / secondaryWeight
-                )
-            ]
-        case .sideBySide:
-            let secondaryWeight = max(layout.secondaryWeight ?? 1, 0.0001)
-            activeArrangementConstraints = [
-                primarySurfaceHostView.leadingAnchor.constraint(
-                    equalTo: sceneContainerView.leadingAnchor
-                ),
-                primarySurfaceHostView.topAnchor.constraint(
-                    equalTo: sceneContainerView.topAnchor
-                ),
-                primarySurfaceHostView.bottomAnchor.constraint(
-                    equalTo: sceneContainerView.bottomAnchor
-                ),
-                secondarySurfaceHostView.leadingAnchor.constraint(
-                    equalTo: primarySurfaceHostView.trailingAnchor,
-                    constant: metrics.surfaceSpacing
-                ),
-                secondarySurfaceHostView.trailingAnchor.constraint(
-                    equalTo: sceneContainerView.trailingAnchor
-                ),
-                secondarySurfaceHostView.topAnchor.constraint(
-                    equalTo: sceneContainerView.topAnchor
-                ),
-                secondarySurfaceHostView.bottomAnchor.constraint(
-                    equalTo: sceneContainerView.bottomAnchor
-                ),
-                primarySurfaceHostView.widthAnchor.constraint(
-                    equalTo: secondarySurfaceHostView.widthAnchor,
-                    multiplier: max(layout.primaryWeight, 0.0001) / secondaryWeight
-                )
-            ]
+        let childHostViews = children.map { _ in
+            let childHostView = UIView()
+            childHostView.translatesAutoresizingMaskIntoConstraints = false
+            hostView.addSubview(childHostView)
+            return childHostView
         }
 
-        NSLayoutConstraint.activate(activeArrangementConstraints)
+        for (index, child) in children.enumerated() {
+            render(node: child.node, in: childHostViews[index])
+        }
+
+        for childHostView in childHostViews {
+            switch axis {
+            case .vertical:
+                activeSceneConstraints.append(contentsOf: [
+                    childHostView.leadingAnchor.constraint(
+                        equalTo: hostView.leadingAnchor
+                    ),
+                    childHostView.trailingAnchor.constraint(
+                        equalTo: hostView.trailingAnchor
+                    )
+                ])
+            case .horizontal:
+                activeSceneConstraints.append(contentsOf: [
+                    childHostView.topAnchor.constraint(
+                        equalTo: hostView.topAnchor
+                    ),
+                    childHostView.bottomAnchor.constraint(
+                        equalTo: hostView.bottomAnchor
+                    )
+                ])
+            }
+        }
+
+        if let firstChildHostView = childHostViews.first {
+            switch axis {
+            case .vertical:
+                activeSceneConstraints.append(
+                    firstChildHostView.topAnchor.constraint(
+                        equalTo: hostView.topAnchor
+                    )
+                )
+            case .horizontal:
+                activeSceneConstraints.append(
+                    firstChildHostView.leadingAnchor.constraint(
+                        equalTo: hostView.leadingAnchor
+                    )
+                )
+            }
+        }
+
+        for index in 1..<childHostViews.count {
+            let previousHostView = childHostViews[index - 1]
+            let childHostView = childHostViews[index]
+
+            switch axis {
+            case .vertical:
+                activeSceneConstraints.append(
+                    childHostView.topAnchor.constraint(
+                        equalTo: previousHostView.bottomAnchor,
+                        constant: metrics.surfaceSpacing
+                    )
+                )
+            case .horizontal:
+                activeSceneConstraints.append(
+                    childHostView.leadingAnchor.constraint(
+                        equalTo: previousHostView.trailingAnchor,
+                        constant: metrics.surfaceSpacing
+                    )
+                )
+            }
+
+            let firstWeight = max(children[0].weight, 0.0001)
+            let childWeight = max(children[index].weight, 0.0001)
+            switch axis {
+            case .vertical:
+                activeSceneConstraints.append(
+                    childHostViews[0].heightAnchor.constraint(
+                        equalTo: childHostView.heightAnchor,
+                        multiplier: firstWeight / childWeight
+                    )
+                )
+            case .horizontal:
+                activeSceneConstraints.append(
+                    childHostViews[0].widthAnchor.constraint(
+                        equalTo: childHostView.widthAnchor,
+                        multiplier: firstWeight / childWeight
+                    )
+                )
+            }
+        }
+
+        if let lastChildHostView = childHostViews.last {
+            switch axis {
+            case .vertical:
+                activeSceneConstraints.append(
+                    lastChildHostView.bottomAnchor.constraint(
+                        equalTo: hostView.bottomAnchor
+                    )
+                )
+            case .horizontal:
+                activeSceneConstraints.append(
+                    lastChildHostView.trailingAnchor.constraint(
+                        equalTo: hostView.trailingAnchor
+                    )
+                )
+            }
+        }
     }
 
-    private func apply(
-        _ surface: ExerciseSurfaceNode,
-        to hostView: UIView,
-        storedConstraints: inout [NSLayoutConstraint]
+    private func renderOverlay(
+        base: ExerciseSceneNode,
+        floating: [ExerciseSceneNode],
+        in hostView: UIView
     ) {
-        guard let surfaceView = view(for: surface.id) else {
-            clearSurfaceHost(hostView, storedConstraints: &storedConstraints)
+        let baseHostView = UIView()
+        baseHostView.translatesAutoresizingMaskIntoConstraints = false
+        hostView.addSubview(baseHostView)
+        activeSceneConstraints.append(contentsOf: [
+            baseHostView.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
+            baseHostView.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
+            baseHostView.topAnchor.constraint(equalTo: hostView.topAnchor),
+            baseHostView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
+        ])
+        render(node: base, in: baseHostView)
+
+        let floatingHostView = UIView()
+        floatingHostView.translatesAutoresizingMaskIntoConstraints = false
+        hostView.addSubview(floatingHostView)
+        activeSceneConstraints.append(contentsOf: [
+            floatingHostView.leadingAnchor.constraint(
+                equalTo: hostView.leadingAnchor,
+                constant: metrics.surfaceSpacing
+            ),
+            floatingHostView.trailingAnchor.constraint(
+                equalTo: hostView.trailingAnchor,
+                constant: -metrics.surfaceSpacing
+            ),
+            floatingHostView.bottomAnchor.constraint(
+                equalTo: hostView.bottomAnchor,
+                constant: -metrics.surfaceSpacing
+            ),
+            floatingHostView.topAnchor.constraint(
+                greaterThanOrEqualTo: hostView.topAnchor,
+                constant: metrics.surfaceSpacing
+            )
+        ])
+
+        if floating.count == 1, let floatingNode = floating.first {
+            render(node: floatingNode, in: floatingHostView)
+        } else {
+            render(
+                node: .makeSplit(
+                    axis: .vertical,
+                    children: floating.map {
+                        ExerciseSceneSplitChild(node: $0)
+                    }
+                ),
+                in: floatingHostView
+            )
+        }
+    }
+
+    private func renderCollapsible(
+        main: ExerciseSceneNode,
+        accessory: ExerciseSceneNode,
+        isExpanded: Bool,
+        in hostView: UIView
+    ) {
+        let mainHostView = UIView()
+        mainHostView.translatesAutoresizingMaskIntoConstraints = false
+        hostView.addSubview(mainHostView)
+        activeSceneConstraints.append(contentsOf: [
+            mainHostView.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
+            mainHostView.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
+            mainHostView.topAnchor.constraint(equalTo: hostView.topAnchor)
+        ])
+        render(node: main, in: mainHostView)
+
+        guard isExpanded else {
+            activeSceneConstraints.append(
+                mainHostView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
+            )
             return
         }
 
-        if surfaceView.superview !== hostView {
-            surfaceView.removeFromSuperview()
-            hostView.addSubview(surfaceView)
-            surfaceView.translatesAutoresizingMaskIntoConstraints = false
-        }
-
-        NSLayoutConstraint.deactivate(storedConstraints)
-        storedConstraints = [
-            surfaceView.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
-            surfaceView.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
-            surfaceView.topAnchor.constraint(equalTo: hostView.topAnchor),
-            surfaceView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
-        ]
-        NSLayoutConstraint.activate(storedConstraints)
+        let accessoryHostView = UIView()
+        accessoryHostView.translatesAutoresizingMaskIntoConstraints = false
+        hostView.addSubview(accessoryHostView)
+        activeSceneConstraints.append(contentsOf: [
+            accessoryHostView.leadingAnchor.constraint(
+                equalTo: hostView.leadingAnchor
+            ),
+            accessoryHostView.trailingAnchor.constraint(
+                equalTo: hostView.trailingAnchor
+            ),
+            accessoryHostView.topAnchor.constraint(
+                equalTo: mainHostView.bottomAnchor,
+                constant: metrics.surfaceSpacing
+            ),
+            accessoryHostView.bottomAnchor.constraint(
+                equalTo: hostView.bottomAnchor
+            ),
+            mainHostView.heightAnchor.constraint(
+                equalTo: accessoryHostView.heightAnchor,
+                multiplier: 3 / accessoryWeight(for: accessory)
+            )
+        ])
+        render(node: accessory, in: accessoryHostView)
     }
 
-    private func clearSurfaceHost(
-        _ hostView: UIView,
-        storedConstraints: inout [NSLayoutConstraint]
+    private func embed(
+        _ childView: UIView,
+        in hostView: UIView,
+        contentInsets: UIEdgeInsets = .zero
     ) {
-        NSLayoutConstraint.deactivate(storedConstraints)
-        storedConstraints = []
-        hostView.subviews.forEach { $0.removeFromSuperview() }
+        childView.removeFromSuperview()
+        childView.translatesAutoresizingMaskIntoConstraints = false
+        hostView.addSubview(childView)
+        activeSceneConstraints.append(contentsOf: [
+            childView.leadingAnchor.constraint(
+                equalTo: hostView.leadingAnchor,
+                constant: contentInsets.left
+            ),
+            childView.trailingAnchor.constraint(
+                equalTo: hostView.trailingAnchor,
+                constant: -contentInsets.right
+            ),
+            childView.topAnchor.constraint(
+                equalTo: hostView.topAnchor,
+                constant: contentInsets.top
+            ),
+            childView.bottomAnchor.constraint(
+                equalTo: hostView.bottomAnchor,
+                constant: -contentInsets.bottom
+            )
+        ])
     }
 
-    private func updateSurfaceVisibility(
-        for layout: ExerciseRenderedSceneLayout
-    ) {
-        staffView.isHidden = true
-        targetNotePromptView.isHidden = true
-        naturalNoteStripView.isHidden = true
-        fretboardHostView.isHidden = true
-
-        let primaryVisible = currentPresentationState?.isSurfaceVisible(
-            layout.primarySurface.id
-        ) ?? false
-        primarySurfaceHostView.isHidden = !primaryVisible
-        setVisibility(of: layout.primarySurface.id, isHidden: !primaryVisible)
-
-        if let secondarySurface = layout.secondarySurface {
-            let secondaryVisible = currentPresentationState?.isSurfaceVisible(
-                secondarySurface.id
-            ) ?? false
-            secondarySurfaceHostView.isHidden = !secondaryVisible
-            setVisibility(of: secondarySurface.id, isHidden: !secondaryVisible)
-        } else {
-            secondarySurfaceHostView.isHidden = true
-        }
-    }
-
-    private func hideAllSurfaceHosts() {
-        primarySurfaceHostView.isHidden = true
-        secondarySurfaceHostView.isHidden = true
-        staffView.isHidden = true
-        targetNotePromptView.isHidden = true
-        naturalNoteStripView.isHidden = true
-        fretboardHostView.isHidden = true
+    private func updateSurfaceVisibility() {
+        setVisibility(
+            of: .staff,
+            isHidden: !(currentPresentationState?.isSurfaceVisible(.staff) ?? false)
+        )
+        setVisibility(
+            of: .targetPrompt,
+            isHidden: !(currentPresentationState?.isSurfaceVisible(.targetPrompt) ?? false)
+        )
+        setVisibility(
+            of: .naturalNoteStrip,
+            isHidden: !(currentPresentationState?.isSurfaceVisible(.naturalNoteStrip) ?? false)
+        )
+        setVisibility(
+            of: .fretboard,
+            isHidden: !(currentPresentationState?.isSurfaceVisible(.fretboard) ?? false)
+        )
+        setVisibility(
+            of: .piano,
+            isHidden: !(currentPresentationState?.isSurfaceVisible(.piano) ?? false)
+        )
     }
 
     private func setVisibility(
@@ -439,7 +543,7 @@ final class iOSExerciseSceneRenderer {
         case .naturalNoteStrip:
             naturalNoteStripView.isHidden = isHidden
         case .piano:
-            break
+            pianoAccessoryView.isHidden = isHidden
         }
     }
 
@@ -454,8 +558,43 @@ final class iOSExerciseSceneRenderer {
         case .naturalNoteStrip:
             return naturalNoteStripView
         case .piano:
-            return nil
+            return pianoAccessoryView
         }
+    }
+
+    private func accessoryWeight(
+        for accessoryNode: ExerciseSceneNode
+    ) -> CGFloat {
+        let surfaceIDs = Set(accessoryNode.surfaceNodes.map(\.id))
+        let showsNaturalStrip = surfaceIDs.contains(.naturalNoteStrip)
+        let showsPiano = surfaceIDs.contains(.piano)
+
+        switch (showsNaturalStrip, showsPiano) {
+        case (true, true):
+            return 1.6
+        case (false, true):
+            return 1.3
+        case (true, false):
+            return 0.7
+        case (false, false):
+            return 1
+        }
+    }
+
+    private func contentInsets(
+        for surface: ExerciseSurfaceNode
+    ) -> UIEdgeInsets {
+        if surface.id == .piano
+            || (surface.id == .naturalNoteStrip && surface.isAuxiliarySurface) {
+            return UIEdgeInsets(
+                top: 0,
+                left: metrics.surfaceSpacing,
+                bottom: 0,
+                right: metrics.surfaceSpacing
+            )
+        }
+
+        return .zero
     }
 
     private func rebuildVerticalFretboardHostHeightConstraint() {

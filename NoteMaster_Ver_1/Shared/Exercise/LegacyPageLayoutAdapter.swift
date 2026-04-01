@@ -101,33 +101,22 @@ enum LegacyPageLayoutAdapter {
     static func isAccessoryPresentationSupported(
         _ presentation: ExerciseAccessoryPresentation
     ) -> Bool {
-        let legacyCompatiblePreferences = ExerciseCompositionPolicy
-            .legacyCompatiblePreferences(
-                from: policyInput(
-                    trainerDisplayState: TrainerDisplayState(
-                        exerciseMode: .single
-                    ),
-                    pianoPanelState: .init(),
-                    layoutPreferences: ExerciseLayoutPreferences(
-                        compositionPreset: .staffToFretboard,
-                        layoutPreset: .stacked,
-                        accessoryPresentation: presentation
-                    )
-                )
-            )
-        return legacyCompatiblePreferences.accessoryPresentation == presentation
+        ExerciseSceneValidator.isAccessoryPresentationSemanticallySupported(
+            presentation
+        )
     }
 
     static func isNaturalStripToggleSupported(
-        in _: SettingsPanelStateContext
+        in stateContext: SettingsPanelStateContext
     ) -> Bool {
-        false
+        stateContext.exerciseLayoutPreferences.compositionPreset
+            != .fretboardToNaturalNoteStrip
     }
 
     static func isAccessoryExpandedSupported(
-        accessoryPresentation _: ExerciseAccessoryPresentation
+        accessoryPresentation: ExerciseAccessoryPresentation
     ) -> Bool {
-        false
+        accessoryPresentation == .collapsible
     }
 
     static func reconcile(

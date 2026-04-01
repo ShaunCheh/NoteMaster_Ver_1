@@ -18,22 +18,21 @@ enum ExerciseCompositionPolicy {
     static func makePresentation(
         from input: ExerciseCompositionPolicyInput
     ) -> ExercisePresentationState {
-        let resolvedLayoutPreferences = ExerciseSceneValidator
+        var resolvedLayoutPreferences = ExerciseSceneValidator
             .normalizedPreferences(
                 input.layoutPreferences,
                 trainerDisplayState: input.trainerDisplayState
             )
+        resolvedLayoutPreferences.isPianoAccessoryVisible = resolvedLayoutPreferences
+            .isPianoAccessoryVisible
+            || input.pianoPanelState.isVisible
         let scene = makeScene(
             preferences: resolvedLayoutPreferences
         )
 
         return ExercisePresentationState(
             scene: scene,
-            surfaceStates: makeSurfaceStates(
-                scene: scene,
-                input: input,
-                resolvedLayoutPreferences: resolvedLayoutPreferences
-            ),
+            surfaceStates: makeSurfaceStates(scene: scene),
             resolvedLayoutPreferences: resolvedLayoutPreferences,
             legacyPageDisplayState: ExerciseSceneValidator
                 .legacyPageDisplayState(for: scene)
@@ -63,6 +62,8 @@ enum ExerciseCompositionPolicy {
 
         legacyCompatiblePreferences.layoutPreset = .stacked
         legacyCompatiblePreferences.accessoryPresentation = .docked
+        legacyCompatiblePreferences.isNaturalNoteStripVisible = false
+        legacyCompatiblePreferences.isPianoAccessoryVisible = false
         legacyCompatiblePreferences.isAccessoryExpanded = true
 
         switch input.trainerDisplayState.exerciseMode {
@@ -105,28 +106,25 @@ enum ExerciseCompositionPolicy {
         let sceneSurfaces = resolvedSceneSurfaces(
             for: preferences
         )
+        let mainSceneNode = makeMainSceneNode(
+            from: sceneSurfaces,
+            preferences: preferences
+        )
+        let accessorySceneNode = makeAccessorySceneNode(
+            preferences: preferences
+        )
 
-        switch preferences.layoutPreset {
-        case .stacked:
-            return .stacked(
-                top: sceneSurfaces.prompt,
-                bottom: sceneSurfaces.answer
-            )
-        case .sideBySide:
-            return .sideBySide(
-                leading: sceneSurfaces.prompt,
-                trailing: sceneSurfaces.answer
-            )
-        case .singleSurface:
-            return .singleSurface(sceneSurfaces.prompt)
-        case .threePane, .overlay, .collapsibleAccessory:
-            // 当前调用方都会先走 normalizedPreferences；
-            // 这里保底退回 stacked，避免高级节点在阶段 3 被误投影到未接线的 renderer。
-            return .stacked(
-                top: sceneSurfaces.prompt,
-                bottom: sceneSurfaces.answer
-            )
+        guard let accessorySceneNode else {
+            return ExerciseScene(root: mainSceneNode)
         }
+
+        return ExerciseScene(
+            root: wrapMainSceneNode(
+                mainSceneNode,
+                accessorySceneNode: accessorySceneNode,
+                preferences: preferences
+            )
+        )
     }
 
     private static func resolvedSceneSurfaces(
@@ -148,9 +146,7 @@ enum ExerciseCompositionPolicy {
     }
 
     private static func makeSurfaceStates(
-        scene: ExerciseScene,
-        input: ExerciseCompositionPolicyInput,
-        resolvedLayoutPreferences: ExerciseLayoutPreferences
+        scene: ExerciseScene
     ) -> [ExerciseSurfaceID: ExerciseSurfaceState] {
         var surfaceStates = Dictionary(
             uniqueKeysWithValues: ExerciseSurfaceID.allCases.map {
@@ -158,30 +154,173 @@ enum ExerciseCompositionPolicy {
             }
         )
 
-        for surface in scene.surfaceNodes {
-            surfaceStates[surface.id] = ExerciseSurfaceState(surface: surface)
+        let defaultPresentationState = ExercisePresentationState(scene: scene)
+        for surfaceID in ExerciseSurfaceID.allCases {
+            if let state = defaultPresentationState.surfaceState(
+                for: surfaceID
+            ) {
+                surfaceStates[surfaceID] = state
+            }
         }
-
-        if var naturalNoteStripState = surfaceStates[.naturalNoteStrip] {
-            naturalNoteStripState.isVisible = resolvedLayoutPreferences
-                .isNaturalNoteStripVisible
-            naturalNoteStripState.isInteractionEnabled = naturalNoteStripState
-                .isVisible
-                && naturalNoteStripState.isAnswerEnabled
-            surfaceStates[.naturalNoteStrip] = naturalNoteStripState
-        }
-
-        surfaceStates[.piano] = resolvedLayoutPreferences.isPianoAccessoryVisible
-            || input.pianoPanelState.isVisible
-            ? .auxiliaryOnly
-            : .hidden
 
         return surfaceStates
     }
 
+    private static func makeMainSceneNode(
+        from sceneSurfaces: (prompt: ExerciseSurfaceNode, answer: ExerciseSurfaceNode),
+        preferences: ExerciseLayoutPreferences
+    ) -> ExerciseSceneNode {
+        switch resolvedMainLayoutPreset(for: preferences) {
+        case .stacked:
+            return .makeSplit(
+                axis: .vertical,
+                children: [
+                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.prompt)),
+                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.answer))
+                ]
+            )
+        case .sideBySide:
+            return .makeSplit(
+                axis: .horizontal,
+                children: [
+                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.prompt)),
+                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.answer))
+                ]
+            )
+        case .singleSurface:
+            return .surface(sceneSurfaces.prompt)
+        case .threePane, .overlay, .collapsibleAccessory:
+            return .makeSplit(
+                axis: .vertical,
+                children: [
+                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.prompt)),
+                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.answer))
+                ]
+            )
+        }
+    }
+
+    private static func resolvedMainLayoutPreset(
+        for preferences: ExerciseLayoutPreferences
+    ) -> ExerciseLayoutPreset {
+        switch preferences.layoutPreset {
+        case .stacked, .sideBySide, .singleSurface:
+            return preferences.layoutPreset
+        case .threePane, .overlay, .collapsibleAccessory:
+            return preferences.compositionPreset == .fretboardSelfAnswer
+                ? .singleSurface
+                : .stacked
+        }
+    }
+
+    private static func makeAccessorySceneNode(
+        preferences: ExerciseLayoutPreferences
+    ) -> ExerciseSceneNode? {
+        var accessoryChildren: [ExerciseSceneSplitChild] = []
+
+        if preferences.isNaturalNoteStripVisible,
+           preferences.compositionPreset != .fretboardToNaturalNoteStrip {
+            accessoryChildren.append(
+                ExerciseSceneSplitChild(
+                    node: .surface(.naturalNoteStripAccessory),
+                    weight: 0.7
+                )
+            )
+        }
+
+        if preferences.isPianoAccessoryVisible {
+            accessoryChildren.append(
+                ExerciseSceneSplitChild(
+                    node: .surface(.pianoAccessory),
+                    weight: 1.3
+                )
+            )
+        }
+
+        switch accessoryChildren.count {
+        case 0:
+            return nil
+        case 1:
+            return accessoryChildren[0].node
+        default:
+            return .makeSplit(
+                axis: .vertical,
+                children: accessoryChildren
+            )
+        }
+    }
+
+    private static func wrapMainSceneNode(
+        _ mainSceneNode: ExerciseSceneNode,
+        accessorySceneNode: ExerciseSceneNode,
+        preferences: ExerciseLayoutPreferences
+    ) -> ExerciseSceneNode {
+        switch resolvedAccessoryStrategy(for: preferences) {
+        case .docked:
+            return .makeSplit(
+                axis: .vertical,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: mainSceneNode,
+                        weight: 3
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: accessorySceneNode,
+                        weight: accessoryWeight(for: accessorySceneNode)
+                    )
+                ]
+            )
+        case .floating:
+            return .makeOverlay(
+                base: mainSceneNode,
+                floating: [accessorySceneNode]
+            )
+        case .collapsible:
+            return .makeCollapsible(
+                main: mainSceneNode,
+                accessory: accessorySceneNode,
+                isExpanded: preferences.isAccessoryExpanded
+            )
+        }
+    }
+
+    private static func resolvedAccessoryStrategy(
+        for preferences: ExerciseLayoutPreferences
+    ) -> ExerciseAccessoryPresentation {
+        switch preferences.layoutPreset {
+        case .overlay:
+            return .floating
+        case .collapsibleAccessory:
+            return .collapsible
+        case .threePane:
+            return .docked
+        case .stacked, .sideBySide, .singleSurface:
+            return preferences.accessoryPresentation
+        }
+    }
+
+    private static func accessoryWeight(
+        for accessorySceneNode: ExerciseSceneNode
+    ) -> Double {
+        let surfaceIDs = Set(accessorySceneNode.surfaceNodes.map(\.id))
+        let showsNaturalStrip = surfaceIDs.contains(.naturalNoteStrip)
+        let showsPiano = surfaceIDs.contains(.piano)
+
+        switch (showsNaturalStrip, showsPiano) {
+        case (true, true):
+            return 1.6
+        case (false, true):
+            return 1.3
+        case (true, false):
+            return 0.7
+        case (false, false):
+            return 1
+        }
+    }
+
     private static func fallbackLegacyCompatiblePreferences(
         for exerciseMode: TrainerExerciseMode,
-        isPianoAccessoryVisible: Bool
+        isPianoAccessoryVisible _: Bool
     ) -> ExerciseLayoutPreferences {
         switch exerciseMode {
         case .single, .sequence:
@@ -190,7 +329,7 @@ enum ExerciseCompositionPolicy {
                 layoutPreset: .stacked,
                 accessoryPresentation: .docked,
                 isNaturalNoteStripVisible: false,
-                isPianoAccessoryVisible: isPianoAccessoryVisible,
+                isPianoAccessoryVisible: false,
                 isAccessoryExpanded: true
             )
         case .positionPrompt:
@@ -199,7 +338,7 @@ enum ExerciseCompositionPolicy {
                 layoutPreset: .stacked,
                 accessoryPresentation: .docked,
                 isNaturalNoteStripVisible: true,
-                isPianoAccessoryVisible: isPianoAccessoryVisible,
+                isPianoAccessoryVisible: false,
                 isAccessoryExpanded: true
             )
         }

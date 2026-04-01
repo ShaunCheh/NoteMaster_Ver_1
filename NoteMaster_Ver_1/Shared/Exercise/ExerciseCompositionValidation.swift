@@ -167,6 +167,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateCompositionPolicyProjectsSupportedPresetsToExpectedScenes
             ),
             ExerciseCompositionValidationFixture(
+                name: "accessory_scene_nodes_follow_presentation_strategy",
+                validate: validateAccessorySceneNodesFollowPresentationStrategy
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model",
                 validate: validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel
             ),
@@ -197,7 +201,9 @@ private extension ExerciseCompositionValidationRunner {
             "确认单 `fretboard` 自答时，点击同音位置会走统一 answer router，并在正确反馈结束后推进到下一题。",
             "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoAccessoryVisible`。",
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
-            "确认 `Piano Accessory Visible` 默认关闭；打开后只追加钢琴区域，关闭后主 prompt/answer 组合不发生漂移。",
+            "确认 `Piano Accessory Visible` 默认关闭；打开后会按当前 `Accessory Presentation` 进入 docked / floating / collapsible scene，关闭后主 prompt/answer 组合不发生漂移。",
+            "确认在 `single/sequence` 下打开 `Natural Strip Visible` 时，strip 会作为 accessory surface 参与布局，但不会抢走 answer surface 角色。",
+            "确认 `Collapsible` accessory 收起时，隐藏的 accessory 不可见也不可交互；重新展开后恢复到原来的 surface。",
             "确认 `vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 后该滑块消失，切回后沿用上次值。"
         ]
 
@@ -981,6 +987,206 @@ private extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateAccessorySceneNodesFollowPresentationStrategy()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "accessory_scene_nodes_follow_presentation_strategy"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let floatingAccessoryPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToFretboard,
+                    layoutPreset: .stacked,
+                    accessoryPresentation: .floating,
+                    isNaturalNoteStripVisible: true
+                )
+            )
+        )
+        switch floatingAccessoryPresentation.scene.root {
+        case let .overlay(base, floating):
+            let baseSurfaceIDs = base.surfaceNodes.map(\.id)
+            let floatingSurfaceIDs = floating.flatMap { $0.surfaceNodes }.map(\.id)
+            if baseSurfaceIDs != [.staff, .fretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Floating accessory scene 的 base 应继续保持 staff -> fretboard 主视觉组合。"
+                    )
+                )
+            }
+            if floatingSurfaceIDs != [.naturalNoteStrip] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Floating accessory scene 应把 natural note strip 放进 floating accessory 节点。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Accessory Presentation = Floating 时应生成 overlay scene。"
+                )
+            )
+        }
+        guard let floatingStripState = floatingAccessoryPresentation.surfaceState(
+            for: .naturalNoteStrip
+        ) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Floating accessory scene 应继续生成 natural note strip surface state。"
+                )
+            )
+            return issues
+        }
+        if !floatingStripState.isVisible
+            || floatingStripState.isAnswerEnabled
+            || floatingStripState.isInteractionEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "作为 accessory surface 的 natural note strip 应可见，但不能承担 answer 或交互职责。"
+                )
+            )
+        }
+        if floatingAccessoryPresentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Floating accessory scene 不应被误投影成 legacy page 双槽位。"
+                )
+            )
+        }
+
+        let collapsedAccessoryPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .staffToFretboard,
+                        layoutPreset: .stacked,
+                        accessoryPresentation: .collapsible,
+                        isNaturalNoteStripVisible: false,
+                        isPianoAccessoryVisible: true,
+                        isAccessoryExpanded: false
+                    )
+                )
+            )
+        switch collapsedAccessoryPresentation.scene.root {
+        case let .collapsible(main, accessory, isExpanded):
+            if isExpanded {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Accessory Presentation = Collapsible 且 isAccessoryExpanded = false 时不应错误展开 accessory。"
+                    )
+                )
+            }
+            if main.surfaceNodes.map(\.id) != [.staff, .fretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Collapsible scene 的 main 分支应继续保持 staff -> fretboard 主视觉组合。"
+                    )
+                )
+            }
+            if accessory.surfaceNodes.map(\.id) != [.piano] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Collapsible scene 的 accessory 分支应承载 piano surface。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Accessory Presentation = Collapsible 时应生成 collapsible scene。"
+                )
+            )
+        }
+        let collapsedPianoState = collapsedAccessoryPresentation.surfaceState(
+            for: .piano
+        )
+        if collapsedPianoState?.isVisible ?? true {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "收起的 collapsible accessory 应把 piano surface 标记为不可见。"
+                )
+            )
+        }
+        if collapsedPianoState?.isInteractionEnabled ?? true {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "收起的 collapsible accessory 不应继续保留 piano 的交互能力。"
+                )
+            )
+        }
+
+        let threePaneLayoutScene = ExerciseCompositionPolicy.makeScene(
+            preferences: ExerciseLayoutPreferences(
+                compositionPreset: .staffToFretboard,
+                layoutPreset: .threePane,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true
+            )
+        )
+        switch threePaneLayoutScene.root {
+        case let .split(axis, children):
+            if axis != .vertical || children.count != 2 {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "ThreePane layout 应以 vertical split 承载主内容与 accessory subtree。"
+                    )
+                )
+            } else {
+                let mainSurfaceIDs = children[0].node.surfaceNodes.map(\.id)
+                let accessorySurfaceIDs = children[1].node.surfaceNodes.map(\.id)
+                if mainSurfaceIDs != [.staff, .fretboard] {
+                    issues.append(
+                        issue(
+                            fixtureName,
+                            "ThreePane layout 的主分支应继续保持 staff -> fretboard 组合。"
+                        )
+                    )
+                }
+                if accessorySurfaceIDs != [.naturalNoteStrip, .piano] {
+                    issues.append(
+                        issue(
+                            fixtureName,
+                            "ThreePane layout 的 accessory 分支应同时容纳 natural note strip 与 piano。"
+                        )
+                    )
+                }
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "layoutPreset = ThreePane 时应生成 docked split scene。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model"
@@ -1062,6 +1268,47 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "single fretboard self-answer 的 legacy fallback 应继续投影到 positionPrompt 页面。"
+                )
+            )
+        }
+
+        let floatingAccessoryLegacyPresentation = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .single
+                    ),
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .staffToFretboard,
+                        layoutPreset: .stacked,
+                        accessoryPresentation: .floating,
+                        isNaturalNoteStripVisible: true,
+                        isPianoAccessoryVisible: true
+                    )
+                )
+            )
+        if floatingAccessoryLegacyPresentation.resolvedLayoutPreferences
+            .accessoryPresentation != .docked
+            || floatingAccessoryLegacyPresentation.resolvedLayoutPreferences
+            .isNaturalNoteStripVisible
+            || floatingAccessoryLegacyPresentation.resolvedLayoutPreferences
+            .isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy 兼容入口应清空可选 accessory scene，只保留 page model 能表达的 docked 主视觉组合。"
+                )
+            )
+        }
+        if floatingAccessoryLegacyPresentation.legacyPageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "带 floating accessory 请求的 legacy fallback 仍应继续回投影到默认 single 页面。"
                 )
             )
         }
