@@ -149,6 +149,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateFretboardStringThicknessOptionTracksState
             ),
             SettingsNavigationValidationFixture(
+                name: "legacy_page_rows_and_piano_visibility_state_remain_stable",
+                validate: validateLegacyPageRowsAndPianoVisibilityStateRemainStable
+            ),
+            SettingsNavigationValidationFixture(
                 name: "reconciled_path_falls_back_to_existing_parent",
                 validate: validateReconciledPathFallsBackToExistingParent
             ),
@@ -172,6 +176,7 @@ private extension SettingsNavigationValidationRunner {
             "确认 root -> Trainer / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
             "确认当停留在 Trainer Position Filter 深层页时切换 exercise mode，卡片会自动退回最近仍有效的 Trainer 父页，而不会停留在失效子页。",
             "确认切换到 horizontal 指板布局时 Layout route 会消失；切回 vertical 后 Layout route 会恢复。",
+            "确认阶段 0 期间 `Page` 分区仍保留 `Top Content / Main Content` 两行，`Piano > Behavior` 仍保留 `Visible` 开关。后续阶段替换前，这些旧入口不应先漂移。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
     }
@@ -627,6 +632,190 @@ private extension SettingsNavigationValidationRunner {
 
         if graduatedRow.choices.filter(\.isSelected).map(\.id) != [.setStringThicknessGraduated] {
             issues.append(issue(fixtureName, "Graduated state 应只选中 Graduated。"))
+        }
+
+        return issues
+    }
+
+    static func validateLegacyPageRowsAndPianoVisibilityStateRemainStable()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "legacy_page_rows_and_piano_visibility_state_remain_stable"
+        let defaultStateContext = SettingsPanelStateContext.default
+        let defaultPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: defaultStateContext
+        )
+        let defaultNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: defaultStateContext
+        )
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        guard let pageSection = resolveSection(.page, in: defaultPanelModel) else {
+            issues.append(
+                issue(fixtureName, "default state 应继续保留 Page section。")
+            )
+            return issues
+        }
+
+        if pageSection.rows.map(\.id) != [
+            .choice(.topContent),
+            .choice(.mainContent)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Page section row 顺序应继续保持 Top Content -> Main Content。"
+                )
+            )
+        }
+
+        guard let topContentRow = defaultPanelModel.choiceRow(for: .topContent) else {
+            issues.append(issue(fixtureName, "default state 应继续暴露 Top Content row。"))
+            return issues
+        }
+
+        if topContentRow.choices.map(\.id) != [
+            .setTopContentStaff,
+            .setTopContentTargetPrompt,
+            .setTopContentFretboard
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Top Content row 选项顺序应继续保持 Staff -> Target -> Fretboard。"
+                )
+            )
+        }
+        if topContentRow.choices.filter(\.isSelected).map(\.id) != [
+            .setTopContentStaff
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Top Content row 默认应继续选中 Staff。"
+                )
+            )
+        }
+        let fretboardTopChoiceIsEnabled = topContentRow.choices.first(
+            where: { $0.id == .setTopContentFretboard }
+        )?.isEnabled ?? true
+        if fretboardTopChoiceIsEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Top Content row 中的 Fretboard 选项在 legacy model 下应继续保持禁用。"
+                )
+            )
+        }
+
+        guard let mainContentRow = defaultPanelModel.choiceRow(for: .mainContent) else {
+            issues.append(issue(fixtureName, "default state 应继续暴露 Main Content row。"))
+            return issues
+        }
+
+        if mainContentRow.choices.map(\.id) != [
+            .setMainContentFretboard,
+            .setMainContentNaturalNotes
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Main Content row 选项顺序应继续保持 Fretboard -> Natural Notes。"
+                )
+            )
+        }
+        if mainContentRow.choices.filter(\.isSelected).map(\.id) != [
+            .setMainContentFretboard
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Main Content row 默认应继续选中 Fretboard。"
+                )
+            )
+        }
+
+        guard let pianoBehaviorPage = defaultNavigationModel.page(for: .pianoBehavior),
+              let pianoBehaviorSections = pianoBehaviorPage.content.sections,
+              let pianoBehaviorSection = pianoBehaviorSections.first else {
+            issues.append(
+                issue(fixtureName, "default state 应继续生成 Piano Behavior page。")
+            )
+            return issues
+        }
+
+        if pianoBehaviorSection.rows.map(\.id) != [
+            .toggle(.pianoVisible),
+            .slider(.pianoRowCount),
+            .choice(.pianoMovementScope),
+            .toggle(.pianoSnapEnabled)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Piano Behavior page rows 应继续保持 Visible / Rows / Row Linking / Snap Drag。"
+                )
+            )
+        }
+
+        let defaultPianoVisibleValue = defaultPanelModel.toggleRow(
+            for: .pianoVisible
+        )?.isOn ?? true
+        if defaultPianoVisibleValue {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 的 Piano Visible 开关应继续默认关闭。"
+                )
+            )
+        }
+
+        var visibleStateContext = defaultStateContext
+        SettingsToggleID.pianoVisible.apply(value: true, to: &visibleStateContext)
+        if !visibleStateContext.pianoPanelState.isVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Piano Visible 开关写回后应继续把 pianoPanelState.isVisible 置为 true。"
+                )
+            )
+        }
+
+        let visiblePanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: visibleStateContext
+        )
+        let visiblePianoVisibleValue = visiblePanelModel.toggleRow(
+            for: .pianoVisible
+        )?.isOn ?? false
+        if !visiblePianoVisibleValue {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Piano Visible 开关写回后，settings snapshot 也应继续回显为 true。"
+                )
+            )
+        }
+
+        let visibleNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: visibleStateContext
+        )
+        guard let visiblePianoBehaviorPage = visibleNavigationModel.page(for: .pianoBehavior),
+              let visiblePianoBehaviorSection = visiblePianoBehaviorPage.content.sections?.first else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Piano Visible 打开后仍应继续保留 Piano Behavior page。"
+                )
+            )
+            return issues
+        }
+
+        if !visiblePianoBehaviorSection.rows.map(\.id).contains(.toggle(.pianoVisible)) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Piano Visible 打开后不应移除 Visible toggle 本身。"
+                )
+            )
         }
 
         return issues

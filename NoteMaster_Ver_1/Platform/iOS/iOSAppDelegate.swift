@@ -25,6 +25,10 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         StaffValidationRunner.runAndReportIfNeeded(platform: .iOS)
         print("[Startup][iOSApp] run settings navigation validation")
         SettingsNavigationValidationRunner.runAndReportIfNeeded(platform: .iOS)
+        print("[Startup][iOSApp] run piano validation")
+        PianoValidationRunner.runAndReportIfNeeded(platform: .iOS)
+        print("[Startup][iOSApp] run exercise composition validation")
+        ExerciseCompositionValidationRunner.runAndReportIfNeeded(platform: .iOS)
 
         print("[Startup][iOSApp] create window")
         let window = UIWindow(frame: UIScreen.main.bounds)

@@ -30,6 +30,10 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         StaffValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run settings navigation validation")
         SettingsNavigationValidationRunner.runAndReportIfNeeded(platform: .macOS)
+        print("[Startup][macOSApp] run piano validation")
+        PianoValidationRunner.runAndReportIfNeeded(platform: .macOS)
+        print("[Startup][macOSApp] run exercise composition validation")
+        ExerciseCompositionValidationRunner.runAndReportIfNeeded(platform: .macOS)
         // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。
         print("[Startup][macOSApp] apply aqua appearance")
         NSApp.appearance = NSAppearance(named: .aqua)

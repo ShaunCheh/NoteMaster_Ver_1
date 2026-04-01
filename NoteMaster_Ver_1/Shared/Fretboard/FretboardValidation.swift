@@ -343,6 +343,12 @@ private extension FretboardValidationRunner {
                 record: record
             )
         }
+        runStep("validateLegacyLayoutBaselines") {
+            validateLegacyLayoutBaselines(
+                fixture: fixture,
+                record: record
+            )
+        }
 
         return issues
     }
@@ -2443,6 +2449,7 @@ private extension FretboardValidationRunner {
             "当目标音为 C 时点击 C# 等升降音，确认控制台判定为 wrong，且当前目标音不切换。",
             "在 vertical 模式下拖动高度滑块，确认指板 host 高度立即跟随变化，滑块数值与页面可见占比一致。",
             "在 vertical 模式下改变窗口或设备高度，并在 Horizontal / Vertical 之间往返切换；确认指板宽度会自适应变化并保持水平居中，且切回 vertical 后沿用上次滑块值。",
+            "在 `single` 与 `sequence` 模式下确认页面继续保持上方 `staff`、下方 `fretboard`；切回 `positionPrompt` 后确认恢复为上方 `fretboard`、下方 `natural note strip`，且不受 `pianoVisible` 与 viewport 调整影响。",
             "应用启动后不做额外切换，直接打开设置面板；确认 `Trainer` 分区第一眼看到 `Exercise Mode = Position Prompt`、`Filter = Note Names`，并且多选按钮默认回显 `C / E / F / B`。",
             "在 `single` 与 `sequence` 模式下打开设置面板，确认 `Trainer` 分区不显示 `Filter` 与位置题多选过滤行；切到 `positionPrompt` 后确认出现 `Filter = Note Names`，且默认选中 `C / E / F / B`。",
             "在 `positionPrompt` 默认 `Filter = Note Names`、默认 `C / E / F / B` 状态下连续答对至少 6 次，确认当前题与下一题都只落在这些音名；若当前有 6 根候选弦，则一轮 6 题内 6 根弦各出现 1 次，再进入下一轮时重新开始轮巡。",
@@ -2465,6 +2472,47 @@ private extension FretboardValidationRunner {
         }
 
         return checklist
+    }
+
+    static func validateLegacyLayoutBaselines(
+        fixture: FretboardValidationFixture,
+        record: (String) -> Void
+    ) {
+        guard fixture.name == "horizontal-guitar6-reference" else {
+            return
+        }
+
+        let defaultPageDisplayState = PageDisplayState.default
+        if defaultPageDisplayState.topContentMode != .staff
+            || defaultPageDisplayState.mainContentMode != .fretboard {
+            record("legacy default page baseline 应继续保持 staff -> fretboard。")
+        }
+        if defaultPageDisplayState.showsFretboardInTopContent
+            || !defaultPageDisplayState.showsFretboardInMainContent
+            || !defaultPageDisplayState.hasValidFretboardPlacement {
+            record("legacy default page baseline 应继续只在 mainContent 承载 fretboard。")
+        }
+
+        let positionPromptPageDisplayState = PageDisplayState.positionPrompt
+        if positionPromptPageDisplayState.topContentMode != .fretboard
+            || positionPromptPageDisplayState.mainContentMode != .naturalNoteStrip {
+            record("legacy positionPrompt baseline 应继续保持 fretboard -> naturalNoteStrip。")
+        }
+        if !positionPromptPageDisplayState.showsFretboardInTopContent
+            || positionPromptPageDisplayState.showsFretboardInMainContent
+            || !positionPromptPageDisplayState.hasValidFretboardPlacement {
+            record("legacy positionPrompt baseline 应继续只在 topContent 承载 fretboard。")
+        }
+
+        if FretboardDisplayState.default.displayMode != .vertical {
+            record("迁移前 default fretboard displayMode 应继续保持 vertical。")
+        }
+        if !approximatelyEqual(
+            FretboardDisplayState.default.verticalHostHeightRatio,
+            FretboardDisplayState.defaultVerticalHostHeightRatio
+        ) {
+            record("迁移前 default verticalHostHeightRatio 应继续对齐 defaultVerticalHostHeightRatio。")
+        }
     }
 
     static func midpoint(of segment: FretboardScene.StringSegment) -> CGPoint {
