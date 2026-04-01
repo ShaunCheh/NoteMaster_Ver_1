@@ -163,6 +163,18 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSharedLayoutPreferencesCoexistWithLegacyPageState
             ),
             ExerciseCompositionValidationFixture(
+                name: "composition_policy_projects_supported_presets_to_expected_scenes",
+                validate: validateCompositionPolicyProjectsSupportedPresetsToExpectedScenes
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model",
+                validate: validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "scene_validator_rejects_duplicate_logical_surface_ids",
+                validate: validateSceneValidatorRejectsDuplicateLogicalSurfaceIDs
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "shared_answer_contracts_default_position_prompt_to_same_pitch_class",
                 validate: validateSharedAnswerContractsDefaultPositionPromptToSamePitchClass
             )
@@ -177,7 +189,7 @@ private extension ExerciseCompositionValidationRunner {
             "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合。",
             "确认打开 settings 只改变 card 可见性，不会重置当前 trainer mode、page layout 或 `pianoAccessoryVisible`。",
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
-            "确认 `Piano Visible` 默认关闭；打开后只追加钢琴区域，关闭后主 prompt/answer 组合不发生漂移。",
+            "确认 `Piano Accessory Visible` 默认关闭；打开后只追加钢琴区域，关闭后主 prompt/answer 组合不发生漂移。",
             "确认 `vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 后该滑块消失，切回后沿用上次值。"
         ]
 
@@ -376,26 +388,60 @@ private extension ExerciseCompositionValidationRunner {
         let fixtureName = "page_state_normalization_preserves_single_fretboard_slot"
         var issues: [ExerciseCompositionValidationIssue] = []
 
-        var topPrioritizedState = PageDisplayState.default
-        topPrioritizedState.setTopContentMode(.fretboard)
+        let topPrioritizedState = ExerciseSceneValidator
+            .normalizedLegacyPageDisplayState(
+                from: PageDisplayState(
+                    topContentMode: .fretboard,
+                    mainContentMode: .fretboard
+                ),
+                prioritizingTopContent: true
+            )
         if topPrioritizedState.topContentMode != .fretboard
             || topPrioritizedState.mainContentMode != .naturalNoteStrip {
             issues.append(
                 issue(
                     fixtureName,
-                    "setTopContentMode(.fretboard) 后应继续把 mainContent 归一化到 naturalNoteStrip。"
+                    "shared validator 在 top 优先时应继续把 mainContent 归一化到 naturalNoteStrip。"
                 )
             )
         }
 
-        var mainPrioritizedState = PageDisplayState.positionPrompt
-        mainPrioritizedState.setMainContentMode(.fretboard)
+        let mainPrioritizedState = ExerciseSceneValidator
+            .normalizedLegacyPageDisplayState(
+                from: PageDisplayState(
+                    topContentMode: .fretboard,
+                    mainContentMode: .fretboard
+                ),
+                prioritizingTopContent: false
+            )
         if mainPrioritizedState.topContentMode != .staff
             || mainPrioritizedState.mainContentMode != .fretboard {
             issues.append(
                 issue(
                     fixtureName,
-                    "setMainContentMode(.fretboard) 后应继续把 topContent 归一化到 staff。"
+                    "shared validator 在 main 优先时应继续把 topContent 归一化到 staff。"
+                )
+            )
+        }
+
+        var delegatedTopPrioritizedState = PageDisplayState.default
+        delegatedTopPrioritizedState.setTopContentMode(.fretboard)
+        if delegatedTopPrioritizedState != topPrioritizedState {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "PageDisplayState.setTopContentMode 应委托 shared validator 的 top 优先归一化规则。"
+                )
+            )
+        }
+
+        var delegatedMainPrioritizedState = PageDisplayState.positionPrompt
+        delegatedMainPrioritizedState.setMainContentMode(.fretboard)
+        if delegatedMainPrioritizedState != mainPrioritizedState {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "PageDisplayState.setMainContentMode 应委托 shared validator 的 main 优先归一化规则。"
                 )
             )
         }
@@ -658,11 +704,12 @@ private extension ExerciseCompositionValidationRunner {
 
         if !defaultFretboardState.isVisible
             || !defaultFretboardState.isPromptActive
-            || !defaultFretboardState.isAnswerEnabled {
+            || !defaultFretboardState.isAnswerEnabled
+            || !defaultFretboardState.isInteractionEnabled {
             issues.append(
                 issue(
                     fixtureName,
-                    "双角色 fretboard 的默认 surface state 应同时开启可见、prompt active 与 answer enabled。"
+                    "双角色 fretboard 的默认 surface state 应同时开启可见、prompt active、answer enabled 与 interaction enabled。"
                 )
             )
         }
@@ -679,14 +726,16 @@ private extension ExerciseCompositionValidationRunner {
             ExerciseSurfaceState(
                 isVisible: false,
                 isPromptActive: true,
-                isAnswerEnabled: false
+                isAnswerEnabled: false,
+                isInteractionEnabled: false
             ),
             for: .fretboard
         )
         let overriddenState = presentationState.surfaceState(for: .fretboard)
         if overriddenState?.isVisible ?? true
             || !(overriddenState?.isPromptActive ?? false)
-            || overriddenState?.isAnswerEnabled ?? true {
+            || overriddenState?.isAnswerEnabled ?? true
+            || overriddenState?.isInteractionEnabled ?? true {
             issues.append(
                 issue(
                     fixtureName,
@@ -742,6 +791,285 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "阶段 2 中，shared context 新增字段不应破坏新 Exercise section 的生成。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateCompositionPolicyProjectsSupportedPresetsToExpectedScenes()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "composition_policy_projects_supported_presets_to_expected_scenes"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let sideBySidePresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .targetPromptToFretboard,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+        if !ExerciseSceneValidator.validate(sideBySidePresentation.scene).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的 targetPrompt -> fretboard 组合应生成合法 scene。"
+                )
+            )
+        }
+        switch sideBySidePresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "targetPrompt -> fretboard 的 sideBySide 组合应投影到 horizontal split。"
+                    )
+                )
+            }
+            let childSurfaceIDs = children.compactMap {
+                $0.node.surfaceNodes.first?.id
+            }
+            if childSurfaceIDs != [.targetPrompt, .fretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "targetPrompt -> fretboard 的 sideBySide 组合应保持 targetPrompt 在左、fretboard 在右。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合应生成 split scene。"
+                )
+            )
+        }
+        if sideBySidePresentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "horizontal split 在阶段 3 仍不应被误标记为 legacy page 可直接投影。"
+                )
+            )
+        }
+
+        let selfAnswerPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(
+                    exerciseMode: .positionPrompt
+                ),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .singleFretboardSelfAnswer
+            )
+        )
+        if !ExerciseSceneValidator.validate(selfAnswerPresentation.scene).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "single fretboard self-answer 组合应生成合法 scene。"
+                )
+            )
+        }
+        switch selfAnswerPresentation.scene.root {
+        case let .surface(surface):
+            if surface.id != .fretboard
+                || !surface.roles.contains(.prompt)
+                || !surface.roles.contains(.answer) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "single fretboard self-answer 应投影为同时承担 prompt/answer 的单 fretboard surface。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "single fretboard self-answer 应投影为单 surface scene。"
+                )
+            )
+        }
+        let selfAnswerFretboardState = selfAnswerPresentation.surfaceState(
+            for: .fretboard
+        )
+        if !(selfAnswerFretboardState?.isPromptActive ?? false)
+            || !(selfAnswerFretboardState?.isAnswerEnabled ?? false)
+            || !(selfAnswerFretboardState?.isInteractionEnabled ?? false) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "single fretboard self-answer 的 fretboard surface state 应同时开启 prompt、answer 和 interaction。"
+                )
+            )
+        }
+        if selfAnswerPresentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "single fretboard self-answer 在阶段 3 仍不应被误投影成 legacy page 双槽位。"
+                )
+            )
+        }
+
+        let positionPromptPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(
+                    exerciseMode: .positionPrompt
+                ),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .legacyPositionPrompt
+            )
+        )
+        if positionPromptPresentation.legacyPageDisplayState != .positionPrompt {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 的 fretboard -> natural note strip 组合应继续投影回 legacy positionPrompt 页面。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let sideBySideLegacyPresentation = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .single
+                    ),
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .targetPromptToFretboard,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        if sideBySideLegacyPresentation.resolvedLayoutPreferences.layoutPreset
+            != .stacked {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy 兼容入口应把 sideBySide 回退到 stacked。"
+                )
+            )
+        }
+        if sideBySideLegacyPresentation.resolvedLayoutPreferences.compositionPreset
+            != .targetPromptToFretboard {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy 兼容入口在能保留 targetPrompt -> fretboard 时不应错误回退到 staff -> fretboard。"
+                )
+            )
+        }
+        if sideBySideLegacyPresentation.legacyPageDisplayState
+            != PageDisplayState(
+                topContentMode: .targetPrompt,
+                mainContentMode: .fretboard
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy 兼容入口应把 targetPrompt -> fretboard 回投影为 legacy targetPrompt 页面。"
+                )
+            )
+        }
+
+        let selfAnswerLegacyPresentation = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: .singleFretboardSelfAnswer
+                )
+            )
+        if selfAnswerLegacyPresentation.resolvedLayoutPreferences.compositionPreset
+            != .fretboardToNaturalNoteStrip
+            || selfAnswerLegacyPresentation.resolvedLayoutPreferences.layoutPreset
+            != .stacked {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy 兼容入口应把 single fretboard self-answer 回退到 stacked 的 fretboard -> natural note strip。"
+                )
+            )
+        }
+        if selfAnswerLegacyPresentation.legacyPageDisplayState != .positionPrompt {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "single fretboard self-answer 的 legacy fallback 应继续投影到 positionPrompt 页面。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSceneValidatorRejectsDuplicateLogicalSurfaceIDs()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "scene_validator_rejects_duplicate_logical_surface_ids"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let duplicateFretboardScene = ExerciseScene(
+            root: .makeSplit(
+                axis: .vertical,
+                children: [
+                    ExerciseSceneSplitChild(node: .surface(.fretboardPrompt)),
+                    ExerciseSceneSplitChild(node: .surface(.fretboardAnswer))
+                ]
+            )
+        )
+        let duplicateIssues = ExerciseSceneValidator.validate(
+            duplicateFretboardScene
+        )
+        if !duplicateIssues.contains(.duplicateSurfaceID(.fretboard)) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "validator 应拒绝同一个 logical fretboard 被拆成两个 scene 节点的情况。"
+                )
+            )
+        }
+
+        let validSelfAnswerScene = ExerciseScene.singleSurface(
+            .fretboardPromptAndAnswer
+        )
+        if !ExerciseSceneValidator.validate(validSelfAnswerScene).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "同时承担 prompt/answer 的单 fretboard scene 不应被 validator 误判为重复 surface。"
                 )
             )
         }

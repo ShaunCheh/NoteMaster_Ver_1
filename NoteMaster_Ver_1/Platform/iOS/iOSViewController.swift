@@ -48,6 +48,27 @@ final class iOSViewController: UIViewController {
             movementScope: .rowOnly
         )
     ]
+    private static let initialPianoPanelState = PianoPanelState.inferred(
+        configuration: initialPianoDemoConfiguration,
+        rows: initialPianoDemoRows
+    )
+    private static let initialExerciseLayoutPreferences = LegacyPageLayoutAdapter
+        .inferredPreferences(
+            pageDisplayState: .default,
+            trainerDisplayState: .default,
+            pianoPanelState: initialPianoPanelState
+        )
+    private static let initialExercisePresentationState = ExerciseCompositionPolicy
+        .makeLegacyCompatiblePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: .default,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: initialStaffDisplayState,
+                pianoPanelState: initialPianoPanelState,
+                layoutPreferences: initialExerciseLayoutPreferences
+            )
+        )
 
     private var displayState = FretboardDisplayState.default {
         didSet {
@@ -73,7 +94,8 @@ final class iOSViewController: UIViewController {
     }
     // 页面编排状态独立于 staff / fretboard display state，
     // 阶段 4 由 applyPageDisplayState() 统一承接顶部和主内容区域切换。
-    private var pageDisplayState = PageDisplayState.default {
+    private var pageDisplayState = iOSViewController.initialExercisePresentationState
+        .legacyPageDisplayState ?? .default {
         didSet {
             guard isViewLoaded else {
                 return
@@ -86,6 +108,18 @@ final class iOSViewController: UIViewController {
             )
         }
     }
+    private var exerciseLayoutPreferences = iOSViewController
+        .initialExerciseLayoutPreferences {
+        didSet {
+            guard isViewLoaded else {
+                return
+            }
+
+            applySettingsPanelState()
+        }
+    }
+    private var exercisePresentationState = iOSViewController
+        .initialExercisePresentationState
     private var trainerDisplayState = TrainerDisplayState.default {
         didSet {
             guard isViewLoaded else {
@@ -111,10 +145,7 @@ final class iOSViewController: UIViewController {
     private var hasLoggedInitialLayoutPass = false
     private let pianoBaseConfiguration = iOSViewController.initialPianoDemoConfiguration
     private var pianoBaseRows = iOSViewController.initialPianoDemoRows
-    private var pianoPanelState = PianoPanelState.inferred(
-        configuration: iOSViewController.initialPianoDemoConfiguration,
-        rows: iOSViewController.initialPianoDemoRows
-    )
+    private var pianoPanelState = iOSViewController.initialPianoPanelState
     private var pianoDemoPreview: PianoPreviewState?
     private var pianoDemoLastEventText = "ready"
 
@@ -520,9 +551,52 @@ final class iOSViewController: UIViewController {
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState,
             pageDisplayState: pageDisplayState,
+            exerciseLayoutPreferences: exerciseLayoutPreferences,
             trainerDisplayState: trainerDisplayState,
             pianoPanelState: pianoPanelState
         )
+    }
+
+    private var exerciseCompositionPolicyInput: ExerciseCompositionPolicyInput {
+        ExerciseCompositionPolicyInput(
+            trainerDisplayState: trainerDisplayState,
+            fretboardTrainerState: fretboardTrainerState,
+            fretboardDisplayState: displayState,
+            staffDisplayState: staffDisplayState,
+            pianoPanelState: pianoPanelState,
+            layoutPreferences: exerciseLayoutPreferences
+        )
+    }
+
+    private func synchronizeExerciseCompositionState(reason: String) {
+        let semanticPresentationState = ExerciseCompositionPolicy.makePresentation(
+            from: exerciseCompositionPolicyInput
+        )
+        exercisePresentationState = semanticPresentationState
+
+        if exerciseLayoutPreferences
+            != semanticPresentationState.resolvedLayoutPreferences {
+            exerciseLayoutPreferences = semanticPresentationState
+                .resolvedLayoutPreferences
+        }
+
+        var legacyCompatibleInput = exerciseCompositionPolicyInput
+        legacyCompatibleInput.layoutPreferences = semanticPresentationState
+            .resolvedLayoutPreferences
+        let legacyCompatiblePresentationState = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(from: legacyCompatibleInput)
+
+        guard let legacyPageDisplayState = legacyCompatiblePresentationState
+            .legacyPageDisplayState else {
+            logLifecycle(
+                "synchronizeExerciseCompositionState reason=\(reason) legacyProjection=unavailable"
+            )
+            return
+        }
+
+        if pageDisplayState != legacyPageDisplayState {
+            pageDisplayState = legacyPageDisplayState
+        }
     }
 
     private var resolvedPianoDemoConfiguration: PianoConfiguration {
@@ -1521,24 +1595,17 @@ final class iOSViewController: UIViewController {
             resetSingleCoverageInteractionState()
         }
 
-        if pageDisplayState == .positionPrompt {
-            pageDisplayState.setMainContentMode(.fretboard)
-        }
-
         if staffDisplayState != baseStaffDisplayState {
             staffDisplayState = baseStaffDisplayState
         }
 
+        synchronizeExerciseCompositionState(reason: reason)
         applyFretboardTrainerPrompt(reason: reason)
     }
 
     private func synchronizePositionPromptPresentation(reason: String) {
         resetSingleCoverageInteractionState()
         resetQuarterNoteSequenceInteractionState()
-
-        if pageDisplayState != .positionPrompt {
-            pageDisplayState = .positionPrompt
-        }
 
         if staffDisplayState != baseStaffDisplayState {
             staffDisplayState = baseStaffDisplayState
@@ -1558,6 +1625,7 @@ final class iOSViewController: UIViewController {
             )
         }
 
+        synchronizeExerciseCompositionState(reason: reason)
         applyPositionPromptProjection(
             reason: reason,
             showsLog: true
@@ -1567,9 +1635,6 @@ final class iOSViewController: UIViewController {
     private func synchronizeQuarterNoteSequencePresentation(reason: String) {
         resetSingleCoverageInteractionState()
         resetPositionPromptInteractionState()
-        if pageDisplayState.mainContentMode != .fretboard {
-            pageDisplayState.setMainContentMode(.fretboard)
-        }
 
         let requiresNewSequence: Bool
         switch fretboardTrainerState.mode {
@@ -1597,6 +1662,7 @@ final class iOSViewController: UIViewController {
             clearQuarterNoteSequenceFeedbackState()
         }
 
+        synchronizeExerciseCompositionState(reason: reason)
         applyQuarterNoteSequenceProjection(generatedSequence, reason: reason)
     }
 
@@ -1639,10 +1705,15 @@ final class iOSViewController: UIViewController {
             return
         }
 
+        let isInteractionEnabled = exercisePresentationState.surfaceState(
+            for: .naturalNoteStrip
+        )?.isInteractionEnabled ?? false
+
         if trainerDisplayState.isPositionPromptMode {
-            naturalNoteStripView.isUserInteractionEnabled = currentPositionPromptOverlayPhase == .neutralWhite
+            naturalNoteStripView.isUserInteractionEnabled = isInteractionEnabled
+                && currentPositionPromptOverlayPhase == .neutralWhite
         } else {
-            naturalNoteStripView.isUserInteractionEnabled = true
+            naturalNoteStripView.isUserInteractionEnabled = isInteractionEnabled
         }
     }
 
@@ -1767,30 +1838,6 @@ final class iOSViewController: UIViewController {
         }
     }
 
-    private func normalizeSettingsPanelStateContextForTrainerMode(
-        _ stateContext: inout SettingsPanelStateContext
-    ) {
-        switch stateContext.trainerDisplayState.exerciseMode {
-        case .single:
-            if stateContext.pageDisplayState == .positionPrompt {
-                stateContext.pageDisplayState.setMainContentMode(.fretboard)
-            }
-        case .sequence:
-            stateContext.pageDisplayState.setMainContentMode(.fretboard)
-
-            if let currentGeneratedQuarterNoteSequence {
-                stateContext.staffDisplayState.apply(
-                    generatedSequence: currentGeneratedQuarterNoteSequence,
-                    sequencePresentation: currentQuarterNoteSequenceStaffPresentation(
-                        for: currentGeneratedQuarterNoteSequence
-                    )
-                )
-            }
-        case .positionPrompt:
-            stateContext.pageDisplayState = .positionPrompt
-        }
-    }
-
     private func setSettingsPresented(_ presented: Bool) {
         guard isSettingsPresented != presented else {
             return
@@ -1909,17 +1956,18 @@ final class iOSViewController: UIViewController {
         var nextStateContext = settingsPanelStateContext
         event.apply(to: &nextStateContext)
         let nextRequestedStaffDisplayState = nextStateContext.staffDisplayState
-        normalizeSettingsPanelStateContextForTrainerMode(&nextStateContext)
 
         let nextDisplayState = nextStateContext.fretboardDisplayState
         let nextStaffDisplayState = nextStateContext.staffDisplayState
-        let nextPageDisplayState = nextStateContext.pageDisplayState
+        let nextExerciseLayoutPreferences = nextStateContext
+            .exerciseLayoutPreferences
         let nextTrainerDisplayState = nextStateContext.trainerDisplayState
         let nextPianoPanelState = nextStateContext.pianoPanelState
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
-        let didChangePage = nextPageDisplayState != pageDisplayState
+        let didChangeExerciseLayoutPreferences =
+            nextExerciseLayoutPreferences != exerciseLayoutPreferences
         let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
         let didChangePianoPanel = nextPianoPanelState != pianoPanelState
         let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
@@ -1927,7 +1975,11 @@ final class iOSViewController: UIViewController {
             nextTrainerDisplayState.positionPromptConfiguration.activeFilter
             != trainerDisplayState.positionPromptConfiguration.activeFilter
 
-        guard didChangeFretboard || didChangeStaff || didChangePage || didChangeTrainer || didChangePianoPanel else {
+        guard didChangeFretboard
+            || didChangeStaff
+            || didChangeExerciseLayoutPreferences
+            || didChangeTrainer
+            || didChangePianoPanel else {
             return
         }
 
@@ -1942,8 +1994,8 @@ final class iOSViewController: UIViewController {
             trainerDisplayState = nextTrainerDisplayState
         }
 
-        if didChangePage {
-            pageDisplayState = nextPageDisplayState
+        if didChangeExerciseLayoutPreferences {
+            exerciseLayoutPreferences = nextExerciseLayoutPreferences
         }
 
         if didChangeFretboard {
@@ -1970,6 +2022,13 @@ final class iOSViewController: UIViewController {
                 trainerSyncReason = "trainerSettingsChanged"
             }
             synchronizeTrainerPresentationState(reason: trainerSyncReason)
+        } else if didChangeExerciseLayoutPreferences
+            || didChangePianoPanel
+            || didChangeFretboard
+            || didChangeStaff {
+            synchronizeExerciseCompositionState(
+                reason: "settingsStateChanged"
+            )
         }
     }
 }

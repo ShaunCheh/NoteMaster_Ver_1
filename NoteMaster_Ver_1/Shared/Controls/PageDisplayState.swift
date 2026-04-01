@@ -36,7 +36,10 @@ struct PageDisplayState: Equatable, Sendable {
     ) {
         self.topContentMode = topContentMode
         self.mainContentMode = mainContentMode
-        normalizeFretboardPlacement(prioritizingTopContent: true)
+        self = ExerciseSceneValidator.normalizedLegacyPageDisplayState(
+            from: self,
+            prioritizingTopContent: true
+        )
     }
 
     var showsFretboardInTopContent: Bool {
@@ -68,14 +71,9 @@ struct PageDisplayState: Equatable, Sendable {
     private mutating func normalizeFretboardPlacement(
         prioritizingTopContent: Bool
     ) {
-        guard !hasValidFretboardPlacement else {
-            return
-        }
-
-        if prioritizingTopContent {
-            mainContentMode = .naturalNoteStrip
-        } else {
-            topContentMode = .staff
-        }
+        self = ExerciseSceneValidator.normalizedLegacyPageDisplayState(
+            from: self,
+            prioritizingTopContent: prioritizingTopContent
+        )
     }
 }

@@ -43,63 +43,37 @@ enum LegacyPageLayoutAdapter {
         _ preferences: ExerciseLayoutPreferences,
         trainerDisplayState: TrainerDisplayState
     ) -> ExerciseLayoutPreferences {
-        var normalized = preferences
-
-        switch trainerDisplayState.exerciseMode {
-        case .single, .sequence:
-            if !isCompositionPresetSupported(
-                normalized.compositionPreset,
-                for: trainerDisplayState.exerciseMode
-            ) {
-                normalized.compositionPreset = .staffToFretboard
-            }
-            normalized.isNaturalNoteStripVisible = false
-        case .positionPrompt:
-            normalized.compositionPreset = .fretboardToNaturalNoteStrip
-            normalized.isNaturalNoteStripVisible = true
-        }
-
-        if !isLayoutPresetSupported(normalized.layoutPreset) {
-            normalized.layoutPreset = .stacked
-        }
-        if !isAccessoryPresentationSupported(
-            normalized.accessoryPresentation
-        ) {
-            normalized.accessoryPresentation = .docked
-        }
-        if !isAccessoryExpandedSupported(
-            accessoryPresentation: normalized.accessoryPresentation
-        ) {
-            normalized.isAccessoryExpanded = true
-        }
-
-        return normalized
+        ExerciseCompositionPolicy.legacyCompatiblePreferences(
+            from: policyInput(
+                trainerDisplayState: trainerDisplayState,
+                pianoPanelState: .init(),
+                layoutPreferences: preferences
+            )
+        )
     }
 
     static func projectedPageDisplayState(
         from preferences: ExerciseLayoutPreferences,
         trainerDisplayState: TrainerDisplayState
     ) -> PageDisplayState {
-        let normalizedPreferences = normalizedPreferences(
-            preferences,
-            trainerDisplayState: trainerDisplayState
-        )
+        let presentationState = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(
+                from: policyInput(
+                    trainerDisplayState: trainerDisplayState,
+                    pianoPanelState: .init(),
+                    layoutPreferences: preferences
+                )
+            )
+
+        if let legacyPageDisplayState = presentationState.legacyPageDisplayState {
+            return legacyPageDisplayState
+        }
 
         switch trainerDisplayState.exerciseMode {
+        case .single, .sequence:
+            return .default
         case .positionPrompt:
             return .positionPrompt
-        case .single, .sequence:
-            switch normalizedPreferences.compositionPreset {
-            case .targetPromptToFretboard:
-                return PageDisplayState(
-                    topContentMode: .targetPrompt,
-                    mainContentMode: .fretboard
-                )
-            case .staffToFretboard,
-                 .fretboardToNaturalNoteStrip,
-                 .fretboardSelfAnswer:
-                return .default
-            }
         }
     }
 
@@ -107,29 +81,66 @@ enum LegacyPageLayoutAdapter {
         _ preset: ExerciseCompositionPreset,
         for exerciseMode: TrainerExerciseMode
     ) -> Bool {
-        switch exerciseMode {
-        case .single, .sequence:
-            switch preset {
-            case .staffToFretboard, .targetPromptToFretboard:
-                return true
-            case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
-                return false
-            }
-        case .positionPrompt:
-            return preset == .fretboardToNaturalNoteStrip
-        }
+        let requestedPreferences = ExerciseLayoutPreferences(
+            compositionPreset: preset,
+            layoutPreset: preset == .fretboardSelfAnswer
+                ? .singleSurface
+                : .stacked,
+            accessoryPresentation: .docked,
+            isNaturalNoteStripVisible: preset == .fretboardToNaturalNoteStrip,
+            isPianoAccessoryVisible: false,
+            isAccessoryExpanded: true
+        )
+        let legacyCompatiblePreferences = ExerciseCompositionPolicy
+            .legacyCompatiblePreferences(
+                from: policyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: exerciseMode
+                    ),
+                    pianoPanelState: .init(),
+                    layoutPreferences: requestedPreferences
+                )
+            )
+        return legacyCompatiblePreferences.compositionPreset == preset
     }
 
     static func isLayoutPresetSupported(
         _ preset: ExerciseLayoutPreset
     ) -> Bool {
-        preset == .stacked
+        let legacyCompatiblePreferences = ExerciseCompositionPolicy
+            .legacyCompatiblePreferences(
+                from: policyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .single
+                    ),
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .staffToFretboard,
+                        layoutPreset: preset
+                    )
+                )
+            )
+        return legacyCompatiblePreferences.layoutPreset == preset
     }
 
     static func isAccessoryPresentationSupported(
         _ presentation: ExerciseAccessoryPresentation
     ) -> Bool {
-        presentation == .docked
+        let legacyCompatiblePreferences = ExerciseCompositionPolicy
+            .legacyCompatiblePreferences(
+                from: policyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .single
+                    ),
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .staffToFretboard,
+                        layoutPreset: .stacked,
+                        accessoryPresentation: presentation
+                    )
+                )
+            )
+        return legacyCompatiblePreferences.accessoryPresentation == presentation
     }
 
     static func isNaturalStripToggleSupported(
@@ -158,5 +169,20 @@ enum LegacyPageLayoutAdapter {
         stateContext.pianoPanelState.isVisible = stateContext
             .exerciseLayoutPreferences
             .isPianoAccessoryVisible
+    }
+
+    private static func policyInput(
+        trainerDisplayState: TrainerDisplayState,
+        pianoPanelState: PianoPanelState,
+        layoutPreferences: ExerciseLayoutPreferences
+    ) -> ExerciseCompositionPolicyInput {
+        ExerciseCompositionPolicyInput(
+            trainerDisplayState: trainerDisplayState,
+            fretboardTrainerState: .init(),
+            fretboardDisplayState: .default,
+            staffDisplayState: .default,
+            pianoPanelState: pianoPanelState,
+            layoutPreferences: layoutPreferences
+        )
     }
 }
