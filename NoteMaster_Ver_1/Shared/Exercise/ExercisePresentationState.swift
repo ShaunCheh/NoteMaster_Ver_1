@@ -241,6 +241,33 @@ struct ExerciseFretboardLayoutContract: Equatable, Sendable {
     }
 }
 
+enum ExerciseNaturalNoteStripRailSlotModel: Equatable, Sendable {
+    case chromatic12Preserved
+
+    var slotCount: Int {
+        PitchClass.allCases.count
+    }
+}
+
+enum ExerciseNaturalNoteStripRailLayoutIntent: Equatable, Sendable {
+    case contentSizedAndVerticallyCentered
+}
+
+enum ExerciseNaturalNoteStripRailBoundary: Equatable, Sendable {
+    case inactive
+    case sideBySideAnswerRail(
+        slotModel: ExerciseNaturalNoteStripRailSlotModel,
+        layoutIntent: ExerciseNaturalNoteStripRailLayoutIntent
+    )
+
+    var isEnabled: Bool {
+        if case .inactive = self {
+            return false
+        }
+        return true
+    }
+}
+
 extension ExercisePresentationState {
     func isSurfaceVisible(_ surfaceID: ExerciseSurfaceID) -> Bool {
         effectiveSurfaceState(for: surfaceID).isVisible
@@ -252,6 +279,10 @@ extension ExercisePresentationState {
 
     var fretboardLayoutContract: ExerciseFretboardLayoutContract {
         scene.fretboardLayoutContract
+    }
+
+    var naturalNoteStripRailBoundary: ExerciseNaturalNoteStripRailBoundary {
+        scene.naturalNoteStripRailBoundary
     }
 }
 
@@ -266,6 +297,17 @@ extension ExerciseScene {
             heightPolicy: containsMainFretboardInSideBySideLayout
                 ? .fillAvailableHeight
                 : .followViewportRatio
+        )
+    }
+
+    var naturalNoteStripRailBoundary: ExerciseNaturalNoteStripRailBoundary {
+        guard containsNaturalNoteStripAnswerRailInSideBySideLayout else {
+            return .inactive
+        }
+
+        return .sideBySideAnswerRail(
+            slotModel: .chromatic12Preserved,
+            layoutIntent: .contentSizedAndVerticallyCentered
         )
     }
 }

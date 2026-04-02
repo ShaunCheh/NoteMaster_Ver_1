@@ -159,6 +159,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSharedSceneContractExposesPresentationStylesAndMainAxisSizing
             ),
             ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_rail_boundary_freezes_scope_before_layout_contract",
+                validate: validateNaturalNoteStripRailBoundaryFreezesScopeBeforeLayoutContract
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
                 validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
             ),
@@ -878,6 +882,161 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "包含 verticalRail surface 的 scene 在阶段 1 应能通过 shared helper 要求 viewport pin 高度。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripRailBoundaryFreezesScopeBeforeLayoutContract()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "natural_note_strip_rail_boundary_freezes_scope_before_layout_contract"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let positionPromptTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .positionPrompt
+        )
+        let railPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        if !railPresentation.scene
+            .containsNaturalNoteStripAnswerRailInSideBySideLayout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 0 应先被 shared helper 标记为右侧 answer rail 作用域。"
+                )
+            )
+        }
+
+        switch railPresentation.naturalNoteStripRailBoundary {
+        case let .sideBySideAnswerRail(slotModel, layoutIntent):
+            if slotModel != .chromatic12Preserved
+                || slotModel.slotCount != PitchClass.allCases.count {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 的 right rail 边界应继续冻结为保留 12 个 PitchClass 槽位的语义。"
+                    )
+                )
+            }
+
+            if layoutIntent != .contentSizedAndVerticallyCentered {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 的 right rail 边界应先冻结为内容高度加垂直居中的目标语义。"
+                    )
+                )
+            }
+        case .inactive:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 0 应暴露 active rail boundary，而不是 inactive。"
+                )
+            )
+        }
+
+        if railPresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 冻结 right rail 边界时，不应反向破坏 side fretboard 的 fillAvailableHeight 语义。"
+                )
+            )
+        }
+
+        let stackedRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .stacked
+                )
+            )
+        )
+
+        if stackedRailPresentation.scene
+            .containsNaturalNoteStripAnswerRailInSideBySideLayout
+            || stackedRailPresentation.naturalNoteStripRailBoundary.isEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 的 fretboard -> natural note strip scene 在阶段 0 不应被误纳入 right rail boundary。"
+                )
+            )
+        }
+
+        let singleTrainerDisplayState = TrainerDisplayState(exerciseMode: .single)
+        let targetPromptSideBySidePresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: singleTrainerDisplayState,
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .targetPromptToFretboard,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+
+        if targetPromptSideBySidePresentation.scene
+            .containsNaturalNoteStripAnswerRailInSideBySideLayout
+            || targetPromptSideBySidePresentation.naturalNoteStripRailBoundary
+            .isEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 0 不应被误纳入 natural note strip rail boundary。"
+                )
+            )
+        }
+
+        let sequenceTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .sequence
+        )
+        let staffSideBySidePresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: sequenceTrainerDisplayState,
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToFretboard,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        if staffSideBySidePresentation.scene
+            .containsNaturalNoteStripAnswerRailInSideBySideLayout
+            || staffSideBySidePresentation.naturalNoteStripRailBoundary.isEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide scene 在阶段 0 不应被误纳入 natural note strip rail boundary。"
                 )
             )
         }

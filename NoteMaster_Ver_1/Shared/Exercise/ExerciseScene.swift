@@ -90,6 +90,13 @@ struct ExerciseSurfaceNode: Equatable, Sendable {
         roles.contains(.auxiliary)
     }
 
+    var isNaturalNoteStripAnswerRail: Bool {
+        id == .naturalNoteStrip
+            && kind == .naturalNoteStrip
+            && isAnswerSurface
+            && presentationStyle == .verticalRail
+    }
+
     func withPresentationStyle(
         _ presentationStyle: ExerciseSurfacePresentationStyle
     ) -> ExerciseSurfaceNode {
@@ -328,6 +335,30 @@ extension ExerciseSurfaceNode {
 }
 
 extension ExerciseSceneNode {
+    var containsNaturalNoteStripAnswerRailInSideBySideLayout: Bool {
+        switch self {
+        case .surface:
+            return false
+        case let .split(axis, children):
+            let isCurrentNaturalNoteStripAnswerRailLayout = axis == .horizontal
+                && children.count >= 2
+                && children.contains { $0.node.containsSurface(.fretboard) }
+                && children.contains {
+                    $0.node.surfaceNodes.contains(where: {
+                        $0.isNaturalNoteStripAnswerRail
+                    })
+                }
+            return isCurrentNaturalNoteStripAnswerRailLayout
+                || children.contains {
+                    $0.node.containsNaturalNoteStripAnswerRailInSideBySideLayout
+                }
+        case let .overlay(base, _):
+            return base.containsNaturalNoteStripAnswerRailInSideBySideLayout
+        case let .collapsible(main, _, _):
+            return main.containsNaturalNoteStripAnswerRailInSideBySideLayout
+        }
+    }
+
     var containsMainFretboardInSideBySideLayout: Bool {
         switch self {
         case .surface:
@@ -420,6 +451,10 @@ extension ExerciseSceneNode {
 }
 
 extension ExerciseScene {
+    var containsNaturalNoteStripAnswerRailInSideBySideLayout: Bool {
+        root.containsNaturalNoteStripAnswerRailInSideBySideLayout
+    }
+
     var containsMainFretboardInSideBySideLayout: Bool {
         root.containsMainFretboardInSideBySideLayout
     }
