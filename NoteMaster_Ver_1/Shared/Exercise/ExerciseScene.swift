@@ -205,6 +205,10 @@ indirect enum ExerciseSceneNode: Equatable, Sendable {
             return accessory.surfaceNode(for: surfaceID)
         }
     }
+
+    func containsSurface(_ surfaceID: ExerciseSurfaceID) -> Bool {
+        surfaceNode(for: surfaceID) != nil
+    }
 }
 
 struct ExerciseScene: Equatable, Sendable {
@@ -260,6 +264,10 @@ struct ExerciseScene: Equatable, Sendable {
 
     func surfaceNode(for surfaceID: ExerciseSurfaceID) -> ExerciseSurfaceNode? {
         root.surfaceNode(for: surfaceID)
+    }
+
+    func containsSurface(_ surfaceID: ExerciseSurfaceID) -> Bool {
+        root.containsSurface(surfaceID)
     }
 }
 
@@ -352,9 +360,7 @@ extension ExerciseSceneNode {
             let hasCurrentMixedMainAxisSizing = splitAxis == axis
                 && children.contains(where: { $0.mainAxisSizing.isWeighted })
                 && children.contains(where: { !$0.mainAxisSizing.isWeighted })
-                && children.contains {
-                    $0.node.surfaceNode(for: surfaceID) != nil
-                }
+                && children.contains { $0.node.containsSurface(surfaceID) }
             return hasCurrentMixedMainAxisSizing
                 || children.contains {
                     $0.node.hasMixedMainAxisSizing(

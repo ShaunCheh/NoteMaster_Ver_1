@@ -149,22 +149,16 @@ enum ExerciseCompositionPolicy {
     private static func makeSurfaceStates(
         scene: ExerciseScene
     ) -> [ExerciseSurfaceID: ExerciseSurfaceState] {
-        var surfaceStates = Dictionary(
-            uniqueKeysWithValues: ExerciseSurfaceID.allCases.map {
-                ($0, ExerciseSurfaceState.hidden)
-            }
-        )
-
         let defaultPresentationState = ExercisePresentationState(scene: scene)
-        for surfaceID in ExerciseSurfaceID.allCases {
-            if let state = defaultPresentationState.surfaceState(
-                for: surfaceID
-            ) {
-                surfaceStates[surfaceID] = state
+        return scene.surfaceNodes.reduce(into: [:]) { surfaceStates, surface in
+            guard let state = defaultPresentationState.projectedSurfaceState(
+                for: surface.id
+            ) else {
+                return
             }
-        }
 
-        return surfaceStates
+            surfaceStates[surface.id] = state
+        }
     }
 
     private static func makeMainSceneNode(

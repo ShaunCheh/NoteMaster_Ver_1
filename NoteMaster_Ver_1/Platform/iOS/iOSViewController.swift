@@ -1429,12 +1429,12 @@ final class iOSViewController: UIViewController {
 
         let allowsLiveAnswerInteraction = !trainerDisplayState.isPositionPromptMode
             || currentPositionPromptOverlayPhase == .neutralWhite
-        let fretboardInteractionEnabled = exercisePresentationState.surfaceState(
-            for: .fretboard
-        )?.isInteractionEnabled ?? false
-        let naturalNoteStripInteractionEnabled = exercisePresentationState.surfaceState(
-            for: .naturalNoteStrip
-        )?.isInteractionEnabled ?? false
+        let fretboardInteractionEnabled = exercisePresentationState
+            .effectiveSurfaceState(for: .fretboard)
+            .isInteractionEnabled
+        let naturalNoteStripInteractionEnabled = exercisePresentationState
+            .effectiveSurfaceState(for: .naturalNoteStrip)
+            .isInteractionEnabled
 
         fretboardView.isUserInteractionEnabled = fretboardInteractionEnabled
             && allowsLiveAnswerInteraction

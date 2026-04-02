@@ -98,31 +98,66 @@ struct ExercisePresentationState: Equatable, Sendable {
         self.scene = scene
         self.resolvedLayoutPreferences = resolvedLayoutPreferences
         self.legacyPageDisplayState = legacyPageDisplayState
-        self.surfaceStates = surfaceStates
+        self.surfaceStates = Self.normalizedSurfaceStates(
+            surfaceStates,
+            in: scene
+        )
     }
 
-    func surfaceState(
+    func containsSurface(_ surfaceID: ExerciseSurfaceID) -> Bool {
+        scene.containsSurface(surfaceID)
+    }
+
+    func projectedSurfaceState(
         for surfaceID: ExerciseSurfaceID
     ) -> ExerciseSurfaceState? {
+        guard containsSurface(surfaceID) else {
+            return nil
+        }
+
         if let state = surfaceStates[surfaceID] {
             return state
         }
 
-        return defaultSurfaceState(
+        return defaultProjectedSurfaceState(
             for: surfaceID,
             in: scene.root,
             inheritedVisibility: true
         )
     }
 
+    func effectiveSurfaceState(
+        for surfaceID: ExerciseSurfaceID
+    ) -> ExerciseSurfaceState {
+        projectedSurfaceState(for: surfaceID) ?? .hidden
+    }
+
     mutating func setSurfaceState(
         _ state: ExerciseSurfaceState,
         for surfaceID: ExerciseSurfaceID
     ) {
+        guard containsSurface(surfaceID) else {
+            surfaceStates.removeValue(forKey: surfaceID)
+            return
+        }
+
         surfaceStates[surfaceID] = state
     }
 
-    private func defaultSurfaceState(
+    private static func normalizedSurfaceStates(
+        _ surfaceStates: [ExerciseSurfaceID: ExerciseSurfaceState],
+        in scene: ExerciseScene
+    ) -> [ExerciseSurfaceID: ExerciseSurfaceState] {
+        surfaceStates.reduce(into: [:]) { partialResult, entry in
+            guard scene.containsSurface(entry.key) else {
+                return
+            }
+
+            partialResult[entry.key] = entry.value
+        }
+    }
+
+    private func defaultProjectedSurfaceState(
         for surfaceID: ExerciseSurfaceID,
         in node: ExerciseSceneNode,
         inheritedVisibility: Bool
@@ -138,14 +173,14 @@ struct ExercisePresentationState: Equatable, Sendable {
             )
         case let .split(_, children):
             return children.compactMap {
-                defaultSurfaceState(
+                defaultProjectedSurfaceState(
                     for: surfaceID,
                     in: $0.node,
                     inheritedVisibility: inheritedVisibility
                 )
             }.first
         case let .overlay(base, floating):
-            if let match = defaultSurfaceState(
+            if let match = defaultProjectedSurfaceState(
                 for: surfaceID,
                 in: base,
                 inheritedVisibility: inheritedVisibility
@@ -154,14 +189,14 @@ struct ExercisePresentationState: Equatable, Sendable {
             }
 
             return floating.compactMap {
-                defaultSurfaceState(
+                defaultProjectedSurfaceState(
                     for: surfaceID,
                     in: $0,
                     inheritedVisibility: inheritedVisibility
                 )
             }.first
         case let .collapsible(main, accessory, isExpanded):
-            if let match = defaultSurfaceState(
+            if let match = defaultProjectedSurfaceState(
                 for: surfaceID,
                 in: main,
                 inheritedVisibility: inheritedVisibility
@@ -169,7 +204,7 @@ struct ExercisePresentationState: Equatable, Sendable {
                 return match
             }
 
-            return defaultSurfaceState(
+            return defaultProjectedSurfaceState(
                 for: surfaceID,
                 in: accessory,
                 inheritedVisibility: inheritedVisibility && isExpanded
@@ -194,7 +229,7 @@ struct ExerciseRenderedSceneLayout: Equatable, Sendable {
 
 extension ExercisePresentationState {
     func isSurfaceVisible(_ surfaceID: ExerciseSurfaceID) -> Bool {
-        surfaceState(for: surfaceID)?.isVisible ?? false
+        effectiveSurfaceState(for: surfaceID).isVisible
     }
 
     var renderedSceneLayout: ExerciseRenderedSceneLayout? {

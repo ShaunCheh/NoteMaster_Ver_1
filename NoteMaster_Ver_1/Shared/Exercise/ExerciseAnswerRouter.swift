@@ -168,11 +168,11 @@ enum ExerciseAnswerRouter {
         _ surfaceID: ExerciseSurfaceID,
         in presentationState: ExercisePresentationState
     ) -> ExerciseAnswerRouteIgnoreReason? {
-        guard let surfaceState = presentationState.surfaceState(
-            for: surfaceID
-        ) else {
+        guard presentationState.containsSurface(surfaceID) else {
             return .surfaceUnavailable(surfaceID)
         }
+
+        let surfaceState = presentationState.effectiveSurfaceState(for: surfaceID)
         guard surfaceState.isVisible else {
             return .surfaceHidden(surfaceID)
         }

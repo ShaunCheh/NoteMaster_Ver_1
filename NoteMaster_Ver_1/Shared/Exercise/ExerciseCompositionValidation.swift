@@ -171,6 +171,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSharedSurfaceStateDefaultsFollowSurfaceRoles
             ),
             ExerciseCompositionValidationFixture(
+                name: "surface_membership_distinguishes_absent_and_hidden_states",
+                validate: validateSurfaceMembershipDistinguishesAbsentAndHiddenStates
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "shared_layout_preferences_coexist_with_legacy_page_state",
                 validate: validateSharedLayoutPreferencesCoexistWithLegacyPageState
             ),
@@ -229,6 +233,7 @@ private extension ExerciseCompositionValidationRunner {
             "确认 `Piano Accessory Visible` 默认关闭；打开后会按当前 `Accessory Presentation` 进入 docked / floating / collapsible scene，关闭后主 prompt/answer 组合不发生漂移。",
             "确认在 `single/sequence` 下打开 `Natural Strip Visible` 时，strip 会作为 accessory surface 参与布局，但不会抢走 answer surface 角色。",
             "确认 `Collapsible` accessory 收起时，隐藏的 accessory 不可见也不可交互；重新展开后恢复到原来的 surface。",
+            "确认 `single/sequence + Side` 未投影 `natural note strip` 时，scene membership 仍为 absent，而 renderer/controller/router 只把它当作有效 `.hidden`，不会误判为混入布局。",
             "确认 `vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 后该滑块消失，切回后沿用上次值。"
         ]
 
@@ -1083,10 +1088,12 @@ private extension ExerciseCompositionValidationRunner {
             )
         }
         guard
-            let promptFretboardState = sideBySidePositionPromptPresentation.surfaceState(
+            let promptFretboardState = sideBySidePositionPromptPresentation
+                .projectedSurfaceState(
                 for: .fretboard
             ),
-            let stripAnswerState = sideBySidePositionPromptPresentation.surfaceState(
+            let stripAnswerState = sideBySidePositionPromptPresentation
+                .projectedSurfaceState(
                 for: .naturalNoteStrip
             )
         else {
@@ -1196,9 +1203,9 @@ private extension ExerciseCompositionValidationRunner {
             sceneDescription: "single 的 targetPrompt -> fretboard sideBySide 组合",
             expectedOrderDescription: "左 targetPrompt、右 fretboard"
         )
-        if sideBySideTargetPromptPresentation.surfaceState(
-            for: .naturalNoteStrip
-        ) != nil {
+        if sideBySideTargetPromptPresentation.scene.containsSurface(
+            .naturalNoteStrip
+        ) {
             issues.append(
                 issue(
                     fixtureName,
@@ -1268,9 +1275,7 @@ private extension ExerciseCompositionValidationRunner {
             sceneDescription: "sequence 的 staff -> fretboard sideBySide 组合",
             expectedOrderDescription: "左 staff、右 fretboard"
         )
-        if sideBySideStaffPresentation.surfaceState(
-            for: .naturalNoteStrip
-        ) != nil {
+        if sideBySideStaffPresentation.scene.containsSurface(.naturalNoteStrip) {
             issues.append(
                 issue(
                     fixtureName,
@@ -1329,7 +1334,7 @@ private extension ExerciseCompositionValidationRunner {
             scene: .singleSurface(.fretboardPromptAndAnswer)
         )
 
-        guard let defaultFretboardState = presentationState.surfaceState(
+        guard let defaultFretboardState = presentationState.projectedSurfaceState(
             for: .fretboard
         ) else {
             issues.append(
@@ -1352,11 +1357,27 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        if presentationState.surfaceState(for: .staff) != nil {
+        if presentationState.containsSurface(.staff) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "presentation state 不应把不在 scene 中的 surface 误报为结构成员。"
+                )
+            )
+        }
+        if presentationState.projectedSurfaceState(for: .staff) != nil {
             issues.append(
                 issue(
                     fixtureName,
                     "presentation state 不应为不在 scene 中的 surface 凭空生成状态。"
+                )
+            )
+        }
+        if presentationState.effectiveSurfaceState(for: .staff) != .hidden {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "presentation state 应把不在 scene 中的 surface 统一收口为 hidden 的 effective state。"
                 )
             )
         }
@@ -1370,7 +1391,9 @@ private extension ExerciseCompositionValidationRunner {
             ),
             for: .fretboard
         )
-        let overriddenState = presentationState.surfaceState(for: .fretboard)
+        let overriddenState = presentationState.projectedSurfaceState(
+            for: .fretboard
+        )
         if overriddenState?.isVisible ?? true
             || !(overriddenState?.isPromptActive ?? false)
             || overriddenState?.isAnswerEnabled ?? true
@@ -1379,6 +1402,188 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "显式写入的 surface state 应覆盖默认角色投影。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSurfaceMembershipDistinguishesAbsentAndHiddenStates()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "surface_membership_distinguishes_absent_and_hidden_states"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let targetPromptSideBySidePresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .targetPromptToFretboard,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        if targetPromptSideBySidePresentation.containsSurface(.naturalNoteStrip) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合不应把 natural note strip 记为 scene 成员。"
+                )
+            )
+        }
+        if targetPromptSideBySidePresentation.projectedSurfaceState(
+            for: .naturalNoteStrip
+        ) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合不应为缺席的 natural note strip 暴露 projected state。"
+                )
+            )
+        }
+        if targetPromptSideBySidePresentation.effectiveSurfaceState(
+            for: .naturalNoteStrip
+        ) != .hidden {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合应把缺席的 natural note strip 收口为 hidden effective state。"
+                )
+            )
+        }
+
+        let staffSideBySidePresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .sequence),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToFretboard,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+        if staffSideBySidePresentation.containsSurface(.naturalNoteStrip) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide 组合不应把 natural note strip 记为 scene 成员。"
+                )
+            )
+        }
+        if staffSideBySidePresentation.projectedSurfaceState(
+            for: .naturalNoteStrip
+        ) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide 组合不应为缺席的 natural note strip 暴露 projected state。"
+                )
+            )
+        }
+        if staffSideBySidePresentation.effectiveSurfaceState(
+            for: .naturalNoteStrip
+        ) != .hidden {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide 组合应把缺席的 natural note strip 收口为 hidden effective state。"
+                )
+            )
+        }
+
+        let sideBySidePositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        if !sideBySidePositionPromptPresentation.containsSurface(
+            .naturalNoteStrip
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合应继续投影 natural note strip。"
+                )
+            )
+        }
+        if sideBySidePositionPromptPresentation.projectedSurfaceState(
+            for: .naturalNoteStrip
+        ) == nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合应暴露 natural note strip 的 projected state。"
+                )
+            )
+        }
+        if sideBySidePositionPromptPresentation.scene.surfaceNode(
+            for: .naturalNoteStrip
+        )?.presentationStyle != .verticalRail {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合应把 natural note strip 标记为 verticalRail。"
+                )
+            )
+        }
+
+        let stackedPositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: .legacyPositionPrompt
+                )
+            )
+        if !stackedPositionPromptPresentation.containsSurface(.naturalNoteStrip) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 stacked 组合应继续投影 natural note strip。"
+                )
+            )
+        }
+        if stackedPositionPromptPresentation.projectedSurfaceState(
+            for: .naturalNoteStrip
+        ) == nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 stacked 组合应暴露 natural note strip 的 projected state。"
+                )
+            )
+        }
+        if stackedPositionPromptPresentation.scene.surfaceNode(
+            for: .naturalNoteStrip
+        )?.presentationStyle != .horizontalStrip {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 stacked 组合应把 natural note strip 保持为 horizontalStrip。"
                 )
             )
         }
@@ -1707,7 +1912,7 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        let selfAnswerFretboardState = selfAnswerPresentation.surfaceState(
+        let selfAnswerFretboardState = selfAnswerPresentation.projectedSurfaceState(
             for: .fretboard
         )
         if !(selfAnswerFretboardState?.isPromptActive ?? false)
@@ -1801,7 +2006,8 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        guard let floatingStripState = floatingAccessoryPresentation.surfaceState(
+        guard let floatingStripState = floatingAccessoryPresentation
+            .projectedSurfaceState(
             for: .naturalNoteStrip
         ) else {
             issues.append(
@@ -1883,7 +2089,16 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        let collapsedPianoState = collapsedAccessoryPresentation.surfaceState(
+        if !collapsedAccessoryPresentation.containsSurface(.piano) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "收起的 collapsible accessory 仍应在 scene 中保留 piano surface，只是 effective state 变为隐藏。"
+                )
+            )
+        }
+        let collapsedPianoState = collapsedAccessoryPresentation
+            .projectedSurfaceState(
             for: .piano
         )
         if collapsedPianoState?.isVisible ?? true {
@@ -2583,6 +2798,23 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "上下布局中的单音训练应把 fretboardCell 事件路由到 singleCoverage answer。"
+                )
+            )
+        }
+        let absentStripEvent = ExerciseAnswerEvent.pitchClass(
+            .c,
+            from: .naturalNoteStrip
+        )
+        if ExerciseAnswerRouter.route(
+            absentStripEvent,
+            presentationState: stackedSinglePresentation,
+            trainerDisplayState: singleTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .ignored(.surfaceUnavailable(.naturalNoteStrip)) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "未投影的 natural note strip 事件应继续被 answer router 判定为 surfaceUnavailable，而不是退化成 hidden/disabled。"
                 )
             )
         }
