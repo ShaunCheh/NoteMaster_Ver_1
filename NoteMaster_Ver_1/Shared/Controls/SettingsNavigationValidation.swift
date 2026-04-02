@@ -157,6 +157,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateReconciledPathFallsBackToExistingParent
             ),
             SettingsNavigationValidationFixture(
+                name: "exercise_layout_route_remains_stable_across_choice_updates",
+                validate: validateExerciseLayoutRouteRemainsStableAcrossChoiceUpdates
+            ),
+            SettingsNavigationValidationFixture(
                 name: "reserved_route_titles_remain_stable",
                 validate: validateReservedRouteTitlesRemainStable
             ),
@@ -180,6 +184,7 @@ private extension SettingsNavigationValidationRunner {
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
+            "停留在 `Exercise > Layout` 子页时直接切换 `Stacked / Side / Single`，确认当前页不会闪跳、不会被重建回上一层，且选中态立即更新。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
     }
@@ -1172,6 +1177,85 @@ private extension SettingsNavigationValidationRunner {
         if duplicateRootPath != [.root, .section(.exercise)] {
             issues.append(
                 issue(fixtureName, "reconciledPath 应去除重复 route，并保持 root 在首位。")
+            )
+        }
+
+        return issues
+    }
+
+    static func validateExerciseLayoutRouteRemainsStableAcrossChoiceUpdates()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "exercise_layout_route_remains_stable_across_choice_updates"
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        let initialStateContext = SettingsPanelStateContext.default
+        let initialNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: initialStateContext
+        )
+        let initialLayoutPath = initialNavigationModel.reconciledPath([
+            .root,
+            .section(.exercise),
+            .exerciseLayout
+        ])
+
+        if initialLayoutPath != [.root, .section(.exercise), .exerciseLayout] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 下 Exercise > Layout 深层 route 应保持可达。"
+                )
+            )
+        }
+
+        var sideBySideStateContext = initialStateContext
+        SettingsPanelEvent.triggerAction(.setLayoutPresetSideBySide).apply(
+            to: &sideBySideStateContext
+        )
+        let sideBySideNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: sideBySideStateContext
+        )
+        let sideBySideLayoutPath = sideBySideNavigationModel.reconciledPath(
+            initialLayoutPath
+        )
+
+        if sideBySideLayoutPath != initialLayoutPath {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "在 Exercise > Layout 子页切换 layout 选项时，reconciledPath 不应把当前路径回退或改写到其它 route。"
+                )
+            )
+        }
+
+        guard let layoutPage = sideBySideNavigationModel.page(for: .exerciseLayout),
+              let layoutPanelModel = layoutPage.panelModel else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "切到 Side by Side 后，navigation model 仍应暴露 Exercise Layout form page。"
+                )
+            )
+            return issues
+        }
+
+        guard let layoutRow = layoutPanelModel.choiceRow(for: .layoutPreset) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Layout page 应继续暴露 Layout Preset row。"
+                )
+            )
+            return issues
+        }
+
+        if layoutRow.choices.filter(\.isSelected).map(\.id) != [
+            .setLayoutPresetSideBySide
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "切到 Side by Side 后，Exercise Layout page 应立即只选中 Side 选项。"
+                )
             )
         }
 

@@ -161,8 +161,20 @@ final class macOSSettingsNavigatorView: NSView {
         )
 
         routeStack = reconciledPath
+        let currentRoute = routeStack.last ?? model.rootRoute
+        let currentPageModel = model.page(for: currentRoute)
+
+        if !didCurrentRouteChange,
+           let currentPageModel,
+           updateCurrentPageIfPossible(
+                with: currentPageModel,
+                route: currentRoute
+           ) {
+            return
+        }
+
         replaceCurrentPage(
-            with: makePageView(for: routeStack.last ?? model.rootRoute),
+            with: makePageView(for: currentPageModel, route: currentRoute),
             transitionDirection: transitionDirection,
             animated: didCurrentRouteChange && transitionDirection != .none
         )
@@ -183,8 +195,19 @@ final class macOSSettingsNavigatorView: NSView {
     }
 
     private func makePageView(for route: SettingsRouteID) -> NSView {
-        guard let page = model.page(for: route) else {
-            return NSView()
+        makePageView(for: model.page(for: route), route: route)
+    }
+
+    private func makePageView(
+        for page: SettingsPageModel?,
+        route: SettingsRouteID
+    ) -> NSView {
+        guard let page else {
+            let placeholderView = NSView()
+            placeholderView.identifier = NSUserInterfaceItemIdentifier(
+                SettingsNavigationAccessibility.pageIdentifier(for: route)
+            )
+            return placeholderView
         }
 
         switch page.content {
@@ -201,6 +224,35 @@ final class macOSSettingsNavigatorView: NSView {
             panelView.onEvent = onEvent
             return panelView
         }
+    }
+
+    private func updateCurrentPageIfPossible(
+        with page: SettingsPageModel,
+        route: SettingsRouteID
+    ) -> Bool {
+        switch (page.content, currentPageView) {
+        case let (.index(routeItems), indexPageView as macOSSettingsIndexPageView):
+            indexPageView.onRouteSelected = { [weak self] selectedRoute in
+                self?.push(selectedRoute)
+            }
+            indexPageView.routeItems = routeItems
+        case let (.form(sections), panelView as macOSSettingsPanelView):
+            panelView.onEvent = onEvent
+            panelView.model = SettingsPanelModel(sections: sections)
+        default:
+            return false
+        }
+
+        pageHostView.identifier = NSUserInterfaceItemIdentifier(
+            SettingsNavigationAccessibility.pageIdentifier(for: route)
+        )
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+        macOSSettingsMutationTrace.logIfActive(
+            "navigator applyModelUpdate reuse currentPage route=\(String(describing: route)) page=\(macOSSettingsMutationTrace.describe(view: currentPageView))"
+        )
+        notifyPresentationStateChange()
+        return true
     }
 
     private func replaceCurrentPage(

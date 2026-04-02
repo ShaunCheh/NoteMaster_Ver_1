@@ -140,6 +140,7 @@ final class macOSViewController: NSViewController {
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
     private var hasLoggedInitialLayoutPass = false
+    private var isDeferredLayoutPassScheduled = false
     private let pianoBaseConfiguration = macOSViewController.initialPianoDemoConfiguration
     private var pianoBaseRows = macOSViewController.initialPianoDemoRows
     private var pianoPanelState = macOSViewController.initialPianoPanelState
@@ -554,7 +555,9 @@ final class macOSViewController: NSViewController {
         let semanticPresentationState = ExerciseCompositionPolicy.makePresentation(
             from: exerciseCompositionPolicyInput
         )
-        exercisePresentationState = semanticPresentationState
+        if exercisePresentationState != semanticPresentationState {
+            exercisePresentationState = semanticPresentationState
+        }
 
         if exerciseLayoutPreferences
             != semanticPresentationState.resolvedLayoutPreferences {
@@ -775,7 +778,9 @@ final class macOSViewController: NSViewController {
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        exerciseSceneRenderer.handleLayoutPass()
+        if exerciseSceneRenderer.handleLayoutPass() {
+            updateLayoutIfNeeded()
+        }
         if !hasLoggedInitialLayoutPass {
             hasLoggedInitialLayoutPass = true
             logLifecycle("first layout pass bounds=\(view.bounds)")
@@ -917,9 +922,6 @@ final class macOSViewController: NSViewController {
             presentationState: exercisePresentationState,
             fretboardDisplayState: displayState
         )
-        applySettingsPanelState()
-        updateLayoutIfNeeded()
-        exerciseSceneRenderer.handleLayoutPass()
         updateLayoutIfNeeded()
         macOSSettingsMutationTrace.logIfActive(
             "controller renderExercisePresentationState end sceneContainer=\(macOSSettingsMutationTrace.describe(view: exerciseSceneRenderer.sceneContainerView))"
@@ -948,9 +950,9 @@ final class macOSViewController: NSViewController {
         fretboardView.contentProvider = displayState.contentProvider
         fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
         fretboardView.showsComponentBoundsOverlay = displayState.showsComponentBoundsOverlay
+        exerciseSceneRenderer.applyFretboardDisplayState(displayState)
         applySettingsPanelState()
         applyLabelVisibilityButtonState()
-        renderExercisePresentationState()
 
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
@@ -968,13 +970,6 @@ final class macOSViewController: NSViewController {
             updateAnswerSurfaceInteractionState()
         }
 
-        guard isShowingFretboard else {
-            logLifecycle("applyFretboardDisplayState end without visible fretboard")
-            return
-        }
-
-        updateLayoutIfNeeded()
-        exerciseSceneRenderer.handleLayoutPass()
         updateLayoutIfNeeded()
         logLifecycle("applyFretboardDisplayState end")
     }
@@ -998,12 +993,36 @@ final class macOSViewController: NSViewController {
 
     private func updateLayoutIfNeeded() {
         macOSSettingsMutationTrace.logIfActive(
-            "controller updateLayoutIfNeeded before rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+            "controller updateLayoutIfNeeded schedule rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
         )
+        guard isViewLoaded else {
+            return
+        }
+
+        view.needsLayout = true
+        guard !isDeferredLayoutPassScheduled else {
+            return
+        }
+
+        isDeferredLayoutPassScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.flushDeferredLayoutPassIfNeeded()
+        }
+    }
+
+    private func flushDeferredLayoutPassIfNeeded() {
+        guard isViewLoaded, isDeferredLayoutPassScheduled else {
+            return
+        }
+
+        macOSSettingsMutationTrace.logIfActive(
+            "controller flushDeferredLayoutPass begin rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+        )
+        isDeferredLayoutPassScheduled = false
         view.needsLayout = true
         view.layoutSubtreeIfNeeded()
         macOSSettingsMutationTrace.logIfActive(
-            "controller updateLayoutIfNeeded after rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+            "controller flushDeferredLayoutPass end rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
         )
     }
 
@@ -1608,7 +1627,6 @@ final class macOSViewController: NSViewController {
         pianoKeyboardView.showsComponentBoundsOverlay = false
         updatePianoDemoStatusLabel()
         updateLayoutIfNeeded()
-        exerciseSceneRenderer.handleLayoutPass()
     }
 
     private func updatePianoDemoStatusLabel() {

@@ -140,6 +140,10 @@ final class macOSSettingsIndexPageView: NSView {
         in stackView: NSStackView,
         with views: [NSView]
     ) {
+        guard !arrangedSubviewsMatch(stackView.arrangedSubviews, views) else {
+            return
+        }
+
         for arrangedSubview in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(arrangedSubview)
             arrangedSubview.removeFromSuperview()
@@ -162,6 +166,13 @@ final class macOSSettingsIndexPageView: NSView {
 
         onRouteSelected?(route)
     }
+}
+
+private func arrangedSubviewsMatch(
+    _ currentViews: [NSView],
+    _ nextViews: [NSView]
+) -> Bool {
+    currentViews.map(ObjectIdentifier.init) == nextViews.map(ObjectIdentifier.init)
 }
 
 private final class RouteButton: NSButton {

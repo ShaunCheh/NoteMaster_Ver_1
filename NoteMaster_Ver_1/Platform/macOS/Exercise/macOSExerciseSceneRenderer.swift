@@ -74,13 +74,18 @@ final class macOSExerciseSceneRenderer {
 
         rebuildSceneHierarchy(for: presentationState.scene.root)
         updateSurfaceVisibility()
-        rebuildVerticalFretboardHostHeightConstraint()
-        updateFretboardLayoutModeConstraints()
+        applyCurrentFretboardLayoutState()
     }
 
-    func handleLayoutPass() {
-        syncVerticalFretboardContentSizeConstraints()
-        updateFretboardViewportPresentation()
+    func applyFretboardDisplayState(_ fretboardDisplayState: FretboardDisplayState) {
+        currentFretboardDisplayState = fretboardDisplayState
+        applyCurrentFretboardLayoutState()
+    }
+
+    func handleLayoutPass() -> Bool {
+        let didUpdateContentSizeConstraints = syncVerticalFretboardContentSizeConstraints()
+        let didUpdateViewportPresentation = updateFretboardViewportPresentation()
+        return didUpdateContentSizeConstraints || didUpdateViewportPresentation
     }
 
     private var isShowingFretboard: Bool {
@@ -701,6 +706,11 @@ final class macOSExerciseSceneRenderer {
         )
     }
 
+    private func applyCurrentFretboardLayoutState() {
+        rebuildVerticalFretboardHostHeightConstraint()
+        updateFretboardLayoutModeConstraints()
+    }
+
     private func rebuildVerticalFretboardHostHeightConstraint() {
         verticalFretboardHostHeightConstraint?.isActive = false
         verticalFretboardHostHeightConstraint = nil
@@ -743,56 +753,65 @@ final class macOSExerciseSceneRenderer {
         }
     }
 
-    private func syncVerticalFretboardContentSizeConstraints() {
+    private func syncVerticalFretboardContentSizeConstraints() -> Bool {
         guard
             isShowingFretboard,
             currentFretboardDisplayState.displayMode == .vertical,
             let verticalFretboardDocumentWidthConstraint,
             let verticalFretboardContentWidthConstraint
         else {
-            return
+            return false
         }
 
         let viewportWidth = fretboardViewportScrollView.contentView.bounds.width
         let contentWidth = fretboardView.verticalContentSize.width
         guard viewportWidth > 0, contentWidth > 0 else {
-            return
+            return false
         }
 
+        var didUpdateConstraints = false
         let documentWidth = max(viewportWidth, contentWidth)
         if abs(verticalFretboardDocumentWidthConstraint.constant - documentWidth)
             > metrics.contentSizeTolerance {
             verticalFretboardDocumentWidthConstraint.constant = documentWidth
+            didUpdateConstraints = true
         }
 
         if abs(verticalFretboardContentWidthConstraint.constant - contentWidth)
             > metrics.contentSizeTolerance {
             verticalFretboardContentWidthConstraint.constant = contentWidth
+            didUpdateConstraints = true
         }
+
+        return didUpdateConstraints
     }
 
-    private func updateFretboardViewportPresentation() {
+    private func updateFretboardViewportPresentation() -> Bool {
         guard isShowingFretboard else {
+            let didToggleScroller = fretboardViewportScrollView.hasHorizontalScroller
             fretboardViewportScrollView.hasHorizontalScroller = false
             scrollFretboardViewport(toX: 0)
-            return
+            return didToggleScroller
         }
 
         let isVertical = currentFretboardDisplayState.displayMode == .vertical
         guard isVertical else {
+            let didToggleScroller = fretboardViewportScrollView.hasHorizontalScroller
             fretboardViewportScrollView.hasHorizontalScroller = false
-            return
+            return didToggleScroller
         }
 
         let viewportWidth = fretboardViewportScrollView.contentView.bounds.width
         let contentWidth = verticalFretboardContentWidthConstraint?.constant
             ?? fretboardView.verticalContentSize.width
         guard viewportWidth > 0, contentWidth > 0 else {
-            return
+            return false
         }
 
         let needsHorizontalScroll = contentWidth
             > viewportWidth + metrics.contentSizeTolerance
+        let didToggleScroller = fretboardViewportScrollView.hasHorizontalScroller
+            != needsHorizontalScroll
         fretboardViewportScrollView.hasHorizontalScroller = needsHorizontalScroll
 
         let maxOffsetX = max(contentWidth - viewportWidth, 0)
@@ -804,6 +823,8 @@ final class macOSExerciseSceneRenderer {
         if abs(currentOffsetX - clampedOffsetX) > metrics.contentSizeTolerance {
             scrollFretboardViewport(toX: clampedOffsetX)
         }
+
+        return didToggleScroller
     }
 
     private func scrollFretboardViewport(toX x: CGFloat) {

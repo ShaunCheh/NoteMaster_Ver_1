@@ -257,6 +257,10 @@ final class macOSSettingsPanelView: NSView {
         in stackView: NSStackView,
         with views: [NSView]
     ) {
+        guard !arrangedSubviewsMatch(stackView.arrangedSubviews, views) else {
+            return
+        }
+
         for arrangedSubview in stackView.arrangedSubviews {
             macOSSettingsMutationTrace.logIfActive(
                 "panel replaceArrangedSubviews remove arrangedSubview=\(macOSSettingsMutationTrace.describe(view: arrangedSubview)) stack=\(macOSSettingsMutationTrace.describe(view: stackView))"
@@ -425,6 +429,10 @@ private final class ChoiceRowView: NSView {
         in stackView: NSStackView,
         with views: [NSView]
     ) {
+        guard !arrangedSubviewsMatch(stackView.arrangedSubviews, views) else {
+            return
+        }
+
         for arrangedSubview in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(arrangedSubview)
             arrangedSubview.removeFromSuperview()
@@ -917,6 +925,10 @@ private final class PositionFilterRowView: NSView {
         in stackView: NSStackView,
         with views: [NSView]
     ) {
+        guard !arrangedSubviewsMatch(stackView.arrangedSubviews, views) else {
+            return
+        }
+
         for arrangedSubview in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(arrangedSubview)
             arrangedSubview.removeFromSuperview()
@@ -1124,6 +1136,10 @@ private final class SectionView: NSView {
         in stackView: NSStackView,
         with views: [NSView]
     ) {
+        guard !arrangedSubviewsMatch(stackView.arrangedSubviews, views) else {
+            return
+        }
+
         for arrangedSubview in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(arrangedSubview)
             arrangedSubview.removeFromSuperview()
@@ -1137,6 +1153,13 @@ private final class SectionView: NSView {
             stackView.addArrangedSubview(view)
         }
     }
+}
+
+private func arrangedSubviewsMatch(
+    _ currentViews: [NSView],
+    _ nextViews: [NSView]
+) -> Bool {
+    currentViews.map(ObjectIdentifier.init) == nextViews.map(ObjectIdentifier.init)
 }
 
 private enum Style {
