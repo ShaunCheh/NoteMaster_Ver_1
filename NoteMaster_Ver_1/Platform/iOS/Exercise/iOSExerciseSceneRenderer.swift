@@ -16,6 +16,11 @@ final class iOSExerciseSceneRenderer {
         var contentSizeTolerance: CGFloat
     }
 
+    private enum EmbeddedViewLayout {
+        case fill
+        case verticallyCentered
+    }
+
     let sceneContainerView = UIView()
 
     private let sceneContentView = UIView()
@@ -271,7 +276,8 @@ final class iOSExerciseSceneRenderer {
         embed(
             surfaceView,
             in: hostView,
-            contentInsets: contentInsets(for: surface)
+            contentInsets: contentInsets(for: surface),
+            layout: embeddedViewLayout(for: surface)
         )
     }
 
@@ -458,12 +464,32 @@ final class iOSExerciseSceneRenderer {
         }
     }
 
+    private func embeddedViewLayout(
+        for surface: ExerciseSurfaceNode
+    ) -> EmbeddedViewLayout {
+        guard
+            surface.id == .naturalNoteStrip,
+            surface.presentationStyle == .verticalRail,
+            let railContract = currentPresentationState?.naturalNoteStripRailContract,
+            railContract.appliesToSurface == .naturalNoteStrip,
+            railContract.mainAxisPolicy == .contentSized,
+            railContract.verticalAlignment == .centered
+        else {
+            return .fill
+        }
+
+        return .verticallyCentered
+    }
+
     private func configurePresentationStyle(for surface: ExerciseSurfaceNode) {
         guard surface.id == .naturalNoteStrip else {
             return
         }
 
         naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
+        naturalNoteStripView.applyRailContract(
+            currentPresentationState?.naturalNoteStripRailContract
+        )
     }
 
     private func renderOverlay(
@@ -570,29 +596,59 @@ final class iOSExerciseSceneRenderer {
     private func embed(
         _ childView: UIView,
         in hostView: UIView,
-        contentInsets: UIEdgeInsets = .zero
+        contentInsets: UIEdgeInsets = .zero,
+        layout: EmbeddedViewLayout = .fill
     ) {
         childView.removeFromSuperview()
         childView.translatesAutoresizingMaskIntoConstraints = false
         hostView.addSubview(childView)
-        activeSceneConstraints.append(contentsOf: [
-            childView.leadingAnchor.constraint(
-                equalTo: hostView.leadingAnchor,
-                constant: contentInsets.left
-            ),
-            childView.trailingAnchor.constraint(
-                equalTo: hostView.trailingAnchor,
-                constant: -contentInsets.right
-            ),
-            childView.topAnchor.constraint(
-                equalTo: hostView.topAnchor,
+        switch layout {
+        case .fill:
+            activeSceneConstraints.append(contentsOf: [
+                childView.leadingAnchor.constraint(
+                    equalTo: hostView.leadingAnchor,
+                    constant: contentInsets.left
+                ),
+                childView.trailingAnchor.constraint(
+                    equalTo: hostView.trailingAnchor,
+                    constant: -contentInsets.right
+                ),
+                childView.topAnchor.constraint(
+                    equalTo: hostView.topAnchor,
+                    constant: contentInsets.top
+                ),
+                childView.bottomAnchor.constraint(
+                    equalTo: hostView.bottomAnchor,
+                    constant: -contentInsets.bottom
+                )
+            ])
+        case .verticallyCentered:
+            let topConstraint = childView.topAnchor.constraint(
+                greaterThanOrEqualTo: hostView.topAnchor,
                 constant: contentInsets.top
-            ),
-            childView.bottomAnchor.constraint(
-                equalTo: hostView.bottomAnchor,
+            )
+            topConstraint.priority = .defaultHigh
+
+            let bottomConstraint = childView.bottomAnchor.constraint(
+                lessThanOrEqualTo: hostView.bottomAnchor,
                 constant: -contentInsets.bottom
             )
-        ])
+            bottomConstraint.priority = .defaultHigh
+
+            activeSceneConstraints.append(contentsOf: [
+                childView.leadingAnchor.constraint(
+                    equalTo: hostView.leadingAnchor,
+                    constant: contentInsets.left
+                ),
+                childView.trailingAnchor.constraint(
+                    equalTo: hostView.trailingAnchor,
+                    constant: -contentInsets.right
+                ),
+                childView.centerYAnchor.constraint(equalTo: hostView.centerYAnchor),
+                topConstraint,
+                bottomConstraint
+            ])
+        }
     }
 
     private func updateSurfaceVisibility() {

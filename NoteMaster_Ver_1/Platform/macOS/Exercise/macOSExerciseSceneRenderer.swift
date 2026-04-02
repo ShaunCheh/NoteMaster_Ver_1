@@ -16,6 +16,11 @@ final class macOSExerciseSceneRenderer {
         var contentSizeTolerance: CGFloat
     }
 
+    private enum HostedViewLayout: Equatable {
+        case fill
+        case verticallyCentered
+    }
+
     private enum SceneHostPathComponent: Hashable {
         case splitChild(Int)
         case overlayBase
@@ -81,6 +86,8 @@ final class macOSExerciseSceneRenderer {
         let surfaceID: ExerciseSurfaceID
 
         private var hostedViewConstraints: [NSLayoutConstraint] = []
+        private weak var hostedView: NSView?
+        private var hostedViewLayout: HostedViewLayout = .fill
 
         init(surfaceID: ExerciseSurfaceID) {
             self.surfaceID = surfaceID
@@ -96,8 +103,14 @@ final class macOSExerciseSceneRenderer {
             fatalError("init(coder:) has not been implemented")
         }
 
-        func install(_ childView: NSView) {
-            guard childView.superview !== self else {
+        func install(
+            _ childView: NSView,
+            layout: HostedViewLayout = .fill
+        ) {
+            let needsSuperviewMove = childView.superview !== self
+            let needsConstraintRefresh = hostedView !== childView
+                || hostedViewLayout != layout
+            guard needsSuperviewMove || needsConstraintRefresh else {
                 return
             }
 
@@ -106,16 +119,53 @@ final class macOSExerciseSceneRenderer {
             )
             NSLayoutConstraint.deactivate(hostedViewConstraints)
             hostedViewConstraints = []
-            childView.removeFromSuperview()
+            if needsSuperviewMove {
+                childView.removeFromSuperview()
+            }
             childView.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(childView)
-            hostedViewConstraints = [
-                childView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                childView.trailingAnchor.constraint(equalTo: trailingAnchor),
-                childView.topAnchor.constraint(equalTo: topAnchor),
-                childView.bottomAnchor.constraint(equalTo: bottomAnchor)
-            ]
+            if needsSuperviewMove {
+                addSubview(childView)
+            }
+            hostedView = childView
+            hostedViewLayout = layout
+            hostedViewConstraints = constraints(
+                for: childView,
+                layout: layout
+            )
             NSLayoutConstraint.activate(hostedViewConstraints)
+        }
+
+        private func constraints(
+            for childView: NSView,
+            layout: HostedViewLayout
+        ) -> [NSLayoutConstraint] {
+            switch layout {
+            case .fill:
+                return [
+                    childView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                    childView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                    childView.topAnchor.constraint(equalTo: topAnchor),
+                    childView.bottomAnchor.constraint(equalTo: bottomAnchor)
+                ]
+            case .verticallyCentered:
+                let topConstraint = childView.topAnchor.constraint(
+                    greaterThanOrEqualTo: topAnchor
+                )
+                topConstraint.priority = .defaultHigh
+
+                let bottomConstraint = childView.bottomAnchor.constraint(
+                    lessThanOrEqualTo: bottomAnchor
+                )
+                bottomConstraint.priority = .defaultHigh
+
+                return [
+                    childView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                    childView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                    childView.centerYAnchor.constraint(equalTo: centerYAnchor),
+                    topConstraint,
+                    bottomConstraint
+                ]
+            }
         }
     }
 
@@ -405,13 +455,17 @@ final class macOSExerciseSceneRenderer {
         state: inout SceneSyncState
     ) {
         configurePresentationStyle(for: surface)
-        guard let slotView = surfaceSlotViews[surface.id] else {
+        guard
+            let slotView = surfaceSlotViews[surface.id],
+            let surfaceView = view(for: surface.id)
+        else {
             return
         }
 
         if !state.activeSurfaceOrder.contains(surface.id) {
             state.activeSurfaceOrder.append(surface.id)
         }
+        slotView.install(surfaceView, layout: hostedViewLayout(for: surface))
         slotView.isHidden = false
         placeSurfaceSlot(
             slotView,
@@ -680,6 +734,23 @@ final class macOSExerciseSceneRenderer {
         ])
     }
 
+    private func hostedViewLayout(
+        for surface: ExerciseSurfaceNode
+    ) -> HostedViewLayout {
+        guard
+            surface.id == .naturalNoteStrip,
+            surface.presentationStyle == .verticalRail,
+            let railContract = currentPresentationState?.naturalNoteStripRailContract,
+            railContract.appliesToSurface == .naturalNoteStrip,
+            railContract.mainAxisPolicy == .contentSized,
+            railContract.verticalAlignment == .centered
+        else {
+            return .fill
+        }
+
+        return .verticallyCentered
+    }
+
     private func configureMainAxisSizing(
         _ mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing,
         for childHostView: NSView,
@@ -741,6 +812,9 @@ final class macOSExerciseSceneRenderer {
         }
 
         naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
+        naturalNoteStripView.applyRailContract(
+            currentPresentationState?.naturalNoteStripRailContract
+        )
     }
 
     private func syncOverlay(
