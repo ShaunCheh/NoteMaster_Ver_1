@@ -286,17 +286,12 @@ final class macOSExerciseSceneRenderer {
             render(node: child.node, in: childHostViews[index])
         }
 
-        if axis == .vertical {
-            for (index, childHostView) in childHostViews.enumerated() {
-                guard !children[index].mainAxisSizing.isWeighted else {
-                    continue
-                }
-                childHostView.setContentHuggingPriority(.required, for: .vertical)
-                childHostView.setContentCompressionResistancePriority(
-                    .required,
-                    for: .vertical
-                )
-            }
+        for (index, childHostView) in childHostViews.enumerated() {
+            configureMainAxisSizing(
+                children[index].mainAxisSizing,
+                for: childHostView,
+                axis: axis
+            )
         }
 
         for childHostView in childHostViews {
@@ -339,22 +334,10 @@ final class macOSExerciseSceneRenderer {
             }
         }
 
-        let proportionalIndices: [Int]
-        switch axis {
-        case .vertical:
-            let weightedIndices = children.indices.filter {
-                children[$0].mainAxisSizing.isWeighted
-            }
-            proportionalIndices = weightedIndices.isEmpty
-                ? Array(children.indices)
-                : weightedIndices
-        case .horizontal:
-            proportionalIndices = Array(children.indices)
+        let proportionalIndices = children.indices.filter {
+            children[$0].mainAxisSizing.isWeighted
         }
-
-        guard let referenceIndex = proportionalIndices.first else {
-            return
-        }
+        let referenceIndex = proportionalIndices.first
 
         for index in 1..<childHostViews.count {
             let previousHostView = childHostViews[index - 1]
@@ -377,7 +360,11 @@ final class macOSExerciseSceneRenderer {
                 )
             }
 
-            guard proportionalIndices.contains(index), index != referenceIndex else {
+            guard
+                let referenceIndex,
+                proportionalIndices.contains(index),
+                index != referenceIndex
+            else {
                 continue
             }
 
@@ -422,6 +409,47 @@ final class macOSExerciseSceneRenderer {
                     )
                 )
             }
+        }
+    }
+
+    private func configureMainAxisSizing(
+        _ mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing,
+        for childHostView: NSView,
+        axis: ExerciseSceneAxis
+    ) {
+        switch (axis, mainAxisSizing) {
+        case (_, .weighted):
+            return
+        case (.vertical, .fitContent):
+            childHostView.setContentHuggingPriority(.required, for: .vertical)
+            childHostView.setContentCompressionResistancePriority(
+                .required,
+                for: .vertical
+            )
+        case (.horizontal, .fitContent):
+            childHostView.setContentHuggingPriority(.required, for: .horizontal)
+            childHostView.setContentCompressionResistancePriority(
+                .required,
+                for: .horizontal
+            )
+        case let (.vertical, .fixed(size)):
+            childHostView.setContentHuggingPriority(.required, for: .vertical)
+            childHostView.setContentCompressionResistancePriority(
+                .required,
+                for: .vertical
+            )
+            activeSceneConstraints.append(
+                childHostView.heightAnchor.constraint(equalToConstant: size)
+            )
+        case let (.horizontal, .fixed(size)):
+            childHostView.setContentHuggingPriority(.required, for: .horizontal)
+            childHostView.setContentCompressionResistancePriority(
+                .required,
+                for: .horizontal
+            )
+            activeSceneConstraints.append(
+                childHostView.widthAnchor.constraint(equalToConstant: size)
+            )
         }
     }
 
