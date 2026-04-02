@@ -145,6 +145,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateFretboardViewportRouteVisibilityTracksDisplayMode
             ),
             SettingsNavigationValidationFixture(
+                name: "vertical_viewport_gate_tracks_fretboard_contract_only",
+                validate: validateVerticalViewportGateTracksFretboardContractOnly
+            ),
+            SettingsNavigationValidationFixture(
                 name: "fretboard_string_thickness_option_tracks_state",
                 validate: validateFretboardStringThicknessOptionTracksState
             ),
@@ -180,6 +184,7 @@ private extension SettingsNavigationValidationRunner {
             "确认 root -> Exercise / Accessories / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
             "确认切换到 `single` / `sequence` 时 `Position Prompt` section 会消失；切回 `positionPrompt` 后会恢复。",
             "确认切换到 horizontal 指板布局，或在 side 布局下保持 vertical 指板时 `Fretboard > Vertical Viewport` 深层页会消失；切回 stacked + vertical 后会恢复。",
+            "确认 settings 中没有新增 `Rail` / `Strip Size` / `Strip Alignment` 一类入口；右侧 natural note strip 的尺寸与居中仍保持为内部布局契约。",
             "确认 `Exercise` 分区只显示 `Exercise Mode / Composition Preset / Layout Preset`，不再出现 `Top Content / Main Content`。",
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
@@ -747,6 +752,107 @@ private extension SettingsNavigationValidationRunner {
         if horizontalNavigationModel.page(for: .fretboardViewport) != nil {
             issues.append(
                 issue(fixtureName, "horizontal 指板模式下不应继续生成 Fretboard Viewport 深层页。")
+            )
+        }
+
+        return issues
+    }
+
+    static func validateVerticalViewportGateTracksFretboardContractOnly()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "vertical_viewport_gate_tracks_fretboard_contract_only"
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        let sideStateContext = SettingsPanelStateContext.default
+        let sidePanelModel = SettingsPanelSnapshotBuilder.makeModel(from: sideStateContext)
+        guard let sideFretboardSection = resolveSection(.fretboard, in: sidePanelModel) else {
+            issues.append(issue(fixtureName, "default side state 应保留 Fretboard section。"))
+            return issues
+        }
+
+        if sideStateContext.exerciseLayoutPreferences.layoutPreset != .sideBySide {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default settings state 应继续规范化到 Side by Side layout。"
+                )
+            )
+        }
+        if sideStateContext.fretboardLayoutContract
+            != ExerciseFretboardLayoutContract(
+                pinsSceneToViewportHeight: true,
+                heightPolicy: .fillAvailableHeight
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default side state 下的 viewport gate 应继续读取 fillAvailableHeight 的 fretboard contract。"
+                )
+            )
+        }
+        if sideStateContext.fretboardLayoutContract
+            .usesVerticalViewportHeightControl
+            || sideStateContext.showsVerticalViewportHeightControl {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default side state 不应因为内部 rail contract 而重新显示 Vertical Viewport Height 控件。"
+                )
+            )
+        }
+        if sideFretboardSection.rows.map(\.id).contains(.slider(.verticalHostHeightRatio)) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default side state 的 Fretboard section 不应直接混入 Vertical Viewport Height slider。"
+                )
+            )
+        }
+
+        let stackedStateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardToNaturalNoteStrip,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            )
+        )
+        if stackedStateContext.fretboardLayoutContract
+            != ExerciseFretboardLayoutContract(
+                pinsSceneToViewportHeight: true,
+                heightPolicy: .followViewportRatio
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked state 下的 viewport gate 应继续读取 followViewportRatio 的 fretboard contract。"
+                )
+            )
+        }
+        if !stackedStateContext.fretboardLayoutContract
+            .usesVerticalViewportHeightControl
+            || !stackedStateContext.showsVerticalViewportHeightControl {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked + vertical state 应继续显示 Vertical Viewport Height 控件。"
+                )
+            )
+        }
+
+        var horizontalFretboardDisplayState = FretboardDisplayState.default
+        horizontalFretboardDisplayState.setDisplayMode(.horizontal)
+        let horizontalStateContext = SettingsPanelStateContext(
+            fretboardDisplayState: horizontalFretboardDisplayState
+        )
+        if horizontalStateContext.showsVerticalViewportHeightControl {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "horizontal 指板模式不应暴露 Vertical Viewport Height 控件。"
+                )
             )
         }
 

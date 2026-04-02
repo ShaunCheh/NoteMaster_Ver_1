@@ -163,6 +163,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults
             ),
             ExerciseCompositionValidationFixture(
+                name: "side_rail_contract_remains_orthogonal_to_fretboard_height_contract",
+                validate: validateSideRailContractRemainsOrthogonalToFretboardHeightContract
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
                 validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
             ),
@@ -1059,6 +1063,151 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "staff -> fretboard 的 sideBySide scene 在阶段 1 不应被误纳入 natural note strip rail contract。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSideRailContractRemainsOrthogonalToFretboardHeightContract()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "side_rail_contract_remains_orthogonal_to_fretboard_height_contract"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let positionPromptTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .positionPrompt
+        )
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        if sideRailPresentation.naturalNoteStripRailContract
+            != .defaultSideBySideAnswerRail {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的 fretboard -> natural note strip presentation 应继续精确暴露默认 rail contract。"
+                )
+            )
+        }
+        if sideRailPresentation.scene.naturalNoteStripRailContract
+            != .defaultSideBySideAnswerRail {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "ExerciseScene 应继续把 side rail 的 shared 默认 contract 原样透传给 presentation 层。"
+                )
+            )
+        }
+        if sideRailPresentation.fretboardLayoutContract
+            != ExerciseFretboardLayoutContract(
+                pinsSceneToViewportHeight: true,
+                heightPolicy: .fillAvailableHeight
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "side rail 场景下的 fretboardLayoutContract 应继续保持 viewport pin + fillAvailableHeight。"
+                )
+            )
+        }
+        if sideRailPresentation.fretboardLayoutContract
+            .usesVerticalViewportHeightControl {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "side rail 场景下的 fretboard 高度应由容器填满，不应重新打开 Vertical Viewport Height 控制语义。"
+                )
+            )
+        }
+
+        let stackedRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .stacked
+                )
+            )
+        )
+
+        if stackedRailPresentation.naturalNoteStripRailContract != nil
+            || stackedRailPresentation.scene.naturalNoteStripRailContract != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 的 fretboard -> natural note strip 场景不应误暴露 right rail contract。"
+                )
+            )
+        }
+        if stackedRailPresentation.fretboardLayoutContract
+            != ExerciseFretboardLayoutContract(
+                pinsSceneToViewportHeight: true,
+                heightPolicy: .followViewportRatio
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 场景下的 fretboardLayoutContract 应继续保持 viewport pin + followViewportRatio。"
+                )
+            )
+        }
+        if !stackedRailPresentation.fretboardLayoutContract
+            .usesVerticalViewportHeightControl {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 场景下应继续保留 Vertical Viewport Height 控制语义。"
+                )
+            )
+        }
+
+        let sideTargetPromptPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .targetPromptToFretboard,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        if sideTargetPromptPresentation.naturalNoteStripRailContract != nil
+            || sideTargetPromptPresentation.scene.naturalNoteStripRailContract != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "不包含 natural note strip answer rail 的 sideBySide 场景不应误携带 rail contract。"
+                )
+            )
+        }
+        if sideTargetPromptPresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight
+            || sideTargetPromptPresentation.fretboardLayoutContract
+            .usesVerticalViewportHeightControl {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的非 rail fretboard 场景仍应保持 fillAvailableHeight，证明 rail contract 不会篡改 side 布局的 fretboard 高度语义。"
                 )
             )
         }
