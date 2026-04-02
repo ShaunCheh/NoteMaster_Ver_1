@@ -159,6 +159,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
             ),
             ExerciseCompositionValidationFixture(
+                name: "phase_zero_side_by_side_invariants_preserve_composition_specific_surface_pairs",
+                validate: validatePhaseZeroSideBySideInvariantsPreserveCompositionSpecificSurfacePairs
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "shared_surface_state_defaults_follow_surface_roles",
                 validate: validateSharedSurfaceStateDefaultsFollowSurfaceRoles
             ),
@@ -826,6 +830,214 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "sideBySide scene 不应误触发 vertical fitContent split 语义。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validatePhaseZeroSideBySideInvariantsPreserveCompositionSpecificSurfacePairs()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "phase_zero_side_by_side_invariants_preserve_composition_specific_surface_pairs"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        func validateHorizontalPair(
+            _ presentation: ExercisePresentationState,
+            expectedSurfaceIDs: [ExerciseSurfaceID],
+            sceneDescription: String,
+            expectedOrderDescription: String
+        ) {
+            if !ExerciseSceneValidator.validate(presentation.scene).isEmpty {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(sceneDescription) 在阶段 0 应继续生成合法 scene。"
+                    )
+                )
+            }
+
+            switch presentation.scene.root {
+            case let .split(axis, children):
+                if axis != .horizontal {
+                    issues.append(
+                        issue(
+                            fixtureName,
+                            "\(sceneDescription) 在阶段 0 应继续投影到 horizontal split。"
+                        )
+                    )
+                }
+
+                let childSurfaceIDs = children.compactMap {
+                    $0.node.surfaceNodes.first?.id
+                }
+                if childSurfaceIDs != expectedSurfaceIDs {
+                    issues.append(
+                        issue(
+                            fixtureName,
+                            "\(sceneDescription) 在阶段 0 应继续保持 \(expectedOrderDescription)。"
+                        )
+                    )
+                }
+
+                if children.contains(where: { $0.sizing != .fill }) {
+                    issues.append(
+                        issue(
+                            fixtureName,
+                            "\(sceneDescription) 在阶段 0 仍应保持 sideBySide child 的默认 fill sizing。"
+                        )
+                    )
+                }
+            default:
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(sceneDescription) 在阶段 0 应继续生成 split scene。"
+                    )
+                )
+            }
+
+            if presentation.scene.hasVerticalFitContentSplit {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(sceneDescription) 在阶段 0 不应误触发 vertical fitContent split 语义。"
+                    )
+                )
+            }
+        }
+
+        let positionPromptTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .positionPrompt
+        )
+        let sideBySidePositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: positionPromptTrainerDisplayState,
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        validateHorizontalPair(
+            sideBySidePositionPromptPresentation,
+            expectedSurfaceIDs: [.fretboard, .naturalNoteStrip],
+            sceneDescription: "positionPrompt 的 fretboard -> natural note strip sideBySide 组合",
+            expectedOrderDescription: "左 fretboard、右 natural note strip"
+        )
+        if sideBySidePositionPromptPresentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合在阶段 0 仍不应被误投影成 legacy page 双槽位。"
+                )
+            )
+        }
+        guard
+            let promptFretboardState = sideBySidePositionPromptPresentation.surfaceState(
+                for: .fretboard
+            ),
+            let stripAnswerState = sideBySidePositionPromptPresentation.surfaceState(
+                for: .naturalNoteStrip
+            )
+        else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合应继续生成 fretboard 与 natural note strip 的 surface state。"
+                )
+            )
+            return issues
+        }
+        if !promptFretboardState.isVisible
+            || !promptFretboardState.isPromptActive
+            || promptFretboardState.isAnswerEnabled
+            || promptFretboardState.isInteractionEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合里，fretboard 应继续保持 prompt-only surface state。"
+                )
+            )
+        }
+        if !stripAnswerState.isVisible
+            || stripAnswerState.isPromptActive
+            || !stripAnswerState.isAnswerEnabled
+            || !stripAnswerState.isInteractionEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合里，natural note strip 应继续保持 answer-only surface state。"
+                )
+            )
+        }
+
+        let singleTrainerDisplayState = TrainerDisplayState(exerciseMode: .single)
+        let sideBySideTargetPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: singleTrainerDisplayState,
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .targetPromptToFretboard,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        validateHorizontalPair(
+            sideBySideTargetPromptPresentation,
+            expectedSurfaceIDs: [.targetPrompt, .fretboard],
+            sceneDescription: "single 的 targetPrompt -> fretboard sideBySide 组合",
+            expectedOrderDescription: "左 targetPrompt、右 fretboard"
+        )
+        if sideBySideTargetPromptPresentation.surfaceState(
+            for: .naturalNoteStrip
+        ) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合在阶段 0 不应混入 natural note strip surface。"
+                )
+            )
+        }
+
+        let sequenceTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .sequence
+        )
+        let sideBySideStaffPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: sequenceTrainerDisplayState,
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToFretboard,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+        validateHorizontalPair(
+            sideBySideStaffPresentation,
+            expectedSurfaceIDs: [.staff, .fretboard],
+            sceneDescription: "sequence 的 staff -> fretboard sideBySide 组合",
+            expectedOrderDescription: "左 staff、右 fretboard"
+        )
+        if sideBySideStaffPresentation.surfaceState(
+            for: .naturalNoteStrip
+        ) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide 组合在阶段 0 不应混入 natural note strip surface。"
                 )
             )
         }
@@ -1674,6 +1886,26 @@ private extension ExerciseCompositionValidationRunner {
                     layoutPreferences: .legacyPositionPrompt
                 )
             )
+        if ExerciseAnswerRouter.route(
+            naturalNoteStripEvent,
+            presentationState: stackedPositionPromptPresentation,
+            trainerDisplayState: positionPromptTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .routed(
+            .positionPrompt(
+                ExercisePositionPromptRoutedAnswer(
+                    event: naturalNoteStripEvent,
+                    pitchClass: .e
+                )
+            )
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "上下布局中的 positionPrompt 应继续允许 natural note strip 作为 answer surface。"
+                )
+            )
+        }
         if ExerciseAnswerRouter.route(
             fretboardCellEvent,
             presentationState: stackedPositionPromptPresentation,
