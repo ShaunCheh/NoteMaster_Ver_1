@@ -159,8 +159,8 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSharedSceneContractExposesPresentationStylesAndMainAxisSizing
             ),
             ExerciseCompositionValidationFixture(
-                name: "natural_note_strip_rail_boundary_freezes_scope_before_layout_contract",
-                validate: validateNaturalNoteStripRailBoundaryFreezesScopeBeforeLayoutContract
+                name: "natural_note_strip_rail_contract_freezes_scope_and_geometry_defaults",
+                validate: validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults
             ),
             ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
@@ -889,9 +889,9 @@ private extension ExerciseCompositionValidationRunner {
         return issues
     }
 
-    static func validateNaturalNoteStripRailBoundaryFreezesScopeBeforeLayoutContract()
+    static func validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults()
         -> [ExerciseCompositionValidationIssue] {
-        let fixtureName = "natural_note_strip_rail_boundary_freezes_scope_before_layout_contract"
+        let fixtureName = "natural_note_strip_rail_contract_freezes_scope_and_geometry_defaults"
         var issues: [ExerciseCompositionValidationIssue] = []
 
         let positionPromptTrainerDisplayState = TrainerDisplayState(
@@ -916,36 +916,58 @@ private extension ExerciseCompositionValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 0 应先被 shared helper 标记为右侧 answer rail 作用域。"
+                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 1 应继续被 shared helper 标记为右侧 answer rail 作用域。"
                 )
             )
         }
 
-        switch railPresentation.naturalNoteStripRailBoundary {
-        case let .sideBySideAnswerRail(slotModel, layoutIntent):
-            if slotModel != .chromatic12Preserved
-                || slotModel.slotCount != PitchClass.allCases.count {
+        switch railPresentation.naturalNoteStripRailContract {
+        case let .some(railContract):
+            if railContract.appliesToSurface != .naturalNoteStrip {
                 issues.append(
                     issue(
                         fixtureName,
-                        "阶段 0 的 right rail 边界应继续冻结为保留 12 个 PitchClass 槽位的语义。"
+                        "阶段 1 的 rail contract 应继续显式指向 natural note strip surface。"
                     )
                 )
             }
 
-            if layoutIntent != .contentSizedAndVerticallyCentered {
+            if railContract.slotModel != .chromatic12Preserved
+                || railContract.slotModel.slotCount != PitchClass.allCases.count {
                 issues.append(
                     issue(
                         fixtureName,
-                        "阶段 0 的 right rail 边界应先冻结为内容高度加垂直居中的目标语义。"
+                        "阶段 1 的 rail contract 应继续冻结为保留 12 个 PitchClass 槽位的语义。"
                     )
                 )
             }
-        case .inactive:
+
+            if railContract.buttonShape != .square
+                || railContract.buttonExtent
+                != ExerciseNaturalNoteStripRailContract.defaultButtonExtent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的 rail contract 应继续给出 square + 20 的默认按钮几何语义。"
+                    )
+                )
+            }
+
+            if railContract.mainAxisPolicy != .contentSized
+                || railContract.crossAxisPolicy != .fitContent
+                || railContract.verticalAlignment != .centered {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的 rail contract 应继续给出 contentSized / fitContent / centered 的 shared 布局语义。"
+                    )
+                )
+            }
+        case .none:
             issues.append(
                 issue(
                     fixtureName,
-                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 0 应暴露 active rail boundary，而不是 inactive。"
+                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 1 应暴露 active rail contract，而不是 nil。"
                 )
             )
         }
@@ -955,7 +977,7 @@ private extension ExerciseCompositionValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "阶段 0 冻结 right rail 边界时，不应反向破坏 side fretboard 的 fillAvailableHeight 语义。"
+                    "阶段 1 引入 rail contract 时，不应反向破坏 side fretboard 的 fillAvailableHeight 语义。"
                 )
             )
         }
@@ -976,11 +998,11 @@ private extension ExerciseCompositionValidationRunner {
 
         if stackedRailPresentation.scene
             .containsNaturalNoteStripAnswerRailInSideBySideLayout
-            || stackedRailPresentation.naturalNoteStripRailBoundary.isEnabled {
+            || stackedRailPresentation.naturalNoteStripRailContract != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "stacked 的 fretboard -> natural note strip scene 在阶段 0 不应被误纳入 right rail boundary。"
+                    "stacked 的 fretboard -> natural note strip scene 在阶段 1 不应被误纳入 right rail contract。"
                 )
             )
         }
@@ -1003,12 +1025,12 @@ private extension ExerciseCompositionValidationRunner {
 
         if targetPromptSideBySidePresentation.scene
             .containsNaturalNoteStripAnswerRailInSideBySideLayout
-            || targetPromptSideBySidePresentation.naturalNoteStripRailBoundary
-            .isEnabled {
+            || targetPromptSideBySidePresentation.naturalNoteStripRailContract
+            != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 0 不应被误纳入 natural note strip rail boundary。"
+                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 1 不应被误纳入 natural note strip rail contract。"
                 )
             )
         }
@@ -1032,11 +1054,11 @@ private extension ExerciseCompositionValidationRunner {
 
         if staffSideBySidePresentation.scene
             .containsNaturalNoteStripAnswerRailInSideBySideLayout
-            || staffSideBySidePresentation.naturalNoteStripRailBoundary.isEnabled {
+            || staffSideBySidePresentation.naturalNoteStripRailContract != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "staff -> fretboard 的 sideBySide scene 在阶段 0 不应被误纳入 natural note strip rail boundary。"
+                    "staff -> fretboard 的 sideBySide scene 在阶段 1 不应被误纳入 natural note strip rail contract。"
                 )
             )
         }

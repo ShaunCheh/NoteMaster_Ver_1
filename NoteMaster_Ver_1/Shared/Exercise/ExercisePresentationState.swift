@@ -249,23 +249,44 @@ enum ExerciseNaturalNoteStripRailSlotModel: Equatable, Sendable {
     }
 }
 
-enum ExerciseNaturalNoteStripRailLayoutIntent: Equatable, Sendable {
-    case contentSizedAndVerticallyCentered
+enum ExerciseNaturalNoteStripRailButtonShape: Equatable, Sendable {
+    case square
 }
 
-enum ExerciseNaturalNoteStripRailBoundary: Equatable, Sendable {
-    case inactive
-    case sideBySideAnswerRail(
-        slotModel: ExerciseNaturalNoteStripRailSlotModel,
-        layoutIntent: ExerciseNaturalNoteStripRailLayoutIntent
-    )
+enum ExerciseNaturalNoteStripRailMainAxisPolicy: Equatable, Sendable {
+    case contentSized
+}
 
-    var isEnabled: Bool {
-        if case .inactive = self {
-            return false
-        }
-        return true
-    }
+enum ExerciseNaturalNoteStripRailCrossAxisPolicy: Equatable, Sendable {
+    case fitContent
+}
+
+enum ExerciseNaturalNoteStripRailVerticalAlignment: Equatable, Sendable {
+    case centered
+}
+
+struct ExerciseNaturalNoteStripRailContract: Equatable, Sendable {
+    static let defaultButtonExtent: Double = 20
+
+    var appliesToSurface: ExerciseSurfaceID
+    var slotModel: ExerciseNaturalNoteStripRailSlotModel
+    var buttonShape: ExerciseNaturalNoteStripRailButtonShape
+    var buttonExtent: Double
+    var mainAxisPolicy: ExerciseNaturalNoteStripRailMainAxisPolicy
+    var crossAxisPolicy: ExerciseNaturalNoteStripRailCrossAxisPolicy
+    var verticalAlignment: ExerciseNaturalNoteStripRailVerticalAlignment
+}
+
+private extension ExerciseNaturalNoteStripRailContract {
+    static let sideBySideAnswerRailDefault = ExerciseNaturalNoteStripRailContract(
+        appliesToSurface: .naturalNoteStrip,
+        slotModel: .chromatic12Preserved,
+        buttonShape: .square,
+        buttonExtent: defaultButtonExtent,
+        mainAxisPolicy: .contentSized,
+        crossAxisPolicy: .fitContent,
+        verticalAlignment: .centered
+    )
 }
 
 extension ExercisePresentationState {
@@ -281,8 +302,8 @@ extension ExercisePresentationState {
         scene.fretboardLayoutContract
     }
 
-    var naturalNoteStripRailBoundary: ExerciseNaturalNoteStripRailBoundary {
-        scene.naturalNoteStripRailBoundary
+    var naturalNoteStripRailContract: ExerciseNaturalNoteStripRailContract? {
+        scene.naturalNoteStripRailContract
     }
 }
 
@@ -300,15 +321,19 @@ extension ExerciseScene {
         )
     }
 
-    var naturalNoteStripRailBoundary: ExerciseNaturalNoteStripRailBoundary {
-        guard containsNaturalNoteStripAnswerRailInSideBySideLayout else {
-            return .inactive
+    var naturalNoteStripRailContract: ExerciseNaturalNoteStripRailContract? {
+        guard
+            containsNaturalNoteStripAnswerRailInSideBySideLayout,
+            let renderedSceneLayout,
+            renderedSceneLayout.arrangement == .sideBySide,
+            renderedSceneLayout.primarySurface.id == .fretboard,
+            renderedSceneLayout.secondarySurface?.isNaturalNoteStripAnswerRail == true,
+            renderedSceneLayout.secondaryMainAxisSizing == .fitContent
+        else {
+            return nil
         }
 
-        return .sideBySideAnswerRail(
-            slotModel: .chromatic12Preserved,
-            layoutIntent: .contentSizedAndVerticallyCentered
-        )
+        return .sideBySideAnswerRailDefault
     }
 }
 
