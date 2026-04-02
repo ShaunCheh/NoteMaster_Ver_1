@@ -156,6 +156,7 @@ final class macOSViewController: NSViewController {
     private var isSettlingSceneLayout = false
     private var lastSettledSceneContainerBounds: CGRect = .zero
     private var isSceneLayoutSettlementDirty = false
+    private var isAwaitingSceneLayoutPass = false
     private var settingsMutationDepth = 0
     private let pianoBaseConfiguration = macOSViewController.initialPianoDemoConfiguration
     private var pianoBaseRows = macOSViewController.initialPianoDemoRows
@@ -275,9 +276,10 @@ final class macOSViewController: NSViewController {
                 shouldRequestSceneLayoutSettlement = true
             }
             if transaction.scenePresentation {
-                renderExercisePresentationState()
+                let didChangeSceneStructure = renderExercisePresentationState()
                 shouldRequestSceneLayoutSettlement = true
-                requiresDeferredSceneLayoutSettlement = true
+                requiresDeferredSceneLayoutSettlement =
+                    requiresDeferredSceneLayoutSettlement || didChangeSceneStructure
             }
             if let transition = transaction.quarterNoteSequenceTransition {
                 handleQuarterNoteSequencePresentationTransition(
@@ -1038,10 +1040,13 @@ final class macOSViewController: NSViewController {
     override func viewDidLayout() {
         super.viewDidLayout()
         if hasRenderedExerciseSceneOnce,
-           !isSettlingSceneLayout,
-           exerciseSceneRenderer.sceneContainerView.bounds.integral
-                != lastSettledSceneContainerBounds {
-            requestSceneLayoutSettlementFromLayoutPass()
+           !isSettlingSceneLayout {
+            let sceneContainerBounds = exerciseSceneRenderer.sceneContainerView.bounds
+                .integral
+            if isAwaitingSceneLayoutPass
+                || sceneContainerBounds != lastSettledSceneContainerBounds {
+                requestSceneLayoutSettlementFromLayoutPass()
+            }
         }
         if !hasLoggedInitialLayoutPass {
             hasLoggedInitialLayoutPass = true
@@ -1174,21 +1179,23 @@ final class macOSViewController: NSViewController {
         logLifecycle("configureLayout end")
     }
 
-    private func renderExercisePresentationState() {
+    @discardableResult
+    private func renderExercisePresentationState() -> Bool {
         logLifecycle("renderExercisePresentationState begin")
         macOSSettingsMutationTrace.logIfActive(
             "controller renderExercisePresentationState begin sceneSurfaces=\(exercisePresentationState.scene.surfaceNodes.map(\.id)) layout=\(String(describing: exerciseLayoutPreferences.layoutPreset))"
         )
         updateSceneViewportHeightConstraint()
-        exerciseSceneRenderer.render(
+        let didChangeSceneStructure = exerciseSceneRenderer.render(
             presentationState: exercisePresentationState,
             fretboardDisplayState: displayState
         )
         hasRenderedExerciseSceneOnce = true
         macOSSettingsMutationTrace.logIfActive(
-            "controller renderExercisePresentationState end sceneContainer=\(macOSSettingsMutationTrace.describe(view: exerciseSceneRenderer.sceneContainerView))"
+            "controller renderExercisePresentationState end didChangeSceneStructure=\(didChangeSceneStructure) sceneContainer=\(macOSSettingsMutationTrace.describe(view: exerciseSceneRenderer.sceneContainerView))"
         )
         logLifecycle("renderExercisePresentationState end")
+        return didChangeSceneStructure
     }
 
     private func updateSceneViewportHeightConstraint() {
@@ -1256,11 +1263,7 @@ final class macOSViewController: NSViewController {
             return
         }
 
-        if canSettleSceneLayoutNow {
-            settleSceneLayoutIfNeeded()
-        } else {
-            scheduleSceneLayoutSettlementIfNeeded()
-        }
+        awaitSceneLayoutPass()
     }
 
     private func requestDeferredSceneLayoutSettlement() {
@@ -1270,14 +1273,21 @@ final class macOSViewController: NSViewController {
         }
 
         // A freshly rebuilt scene must not immediately force AppKit to flush
-        // the scroll/document subtree in the same turn. Leave one turn for the
-        // rebuilt hierarchy to attach and let settlement happen afterward.
-        scheduleSceneLayoutSettlementIfNeeded()
+        // the scroll/document subtree in the same turn. Wait for AppKit's next
+        // natural layout pass, then settle the dynamic constraints.
+        awaitSceneLayoutPass()
     }
 
     private func requestSceneLayoutSettlementFromLayoutPass() {
         isSceneLayoutSettlementDirty = true
+        isAwaitingSceneLayoutPass = false
         scheduleSceneLayoutSettlementIfNeeded()
+    }
+
+    private func awaitSceneLayoutPass() {
+        isAwaitingSceneLayoutPass = true
+        view.needsLayout = true
+        exerciseSceneRenderer.sceneContainerView.needsLayout = true
     }
 
     private func scheduleSceneLayoutSettlementIfNeeded() {
@@ -1310,13 +1320,11 @@ final class macOSViewController: NSViewController {
         settleSceneLayoutIfNeeded()
     }
 
-    private func layoutExerciseSubtreeIfNeeded() {
-        exerciseSceneRenderer.sceneContainerView.needsLayout = true
-        exerciseSceneRenderer.sceneContainerView.layoutSubtreeIfNeeded()
-    }
-
-    private func settleSceneLayoutIfNeeded(maxPassCount: Int = 3) {
+    private func settleSceneLayoutIfNeeded() {
         guard isSceneLayoutSettlementDirty, canSettleSceneLayoutNow else {
+            return
+        }
+        guard !isAwaitingSceneLayoutPass else {
             return
         }
 
@@ -1340,17 +1348,10 @@ final class macOSViewController: NSViewController {
             }
         }
 
-        var didUpdateDynamicLayout = false
-        for _ in 0..<maxPassCount {
-            layoutExerciseSubtreeIfNeeded()
-            didUpdateDynamicLayout = exerciseSceneRenderer.handleLayoutPass()
-            if !didUpdateDynamicLayout {
-                break
-            }
-        }
-
+        let didUpdateDynamicLayout = exerciseSceneRenderer.handleLayoutPass()
         if didUpdateDynamicLayout {
-            layoutExerciseSubtreeIfNeeded()
+            isSceneLayoutSettlementDirty = true
+            awaitSceneLayoutPass()
         }
     }
 

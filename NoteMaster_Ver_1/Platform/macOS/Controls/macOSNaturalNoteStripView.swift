@@ -23,17 +23,19 @@ final class macOSNaturalNoteStripView: NSView {
     }
 
     override var intrinsicContentSize: NSSize {
-        layoutSubtreeIfNeeded()
-        let stackSize = stackView.fittingSize
         switch layoutMode {
         case .horizontalStrip:
             return NSSize(
                 width: NSView.noIntrinsicMetric,
-                height: Style.contentInsets.top + stackSize.height + Style.contentInsets.bottom
+                height: Style.contentInsets.top
+                    + tallestButtonIntrinsicHeight
+                    + Style.contentInsets.bottom
             )
         case .verticalRail:
             return NSSize(
-                width: Style.contentInsets.left + stackSize.width + Style.contentInsets.right,
+                width: Style.contentInsets.left
+                    + widestButtonIntrinsicWidth
+                    + Style.contentInsets.right,
                 height: NSView.noIntrinsicMetric
             )
         }
@@ -45,6 +47,16 @@ final class macOSNaturalNoteStripView: NSView {
             makeButton(for: pitchClass)
         }
     }()
+    private var tallestButtonIntrinsicHeight: CGFloat {
+        buttons.reduce(0) { partialResult, button in
+            max(partialResult, button.intrinsicContentSize.height)
+        }
+    }
+    private var widestButtonIntrinsicWidth: CGFloat {
+        buttons.reduce(0) { partialResult, button in
+            max(partialResult, button.intrinsicContentSize.width)
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)

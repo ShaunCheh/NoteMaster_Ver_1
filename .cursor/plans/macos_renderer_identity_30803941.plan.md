@@ -4,19 +4,19 @@ overview: 把 macOS exercise renderer 从“整树重建 + 重挂真实 NSView�
 todos:
   - id: slot-host-identity-model
     content: 在 `macOSExerciseSceneRenderer` 设计稳定 surface slot / host identity 模型，禁止真实 surface view 在 layout 切换时换父视图
-    status: pending
+    status: completed
   - id: replace-full-rebuild
     content: 把 `rebuildSceneHierarchy` 改成按 nodePath 增量同步 host 树，并处理 split/overlay/collapsible 的约束复用
-    status: pending
+    status: completed
   - id: make-embed-idempotent
     content: 重写 `embed` 与 slot 内约束管理，让同父场景下只更新 inset/约束而不再 `removeFromSuperview()`
-    status: pending
+    status: completed
   - id: tighten-controller-contract
     content: 让 controller 依据 renderer 的结构性变更结果决定 deferred 或 immediate settlement，保留现有 transaction 主框架
-    status: pending
+    status: completed
   - id: verify-side-toggle-regressions
     content: 重点验证 `stacked <-> sideBySide`、verticalRail、fitContent、live resize 和 settings 子页停留切换的回归边界
-    status: pending
+    status: completed
 isProject: false
 ---
 

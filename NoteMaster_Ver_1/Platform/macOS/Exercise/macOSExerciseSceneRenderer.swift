@@ -16,9 +16,119 @@ final class macOSExerciseSceneRenderer {
         var contentSizeTolerance: CGFloat
     }
 
+    private enum SceneHostPathComponent: Hashable {
+        case splitChild(Int)
+        case overlayBase
+        case overlayFloatingContainer
+        case collapsibleMain
+        case collapsibleAccessory
+
+        var identifierToken: String {
+            switch self {
+            case let .splitChild(index):
+                return "split-\(index)"
+            case .overlayBase:
+                return "overlay-base"
+            case .overlayFloatingContainer:
+                return "overlay-floating"
+            case .collapsibleMain:
+                return "collapsible-main"
+            case .collapsibleAccessory:
+                return "collapsible-accessory"
+            }
+        }
+    }
+
+    private struct SceneHostPath: Hashable {
+        static let root = SceneHostPath(components: [])
+
+        var components: [SceneHostPathComponent]
+
+        func appending(_ component: SceneHostPathComponent) -> SceneHostPath {
+            SceneHostPath(components: components + [component])
+        }
+
+        var depth: Int {
+            components.count
+        }
+
+        var identifierToken: String {
+            components.isEmpty
+                ? "root"
+                : components.map(\.identifierToken).joined(separator: "-")
+        }
+    }
+
+    private final class SceneHostView: NSView {
+        let path: SceneHostPath
+
+        init(path: SceneHostPath) {
+            self.path = path
+            super.init(frame: .zero)
+            translatesAutoresizingMaskIntoConstraints = false
+            identifier = NSUserInterfaceItemIdentifier(
+                "exercise-scene-host-\(path.identifierToken)"
+            )
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+    }
+
+    private final class SurfaceSlotView: NSView {
+        let surfaceID: ExerciseSurfaceID
+
+        private var hostedViewConstraints: [NSLayoutConstraint] = []
+
+        init(surfaceID: ExerciseSurfaceID) {
+            self.surfaceID = surfaceID
+            super.init(frame: .zero)
+            translatesAutoresizingMaskIntoConstraints = false
+            identifier = NSUserInterfaceItemIdentifier(
+                "exercise-surface-slot-\(surfaceID.rawValue)"
+            )
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        func install(_ childView: NSView) {
+            guard childView.superview !== self else {
+                return
+            }
+
+            macOSSettingsMutationTrace.logIfActive(
+                "renderer slot install childView=\(macOSSettingsMutationTrace.describe(view: childView)) slotView=\(macOSSettingsMutationTrace.describe(view: self))"
+            )
+            NSLayoutConstraint.deactivate(hostedViewConstraints)
+            hostedViewConstraints = []
+            childView.removeFromSuperview()
+            childView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(childView)
+            hostedViewConstraints = [
+                childView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                childView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                childView.topAnchor.constraint(equalTo: topAnchor),
+                childView.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ]
+            NSLayoutConstraint.activate(hostedViewConstraints)
+        }
+    }
+
+    private struct SceneSyncState {
+        var requiredHostPaths: Set<SceneHostPath> = [.root]
+        var activeSurfaceOrder: [ExerciseSurfaceID] = []
+        var didChangeStructure = false
+    }
+
     let sceneContainerView = NSView()
 
     private let sceneContentView = NSView()
+    private let rootHostView = SceneHostView(path: .root)
     private let fretboardHostView = NSView()
     private let fretboardViewportScrollView = NSScrollView()
     private let fretboardScrollContentView = NSView()
@@ -36,6 +146,8 @@ final class macOSExerciseSceneRenderer {
     private var currentFretboardDisplayState = FretboardDisplayState.default
 
     private var activeSceneConstraints: [NSLayoutConstraint] = []
+    private var sceneHostViews: [SceneHostPath: SceneHostView] = [:]
+    private var surfaceSlotViews: [ExerciseSurfaceID: SurfaceSlotView] = [:]
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
     private var horizontalFretboardDocumentWidthConstraint: NSLayoutConstraint?
     private var horizontalFretboardContentWidthConstraint: NSLayoutConstraint?
@@ -62,19 +174,22 @@ final class macOSExerciseSceneRenderer {
         self.pianoAccessoryView = pianoAccessoryView
         self.fretboardView = fretboardView
 
+        sceneHostViews[.root] = rootHostView
         configureStaticHierarchy()
     }
 
+    @discardableResult
     func render(
         presentationState: ExercisePresentationState,
         fretboardDisplayState: FretboardDisplayState
-    ) {
+    ) -> Bool {
         currentPresentationState = presentationState
         currentFretboardDisplayState = fretboardDisplayState
 
-        rebuildSceneHierarchy(for: presentationState.scene.root)
+        let didChangeStructure = syncSceneHierarchy(for: presentationState.scene.root)
         updateSurfaceVisibility()
         applyCurrentFretboardLayoutState()
+        return didChangeStructure
     }
 
     func applyFretboardDisplayState(_ fretboardDisplayState: FretboardDisplayState) {
@@ -120,9 +235,11 @@ final class macOSExerciseSceneRenderer {
         fretboardViewportScrollView.documentView = fretboardScrollContentView
 
         sceneContainerView.addSubview(sceneContentView)
+        sceneContentView.addSubview(rootHostView)
         sceneContainerView.addSubview(sequenceRegenerateButton)
         fretboardHostView.addSubview(fretboardViewportScrollView)
         fretboardScrollContentView.addSubview(fretboardView)
+        configureSurfaceSlots()
 
         horizontalFretboardDocumentWidthConstraint = fretboardScrollContentView.widthAnchor.constraint(
             equalTo: fretboardViewportScrollView.contentView.widthAnchor
@@ -159,6 +276,10 @@ final class macOSExerciseSceneRenderer {
             sceneContentView.bottomAnchor.constraint(
                 equalTo: sceneContainerView.bottomAnchor
             ),
+            rootHostView.leadingAnchor.constraint(equalTo: sceneContentView.leadingAnchor),
+            rootHostView.trailingAnchor.constraint(equalTo: sceneContentView.trailingAnchor),
+            rootHostView.topAnchor.constraint(equalTo: sceneContentView.topAnchor),
+            rootHostView.bottomAnchor.constraint(equalTo: sceneContentView.bottomAnchor),
             sequenceRegenerateButton.topAnchor.constraint(
                 equalTo: sceneContainerView.topAnchor,
                 constant: metrics.floatingButtonInset
@@ -204,98 +325,117 @@ final class macOSExerciseSceneRenderer {
         ])
     }
 
-    private func rebuildSceneHierarchy(
+    private func configureSurfaceSlots() {
+        for surfaceID in ExerciseSurfaceID.allCases {
+            let slotView = SurfaceSlotView(surfaceID: surfaceID)
+            rootHostView.addSubview(slotView)
+            slotView.isHidden = true
+            if let surfaceView = view(for: surfaceID) {
+                slotView.install(surfaceView)
+            }
+            surfaceSlotViews[surfaceID] = slotView
+        }
+    }
+
+    @discardableResult
+    private func syncSceneHierarchy(
         for rootNode: ExerciseSceneNode
-    ) {
+    ) -> Bool {
         macOSSettingsMutationTrace.logIfActive(
-            "renderer rebuildSceneHierarchy remove oldSceneSubviews count=\(sceneContentView.subviews.count)"
+            "renderer syncSceneHierarchy begin activeHosts=\(sceneHostViews.count)"
         )
         NSLayoutConstraint.deactivate(activeSceneConstraints)
         activeSceneConstraints = []
-        sceneContentView.subviews.forEach { $0.removeFromSuperview() }
 
-        let rootHostView = NSView()
-        rootHostView.translatesAutoresizingMaskIntoConstraints = false
-        sceneContentView.addSubview(rootHostView)
-        macOSSettingsMutationTrace.logIfActive(
-            "renderer rebuildSceneHierarchy add rootHostView=\(macOSSettingsMutationTrace.describe(view: rootHostView))"
-        )
-        activeSceneConstraints.append(contentsOf: [
-            rootHostView.leadingAnchor.constraint(
-                equalTo: sceneContentView.leadingAnchor
-            ),
-            rootHostView.trailingAnchor.constraint(
-                equalTo: sceneContentView.trailingAnchor
-            ),
-            rootHostView.topAnchor.constraint(
-                equalTo: sceneContentView.topAnchor
-            ),
-            rootHostView.bottomAnchor.constraint(
-                equalTo: sceneContentView.bottomAnchor
-            )
-        ])
-        render(node: rootNode, in: rootHostView)
+        var state = SceneSyncState()
+        sync(node: rootNode, in: rootHostView, path: .root, state: &state)
+        if pruneUnusedSceneHosts(requiredPaths: state.requiredHostPaths) {
+            state.didChangeStructure = true
+        }
+        syncSurfaceSlots(activeSurfaceOrder: state.activeSurfaceOrder)
         NSLayoutConstraint.activate(activeSceneConstraints)
+        return state.didChangeStructure
     }
 
-    private func render(
+    private func sync(
         node: ExerciseSceneNode,
-        in hostView: NSView
+        in hostView: SceneHostView,
+        path: SceneHostPath,
+        state: inout SceneSyncState
     ) {
         switch node {
         case let .surface(surface):
-            renderSurface(surface, in: hostView)
+            syncSurface(surface, in: hostView, state: &state)
         case let .split(axis, children):
-            renderSplit(
+            syncSplit(
                 axis: axis,
                 children: children,
-                in: hostView
+                in: hostView,
+                path: path,
+                state: &state
             )
         case let .overlay(base, floating):
-            renderOverlay(
+            syncOverlay(
                 base: base,
                 floating: floating,
-                in: hostView
+                in: hostView,
+                path: path,
+                state: &state
             )
         case let .collapsible(main, accessory, isExpanded):
-            renderCollapsible(
+            syncCollapsible(
                 main: main,
                 accessory: accessory,
                 isExpanded: isExpanded,
-                in: hostView
+                in: hostView,
+                path: path,
+                state: &state
             )
         }
     }
 
-    private func renderSurface(
+    private func syncSurface(
         _ surface: ExerciseSurfaceNode,
-        in hostView: NSView
+        in hostView: SceneHostView,
+        state: inout SceneSyncState
     ) {
         configurePresentationStyle(for: surface)
-        guard let surfaceView = view(for: surface.id) else {
+        guard let slotView = surfaceSlotViews[surface.id] else {
             return
         }
-        embed(
-            surfaceView,
+
+        if !state.activeSurfaceOrder.contains(surface.id) {
+            state.activeSurfaceOrder.append(surface.id)
+        }
+        slotView.isHidden = false
+        placeSurfaceSlot(
+            slotView,
             in: hostView,
             contentInsets: contentInsets(for: surface)
         )
     }
 
-    private func renderSplit(
+    private func syncSplit(
         axis: ExerciseSceneAxis,
         children: [ExerciseSceneSplitChild],
-        in hostView: NSView
+        in hostView: SceneHostView,
+        path: SceneHostPath,
+        state: inout SceneSyncState
     ) {
-        let childHostViews = children.map { _ in
-            let childHostView = NSView()
-            childHostView.translatesAutoresizingMaskIntoConstraints = false
-            hostView.addSubview(childHostView)
+        let childHostViews = children.enumerated().map { index, child in
+            let childHostPath = path.appending(.splitChild(index))
+            let childHostView = ensureSceneHost(
+                at: childHostPath,
+                in: hostView,
+                state: &state
+            )
+            sync(
+                node: child.node,
+                in: childHostView,
+                path: childHostPath,
+                state: &state
+            )
             return childHostView
-        }
-
-        for (index, child) in children.enumerated() {
-            render(node: child.node, in: childHostViews[index])
         }
 
         for (index, childHostView) in childHostViews.enumerated() {
@@ -424,11 +564,123 @@ final class macOSExerciseSceneRenderer {
         }
     }
 
+    private func ensureSceneHost(
+        at path: SceneHostPath,
+        in parentView: NSView,
+        state: inout SceneSyncState
+    ) -> SceneHostView {
+        state.requiredHostPaths.insert(path)
+
+        if let existingHostView = sceneHostViews[path] {
+            if existingHostView.superview !== parentView {
+                macOSSettingsMutationTrace.logIfActive(
+                    "renderer reparent hostView=\(macOSSettingsMutationTrace.describe(view: existingHostView)) parentView=\(macOSSettingsMutationTrace.describe(view: parentView))"
+                )
+                existingHostView.removeFromSuperview()
+                parentView.addSubview(existingHostView)
+                state.didChangeStructure = true
+            }
+            return existingHostView
+        }
+
+        let childHostView = SceneHostView(path: path)
+        sceneHostViews[path] = childHostView
+        parentView.addSubview(childHostView)
+        macOSSettingsMutationTrace.logIfActive(
+            "renderer add hostView=\(macOSSettingsMutationTrace.describe(view: childHostView)) parentView=\(macOSSettingsMutationTrace.describe(view: parentView))"
+        )
+        state.didChangeStructure = true
+        return childHostView
+    }
+
+    @discardableResult
+    private func pruneUnusedSceneHosts(
+        requiredPaths: Set<SceneHostPath>
+    ) -> Bool {
+        let unusedPaths = sceneHostViews.keys
+            .filter { $0 != .root && !requiredPaths.contains($0) }
+            .sorted { $0.depth > $1.depth }
+        guard !unusedPaths.isEmpty else {
+            return false
+        }
+
+        for unusedPath in unusedPaths {
+            if let unusedHostView = sceneHostViews.removeValue(forKey: unusedPath) {
+                macOSSettingsMutationTrace.logIfActive(
+                    "renderer remove hostView=\(macOSSettingsMutationTrace.describe(view: unusedHostView))"
+                )
+                unusedHostView.removeFromSuperview()
+            }
+        }
+        return true
+    }
+
+    private func syncSurfaceSlots(
+        activeSurfaceOrder: [ExerciseSurfaceID]
+    ) {
+        let activeSurfaceSet = Set(activeSurfaceOrder)
+        for surfaceID in ExerciseSurfaceID.allCases {
+            surfaceSlotViews[surfaceID]?.isHidden = !activeSurfaceSet.contains(surfaceID)
+        }
+
+        let currentActiveOrder: [ExerciseSurfaceID] = rootHostView.subviews.compactMap { subview in
+            guard
+                let slotView = subview as? SurfaceSlotView,
+                activeSurfaceSet.contains(slotView.surfaceID)
+            else {
+                return nil
+            }
+            return slotView.surfaceID
+        }
+        guard currentActiveOrder != activeSurfaceOrder else {
+            return
+        }
+
+        var previousActiveSlotView: NSView?
+        for surfaceID in activeSurfaceOrder {
+            guard let slotView = surfaceSlotViews[surfaceID] else {
+                continue
+            }
+            rootHostView.addSubview(
+                slotView,
+                positioned: .above,
+                relativeTo: previousActiveSlotView
+            )
+            previousActiveSlotView = slotView
+        }
+    }
+
+    private func placeSurfaceSlot(
+        _ slotView: SurfaceSlotView,
+        in hostView: NSView,
+        contentInsets: NSEdgeInsets
+    ) {
+        activeSceneConstraints.append(contentsOf: [
+            slotView.leadingAnchor.constraint(
+                equalTo: hostView.leadingAnchor,
+                constant: contentInsets.left
+            ),
+            slotView.trailingAnchor.constraint(
+                equalTo: hostView.trailingAnchor,
+                constant: -contentInsets.right
+            ),
+            slotView.topAnchor.constraint(
+                equalTo: hostView.topAnchor,
+                constant: contentInsets.top
+            ),
+            slotView.bottomAnchor.constraint(
+                equalTo: hostView.bottomAnchor,
+                constant: -contentInsets.bottom
+            )
+        ])
+    }
+
     private func configureMainAxisSizing(
         _ mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing,
         for childHostView: NSView,
         axis: ExerciseSceneAxis
     ) {
+        resetMainAxisSizingPriorities(for: childHostView)
         switch (axis, mainAxisSizing) {
         case (_, .weighted):
             return
@@ -465,6 +717,19 @@ final class macOSExerciseSceneRenderer {
         }
     }
 
+    private func resetMainAxisSizingPriorities(for hostView: NSView) {
+        hostView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        hostView.setContentCompressionResistancePriority(
+            .defaultLow,
+            for: .horizontal
+        )
+        hostView.setContentHuggingPriority(.defaultLow, for: .vertical)
+        hostView.setContentCompressionResistancePriority(
+            .defaultLow,
+            for: .vertical
+        )
+    }
+
     private func configurePresentationStyle(for surface: ExerciseSurfaceNode) {
         guard surface.id == .naturalNoteStrip else {
             return
@@ -473,25 +738,33 @@ final class macOSExerciseSceneRenderer {
         naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
     }
 
-    private func renderOverlay(
+    private func syncOverlay(
         base: ExerciseSceneNode,
         floating: [ExerciseSceneNode],
-        in hostView: NSView
+        in hostView: SceneHostView,
+        path: SceneHostPath,
+        state: inout SceneSyncState
     ) {
-        let baseHostView = NSView()
-        baseHostView.translatesAutoresizingMaskIntoConstraints = false
-        hostView.addSubview(baseHostView)
+        let baseHostPath = path.appending(.overlayBase)
+        let baseHostView = ensureSceneHost(
+            at: baseHostPath,
+            in: hostView,
+            state: &state
+        )
         activeSceneConstraints.append(contentsOf: [
             baseHostView.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
             baseHostView.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
             baseHostView.topAnchor.constraint(equalTo: hostView.topAnchor),
             baseHostView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
         ])
-        render(node: base, in: baseHostView)
+        sync(node: base, in: baseHostView, path: baseHostPath, state: &state)
 
-        let floatingHostView = NSView()
-        floatingHostView.translatesAutoresizingMaskIntoConstraints = false
-        hostView.addSubview(floatingHostView)
+        let floatingHostPath = path.appending(.overlayFloatingContainer)
+        let floatingHostView = ensureSceneHost(
+            at: floatingHostPath,
+            in: hostView,
+            state: &state
+        )
         activeSceneConstraints.append(contentsOf: [
             floatingHostView.leadingAnchor.constraint(
                 equalTo: hostView.leadingAnchor,
@@ -512,35 +785,47 @@ final class macOSExerciseSceneRenderer {
         ])
 
         if floating.count == 1, let floatingNode = floating.first {
-            render(node: floatingNode, in: floatingHostView)
+            sync(
+                node: floatingNode,
+                in: floatingHostView,
+                path: floatingHostPath,
+                state: &state
+            )
         } else {
-            render(
+            sync(
                 node: .makeSplit(
                     axis: .vertical,
                     children: floating.map {
                         ExerciseSceneSplitChild(node: $0)
                     }
                 ),
-                in: floatingHostView
+                in: floatingHostView,
+                path: floatingHostPath,
+                state: &state
             )
         }
     }
 
-    private func renderCollapsible(
+    private func syncCollapsible(
         main: ExerciseSceneNode,
         accessory: ExerciseSceneNode,
         isExpanded: Bool,
-        in hostView: NSView
+        in hostView: SceneHostView,
+        path: SceneHostPath,
+        state: inout SceneSyncState
     ) {
-        let mainHostView = NSView()
-        mainHostView.translatesAutoresizingMaskIntoConstraints = false
-        hostView.addSubview(mainHostView)
+        let mainHostPath = path.appending(.collapsibleMain)
+        let mainHostView = ensureSceneHost(
+            at: mainHostPath,
+            in: hostView,
+            state: &state
+        )
         activeSceneConstraints.append(contentsOf: [
             mainHostView.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
             mainHostView.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
             mainHostView.topAnchor.constraint(equalTo: hostView.topAnchor)
         ])
-        render(node: main, in: mainHostView)
+        sync(node: main, in: mainHostView, path: mainHostPath, state: &state)
 
         guard isExpanded else {
             activeSceneConstraints.append(
@@ -549,9 +834,12 @@ final class macOSExerciseSceneRenderer {
             return
         }
 
-        let accessoryHostView = NSView()
-        accessoryHostView.translatesAutoresizingMaskIntoConstraints = false
-        hostView.addSubview(accessoryHostView)
+        let accessoryHostPath = path.appending(.collapsibleAccessory)
+        let accessoryHostView = ensureSceneHost(
+            at: accessoryHostPath,
+            in: hostView,
+            state: &state
+        )
         activeSceneConstraints.append(contentsOf: [
             accessoryHostView.leadingAnchor.constraint(
                 equalTo: hostView.leadingAnchor
@@ -571,43 +859,12 @@ final class macOSExerciseSceneRenderer {
                 multiplier: 3 / accessoryWeight(for: accessory)
             )
         ])
-        render(node: accessory, in: accessoryHostView)
-    }
-
-    private func embed(
-        _ childView: NSView,
-        in hostView: NSView,
-        contentInsets: NSEdgeInsets = NSEdgeInsets(
-            top: 0,
-            left: 0,
-            bottom: 0,
-            right: 0
+        sync(
+            node: accessory,
+            in: accessoryHostView,
+            path: accessoryHostPath,
+            state: &state
         )
-    ) {
-        macOSSettingsMutationTrace.logIfActive(
-            "renderer embed move childView=\(macOSSettingsMutationTrace.describe(view: childView)) hostView=\(macOSSettingsMutationTrace.describe(view: hostView))"
-        )
-        childView.removeFromSuperview()
-        childView.translatesAutoresizingMaskIntoConstraints = false
-        hostView.addSubview(childView)
-        activeSceneConstraints.append(contentsOf: [
-            childView.leadingAnchor.constraint(
-                equalTo: hostView.leadingAnchor,
-                constant: contentInsets.left
-            ),
-            childView.trailingAnchor.constraint(
-                equalTo: hostView.trailingAnchor,
-                constant: -contentInsets.right
-            ),
-            childView.topAnchor.constraint(
-                equalTo: hostView.topAnchor,
-                constant: contentInsets.top
-            ),
-            childView.bottomAnchor.constraint(
-                equalTo: hostView.bottomAnchor,
-                constant: -contentInsets.bottom
-            )
-        ])
     }
 
     private func updateSurfaceVisibility() {
