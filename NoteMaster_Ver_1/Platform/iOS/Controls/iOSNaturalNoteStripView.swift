@@ -17,21 +17,28 @@ final class iOSNaturalNoteStripView: UIView {
         }
     }
 
+    private var railContract: ExerciseNaturalNoteStripRailContract = .defaultSideBySideAnswerRail {
+        didSet {
+            guard oldValue != railContract else {
+                return
+            }
+            applyLayoutMode()
+        }
+    }
+
     override var intrinsicContentSize: CGSize {
-        layoutIfNeeded()
-        let stackSize = stackView.systemLayoutSizeFitting(
-            UIView.layoutFittingCompressedSize
-        )
         switch layoutMode {
         case .horizontalStrip:
             return CGSize(
                 width: UIView.noIntrinsicMetric,
-                height: directionalLayoutMargins.top + stackSize.height + directionalLayoutMargins.bottom
+                height: directionalLayoutMargins.top
+                    + tallestButtonIntrinsicHeight
+                    + directionalLayoutMargins.bottom
             )
         case .verticalRail:
             return CGSize(
-                width: directionalLayoutMargins.leading + stackSize.width + directionalLayoutMargins.trailing,
-                height: UIView.noIntrinsicMetric
+                width: verticalRailIntrinsicWidth,
+                height: verticalRailIntrinsicHeight
             )
         }
     }
@@ -42,6 +49,36 @@ final class iOSNaturalNoteStripView: UIView {
             makeButton(for: pitchClass)
         }
     }()
+    private var tallestButtonIntrinsicHeight: CGFloat {
+        buttons.reduce(0) { partialResult, button in
+            max(partialResult, button.intrinsicContentSize.height)
+        }
+    }
+    private var activeRailContract: ExerciseNaturalNoteStripRailContract {
+        railContract
+    }
+    private var activeRailButtonExtent: CGFloat {
+        CGFloat(activeRailContract.buttonExtent)
+    }
+    private var verticalRailIntrinsicWidth: CGFloat {
+        switch activeRailContract.crossAxisPolicy {
+        case .fitContent:
+            return directionalLayoutMargins.leading
+                + activeRailButtonExtent
+                + directionalLayoutMargins.trailing
+        }
+    }
+    private var verticalRailIntrinsicHeight: CGFloat {
+        switch activeRailContract.mainAxisPolicy {
+        case .contentSized:
+            let slotCount = CGFloat(activeRailContract.slotModel.slotCount)
+            let totalSpacing = max(0, slotCount - 1) * Style.itemSpacing
+            return directionalLayoutMargins.top
+                + (slotCount * activeRailButtonExtent)
+                + totalSpacing
+                + directionalLayoutMargins.bottom
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -62,6 +99,10 @@ final class iOSNaturalNoteStripView: UIView {
         case .standard, .horizontalStrip:
             layoutMode = .horizontalStrip
         }
+    }
+
+    func applyRailContract(_ railContract: ExerciseNaturalNoteStripRailContract?) {
+        self.railContract = railContract ?? .defaultSideBySideAnswerRail
     }
 
     private func configureView() {
@@ -93,7 +134,7 @@ final class iOSNaturalNoteStripView: UIView {
     private func makeButton(for pitchClass: PitchClass) -> NaturalNoteButton {
         let button = NaturalNoteButton(frame: .zero)
         button.apply(pitchClass: pitchClass)
-        button.applyLayoutMode(layoutMode)
+        button.applyLayoutMode(layoutMode, railContract: activeRailContract)
         button.addTarget(
             self,
             action: #selector(handleButtonTap(_:)),
@@ -123,15 +164,17 @@ final class iOSNaturalNoteStripView: UIView {
             setContentCompressionResistancePriority(.required, for: .vertical)
         case .verticalRail:
             stackView.axis = .vertical
-            stackView.alignment = .fill
-            stackView.distribution = .fillEqually
+            stackView.alignment = .center
+            stackView.distribution = .fill
             setContentHuggingPriority(.required, for: .horizontal)
             setContentCompressionResistancePriority(.required, for: .horizontal)
-            setContentHuggingPriority(.defaultLow, for: .vertical)
-            setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+            setContentHuggingPriority(.required, for: .vertical)
+            setContentCompressionResistancePriority(.required, for: .vertical)
         }
 
-        buttons.forEach { $0.applyLayoutMode(layoutMode) }
+        buttons.forEach {
+            $0.applyLayoutMode(layoutMode, railContract: activeRailContract)
+        }
         invalidateIntrinsicContentSize()
         setNeedsLayout()
     }
@@ -139,6 +182,18 @@ final class iOSNaturalNoteStripView: UIView {
 
 private final class NaturalNoteButton: UIButton {
     var pitchClass: PitchClass?
+    private var layoutMode: iOSNaturalNoteStripView.LayoutMode = .horizontalStrip
+    private var railContract: ExerciseNaturalNoteStripRailContract = .defaultSideBySideAnswerRail
+
+    override var intrinsicContentSize: CGSize {
+        switch layoutMode {
+        case .horizontalStrip:
+            return super.intrinsicContentSize
+        case .verticalRail:
+            let buttonExtent = CGFloat(railContract.buttonExtent)
+            return CGSize(width: buttonExtent, height: buttonExtent)
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -155,6 +210,7 @@ private final class NaturalNoteButton: UIButton {
         accessibilityIdentifier = "natural-note-strip-button-\(pitchClass.stripIdentifierToken)"
         accessibilityLabel = "Choose note \(pitchClass.stripAccessibilityLabel)"
         setTitle(pitchClass.stripVisibleTitle, for: .normal)
+        invalidateIntrinsicContentSize()
         setNeedsUpdateConfiguration()
     }
 
@@ -167,11 +223,18 @@ private final class NaturalNoteButton: UIButton {
 
         var nextConfiguration = configuration ?? UIButton.Configuration.filled()
         nextConfiguration.title = title(for: .normal)
-        nextConfiguration.buttonSize = .medium
+        nextConfiguration.buttonSize = layoutMode == .verticalRail ? .mini : .medium
         nextConfiguration.cornerStyle = .capsule
-        nextConfiguration.contentInsets = Style.buttonContentInsets
+        nextConfiguration.contentInsets = resolvedContentInsets()
         nextConfiguration.baseBackgroundColor = resolvedBackgroundColor()
         nextConfiguration.baseForegroundColor = resolvedForegroundColor()
+        let resolvedFont = resolvedTitleFont()
+        nextConfiguration.titleTextAttributesTransformer =
+            UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = resolvedFont
+                return outgoing
+            }
         configuration = nextConfiguration
     }
 
@@ -187,15 +250,27 @@ private final class NaturalNoteButton: UIButton {
         titleLabel?.lineBreakMode = .byClipping
     }
 
-    func applyLayoutMode(_ layoutMode: iOSNaturalNoteStripView.LayoutMode) {
+    func applyLayoutMode(
+        _ layoutMode: iOSNaturalNoteStripView.LayoutMode,
+        railContract: ExerciseNaturalNoteStripRailContract
+    ) {
+        self.layoutMode = layoutMode
+        self.railContract = railContract
         switch layoutMode {
         case .horizontalStrip:
             setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             setContentHuggingPriority(.defaultLow, for: .horizontal)
+            setContentCompressionResistancePriority(.required, for: .vertical)
+            setContentHuggingPriority(.required, for: .vertical)
         case .verticalRail:
             setContentCompressionResistancePriority(.required, for: .horizontal)
             setContentHuggingPriority(.required, for: .horizontal)
+            setContentCompressionResistancePriority(.required, for: .vertical)
+            setContentHuggingPriority(.required, for: .vertical)
         }
+
+        invalidateIntrinsicContentSize()
+        setNeedsUpdateConfiguration()
     }
 
     private func resolvedBackgroundColor() -> UIColor {
@@ -213,6 +288,28 @@ private final class NaturalNoteButton: UIButton {
 
         return .label
     }
+
+    private func resolvedContentInsets() -> NSDirectionalEdgeInsets {
+        switch layoutMode {
+        case .horizontalStrip:
+            return Style.buttonContentInsets
+        case .verticalRail:
+            return .zero
+        }
+    }
+
+    private func resolvedTitleFont() -> UIFont {
+        switch layoutMode {
+        case .horizontalStrip:
+            return UIFont.systemFont(ofSize: Style.fontSize, weight: .medium)
+        case .verticalRail:
+            let railFontSize = min(
+                Style.fontSize,
+                max(9, CGFloat(railContract.buttonExtent) * 0.55)
+            )
+            return UIFont.systemFont(ofSize: railFontSize, weight: .medium)
+        }
+    }
 }
 
 private enum Style {
@@ -226,6 +323,7 @@ private enum Style {
     static let cornerRadius: CGFloat = 22
     static let borderWidth: CGFloat = 1
     static let borderOpacity: CGFloat = 0.35
+    static let fontSize: CGFloat = 13
     static let buttonContentInsets = NSDirectionalEdgeInsets(
         top: 8,
         leading: 8,

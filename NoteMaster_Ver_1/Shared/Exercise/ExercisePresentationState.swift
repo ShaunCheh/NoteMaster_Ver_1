@@ -267,18 +267,7 @@ enum ExerciseNaturalNoteStripRailVerticalAlignment: Equatable, Sendable {
 
 struct ExerciseNaturalNoteStripRailContract: Equatable, Sendable {
     static let defaultButtonExtent: Double = 20
-
-    var appliesToSurface: ExerciseSurfaceID
-    var slotModel: ExerciseNaturalNoteStripRailSlotModel
-    var buttonShape: ExerciseNaturalNoteStripRailButtonShape
-    var buttonExtent: Double
-    var mainAxisPolicy: ExerciseNaturalNoteStripRailMainAxisPolicy
-    var crossAxisPolicy: ExerciseNaturalNoteStripRailCrossAxisPolicy
-    var verticalAlignment: ExerciseNaturalNoteStripRailVerticalAlignment
-}
-
-private extension ExerciseNaturalNoteStripRailContract {
-    static let sideBySideAnswerRailDefault = ExerciseNaturalNoteStripRailContract(
+    static let defaultSideBySideAnswerRail = ExerciseNaturalNoteStripRailContract(
         appliesToSurface: .naturalNoteStrip,
         slotModel: .chromatic12Preserved,
         buttonShape: .square,
@@ -287,6 +276,14 @@ private extension ExerciseNaturalNoteStripRailContract {
         crossAxisPolicy: .fitContent,
         verticalAlignment: .centered
     )
+
+    var appliesToSurface: ExerciseSurfaceID
+    var slotModel: ExerciseNaturalNoteStripRailSlotModel
+    var buttonShape: ExerciseNaturalNoteStripRailButtonShape
+    var buttonExtent: Double
+    var mainAxisPolicy: ExerciseNaturalNoteStripRailMainAxisPolicy
+    var crossAxisPolicy: ExerciseNaturalNoteStripRailCrossAxisPolicy
+    var verticalAlignment: ExerciseNaturalNoteStripRailVerticalAlignment
 }
 
 extension ExercisePresentationState {
@@ -333,7 +330,7 @@ extension ExerciseScene {
             return nil
         }
 
-        return .sideBySideAnswerRailDefault
+        return .defaultSideBySideAnswerRail
     }
 }
 
