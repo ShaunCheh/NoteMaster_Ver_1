@@ -156,6 +156,10 @@ final class macOSSettingsNavigatorView: NSView {
         )
         let didCurrentRouteChange = previousPath.last != reconciledPath.last
 
+        macOSSettingsMutationTrace.logIfActive(
+            "navigator applyModelUpdate previousPath=\(previousPath) nextPath=\(reconciledPath) didCurrentRouteChange=\(didCurrentRouteChange)"
+        )
+
         routeStack = reconciledPath
         replaceCurrentPage(
             with: makePageView(for: routeStack.last ?? model.rootRoute),
@@ -204,6 +208,9 @@ final class macOSSettingsNavigatorView: NSView {
         transitionDirection: TransitionDirection,
         animated: Bool
     ) {
+        macOSSettingsMutationTrace.logIfActive(
+            "navigator replaceCurrentPage newPage=\(macOSSettingsMutationTrace.describe(view: newPageView)) transition=\(String(describing: transitionDirection)) animated=\(animated) \(macOSSettingsMutationTrace.containsActiveSource(in: currentPageView))"
+        )
         let oldPageView = currentPageView
         let oldSnapshotView = animated ? snapshotView(for: oldPageView) : nil
 
@@ -261,6 +268,9 @@ final class macOSSettingsNavigatorView: NSView {
     }
 
     private func installCurrentPageView(_ pageView: NSView) {
+        macOSSettingsMutationTrace.logIfActive(
+            "navigator installCurrentPageView remove oldPage=\(macOSSettingsMutationTrace.describe(view: currentPageView)) \(macOSSettingsMutationTrace.containsActiveSource(in: currentPageView))"
+        )
         NSLayoutConstraint.deactivate(currentPageConstraints)
         currentPageConstraints = []
         currentPageView?.removeFromSuperview()
@@ -271,6 +281,9 @@ final class macOSSettingsNavigatorView: NSView {
 
         pageView.translatesAutoresizingMaskIntoConstraints = false
         pageHostView.addSubview(pageView)
+        macOSSettingsMutationTrace.logIfActive(
+            "navigator installCurrentPageView add newPage=\(macOSSettingsMutationTrace.describe(view: pageView)) \(macOSSettingsMutationTrace.containsActiveSource(in: pageView))"
+        )
         currentPageConstraints = [
             pageView.leadingAnchor.constraint(equalTo: pageHostView.leadingAnchor),
             pageView.trailingAnchor.constraint(equalTo: pageHostView.trailingAnchor),
@@ -286,6 +299,9 @@ final class macOSSettingsNavigatorView: NSView {
         )
         invalidateIntrinsicContentSize()
         needsLayout = true
+        macOSSettingsMutationTrace.logIfActive(
+            "navigator installCurrentPageView layoutSubtreeIfNeeded pageHost=\(macOSSettingsMutationTrace.describe(view: pageHostView))"
+        )
         layoutSubtreeIfNeeded()
     }
 

@@ -9,6 +9,125 @@
 import Foundation
 import AppKit
 
+enum macOSSettingsMutationTrace {
+    private(set) static var activeEventID: Int?
+    private static var nextEventID: Int = 0
+    private static var activeActionID: SettingsActionID?
+    private static var activeRowPointer: String?
+    private static var activeSenderPointer: String?
+
+    static func shouldTrace(_ event: SettingsPanelEvent) -> Bool {
+        switch event {
+        case let .triggerAction(actionID):
+            return actionID.rowID == .layoutPreset
+        case .togglePositionPromptFilterOption, .setSliderValue, .setToggleValue:
+            return false
+        }
+    }
+
+    static func prepareSource(
+        actionID: SettingsActionID,
+        rowView: NSView,
+        senderView: NSView
+    ) {
+        activeActionID = actionID
+        activeRowPointer = pointerString(for: rowView)
+        activeSenderPointer = pointerString(for: senderView)
+    }
+
+    static func begin(event: SettingsPanelEvent, state: String) -> Int {
+        nextEventID += 1
+        let eventID = nextEventID
+        activeEventID = eventID
+        log(
+            "event=\(eventID) begin event=\(String(describing: event)) state=\(state) activeSource=\(describeActiveSource())"
+        )
+        return eventID
+    }
+
+    static func end(_ eventID: Int, state: String) {
+        log(
+            "event=\(eventID) end state=\(state) activeSource=\(describeActiveSource())"
+        )
+        if activeEventID == eventID {
+            activeEventID = nil
+        }
+        activeActionID = nil
+        activeRowPointer = nil
+        activeSenderPointer = nil
+    }
+
+    static func log(_ message: String) {
+        print("[SettingsTrace][macOS] \(message)")
+    }
+
+    static func logIfActive(_ message: @autoclosure () -> String) {
+        guard let eventID = activeEventID else {
+            return
+        }
+
+        log("event=\(eventID) \(message())")
+    }
+
+    static func describeActiveSource() -> String {
+        let action = activeActionID.map { String(describing: $0) } ?? "nil"
+        let rowPointer = activeRowPointer ?? "nil"
+        let senderPointer = activeSenderPointer ?? "nil"
+        return "action=\(action) rowPtr=\(rowPointer) senderPtr=\(senderPointer)"
+    }
+
+    static func describe(view: NSView?) -> String {
+        guard let view else {
+            return "view=nil"
+        }
+
+        let pointer = pointerString(for: view)
+        let identifier = view.identifier?.rawValue ?? "nil"
+        let hasSuperview = view.superview != nil
+        let superType = view.superview.map { String(describing: type(of: $0)) } ?? "nil"
+        let superIdentifier = view.superview?.identifier?.rawValue ?? "nil"
+        let windowAttached = view.window != nil
+        return "type=\(type(of: view)) id=\(identifier) ptr=\(pointer) hasSuperview=\(hasSuperview) superType=\(superType) superID=\(superIdentifier) windowAttached=\(windowAttached) hidden=\(view.isHidden)"
+    }
+
+    static func containsActiveSource(in rootView: NSView?) -> String {
+        let containsRow = containsTrackedView(
+            in: rootView,
+            trackedPointer: activeRowPointer
+        )
+        let containsSender = containsTrackedView(
+            in: rootView,
+            trackedPointer: activeSenderPointer
+        )
+        return "containsActiveRow=\(containsRow) containsActiveSender=\(containsSender)"
+    }
+
+    private static func pointerString(for view: NSView?) -> String {
+        guard let view else {
+            return "nil"
+        }
+
+        return String(describing: Unmanaged.passUnretained(view).toOpaque())
+    }
+
+    private static func containsTrackedView(
+        in rootView: NSView?,
+        trackedPointer: String?
+    ) -> Bool {
+        guard let rootView, let trackedPointer else {
+            return false
+        }
+
+        if pointerString(for: rootView) == trackedPointer {
+            return true
+        }
+
+        return rootView.subviews.contains {
+            containsTrackedView(in: $0, trackedPointer: trackedPointer)
+        }
+    }
+}
+
 final class macOSSettingsContainerView: NSView {
     var navigationModel: SettingsNavigationModel {
         didSet {

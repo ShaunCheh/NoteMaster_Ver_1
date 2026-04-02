@@ -202,6 +202,9 @@ final class macOSExerciseSceneRenderer {
     private func rebuildSceneHierarchy(
         for rootNode: ExerciseSceneNode
     ) {
+        macOSSettingsMutationTrace.logIfActive(
+            "renderer rebuildSceneHierarchy remove oldSceneSubviews count=\(sceneContentView.subviews.count)"
+        )
         NSLayoutConstraint.deactivate(activeSceneConstraints)
         activeSceneConstraints = []
         sceneContentView.subviews.forEach { $0.removeFromSuperview() }
@@ -209,6 +212,9 @@ final class macOSExerciseSceneRenderer {
         let rootHostView = NSView()
         rootHostView.translatesAutoresizingMaskIntoConstraints = false
         sceneContentView.addSubview(rootHostView)
+        macOSSettingsMutationTrace.logIfActive(
+            "renderer rebuildSceneHierarchy add rootHostView=\(macOSSettingsMutationTrace.describe(view: rootHostView))"
+        )
         activeSceneConstraints.append(contentsOf: [
             rootHostView.leadingAnchor.constraint(
                 equalTo: sceneContentView.leadingAnchor
@@ -573,6 +579,9 @@ final class macOSExerciseSceneRenderer {
             right: 0
         )
     ) {
+        macOSSettingsMutationTrace.logIfActive(
+            "renderer embed move childView=\(macOSSettingsMutationTrace.describe(view: childView)) hostView=\(macOSSettingsMutationTrace.describe(view: hostView))"
+        )
         childView.removeFromSuperview()
         childView.translatesAutoresizingMaskIntoConstraints = false
         hostView.addSubview(childView)

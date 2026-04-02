@@ -909,6 +909,9 @@ final class macOSViewController: NSViewController {
 
     private func renderExercisePresentationState() {
         logLifecycle("renderExercisePresentationState begin")
+        macOSSettingsMutationTrace.logIfActive(
+            "controller renderExercisePresentationState begin sceneSurfaces=\(exercisePresentationState.scene.surfaceNodes.map(\.id)) layout=\(String(describing: exerciseLayoutPreferences.layoutPreset))"
+        )
         updateSceneViewportHeightConstraint()
         exerciseSceneRenderer.render(
             presentationState: exercisePresentationState,
@@ -918,6 +921,9 @@ final class macOSViewController: NSViewController {
         updateLayoutIfNeeded()
         exerciseSceneRenderer.handleLayoutPass()
         updateLayoutIfNeeded()
+        macOSSettingsMutationTrace.logIfActive(
+            "controller renderExercisePresentationState end sceneContainer=\(macOSSettingsMutationTrace.describe(view: exerciseSceneRenderer.sceneContainerView))"
+        )
         logLifecycle("renderExercisePresentationState end")
     }
 
@@ -982,14 +988,23 @@ final class macOSViewController: NSViewController {
     }
 
     private func applySettingsPanelState() {
+        macOSSettingsMutationTrace.logIfActive(
+            "controller applySettingsPanelState settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) layout=\(String(describing: exerciseLayoutPreferences.layoutPreset))"
+        )
         settingsContainerView.navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: settingsPanelStateContext
         )
     }
 
     private func updateLayoutIfNeeded() {
+        macOSSettingsMutationTrace.logIfActive(
+            "controller updateLayoutIfNeeded before rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+        )
         view.needsLayout = true
         view.layoutSubtreeIfNeeded()
+        macOSSettingsMutationTrace.logIfActive(
+            "controller updateLayoutIfNeeded after rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+        )
     }
 
     private func handleFretboardTrainerHitResult(_ hitResult: FretboardHitResult) {
@@ -1668,6 +1683,21 @@ final class macOSViewController: NSViewController {
     }
 
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
+        let tracedEventID = macOSSettingsMutationTrace.shouldTrace(event)
+            ? macOSSettingsMutationTrace.begin(
+                event: event,
+                state: debugStateSnapshot()
+            )
+            : nil
+        defer {
+            if let tracedEventID {
+                macOSSettingsMutationTrace.end(
+                    tracedEventID,
+                    state: debugStateSnapshot()
+                )
+            }
+        }
+
         var nextStateContext = settingsPanelStateContext
         event.apply(to: &nextStateContext)
         let nextRequestedStaffDisplayState = nextStateContext.staffDisplayState
@@ -1695,8 +1725,15 @@ final class macOSViewController: NSViewController {
             || didChangeExerciseLayoutPreferences
             || didChangeTrainer
             || didChangePianoPanel else {
+            macOSSettingsMutationTrace.logIfActive(
+                "controller handleSettingsPanelEvent no-op"
+            )
             return
         }
+
+        macOSSettingsMutationTrace.logIfActive(
+            "controller handleSettingsPanelEvent changes layout=\(didChangeExerciseLayoutPreferences) trainer=\(didChangeTrainer) fretboard=\(didChangeFretboard) staff=\(didChangeStaff) piano=\(didChangePianoPanel)"
+        )
 
         if nextTrainerDisplayState.isSequenceMode,
            nextRequestedStaffDisplayState != staffDisplayState {
@@ -1710,6 +1747,9 @@ final class macOSViewController: NSViewController {
         }
 
         if didChangeExerciseLayoutPreferences {
+            macOSSettingsMutationTrace.logIfActive(
+                "controller write exerciseLayoutPreferences \(String(describing: exerciseLayoutPreferences.layoutPreset)) -> \(String(describing: nextExerciseLayoutPreferences.layoutPreset))"
+            )
             exerciseLayoutPreferences = nextExerciseLayoutPreferences
         }
 
@@ -1736,11 +1776,17 @@ final class macOSViewController: NSViewController {
             } else {
                 trainerSyncReason = "trainerSettingsChanged"
             }
+            macOSSettingsMutationTrace.logIfActive(
+                "controller synchronizeTrainerPresentationState reason=\(trainerSyncReason)"
+            )
             synchronizeTrainerPresentationState(reason: trainerSyncReason)
         } else if didChangeExerciseLayoutPreferences
             || didChangePianoPanel
             || didChangeFretboard
             || didChangeStaff {
+            macOSSettingsMutationTrace.logIfActive(
+                "controller synchronizeExerciseCompositionState reason=settingsStateChanged"
+            )
             synchronizeExerciseCompositionState(
                 reason: "settingsStateChanged"
             )

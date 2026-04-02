@@ -95,6 +95,9 @@ final class macOSSettingsPanelView: NSView {
     }
 
     private func applyModel() {
+        macOSSettingsMutationTrace.logIfActive(
+            "panel applyModel sections=\(model.sections.count) rows=\(model.rows.count) panel=\(macOSSettingsMutationTrace.describe(view: self))"
+        )
         removeObsoleteControlViews(notIn: Set(model.rows.map(\.id)))
         removeObsoleteSectionViews(notIn: Set(model.sections.map(\.id)))
 
@@ -255,6 +258,9 @@ final class macOSSettingsPanelView: NSView {
         with views: [NSView]
     ) {
         for arrangedSubview in stackView.arrangedSubviews {
+            macOSSettingsMutationTrace.logIfActive(
+                "panel replaceArrangedSubviews remove arrangedSubview=\(macOSSettingsMutationTrace.describe(view: arrangedSubview)) stack=\(macOSSettingsMutationTrace.describe(view: stackView))"
+            )
             stackView.removeArrangedSubview(arrangedSubview)
             arrangedSubview.removeFromSuperview()
         }
@@ -265,6 +271,9 @@ final class macOSSettingsPanelView: NSView {
             }
             view.removeFromSuperview()
             stackView.addArrangedSubview(view)
+            macOSSettingsMutationTrace.logIfActive(
+                "panel replaceArrangedSubviews add arrangedSubview=\(macOSSettingsMutationTrace.describe(view: view)) stack=\(macOSSettingsMutationTrace.describe(view: stackView))"
+            )
         }
     }
 }
@@ -436,7 +445,22 @@ private final class ChoiceRowView: NSView {
             return
         }
 
+        if actionID.rowID == .layoutPreset {
+            macOSSettingsMutationTrace.prepareSource(
+                actionID: actionID,
+                rowView: self,
+                senderView: sender
+            )
+            macOSSettingsMutationTrace.log(
+                "choiceRow dispatch before action=\(String(describing: actionID)) rowID=\(String(describing: actionID.rowID)) rowView=\(macOSSettingsMutationTrace.describe(view: self)) sender=\(macOSSettingsMutationTrace.describe(view: sender))"
+            )
+        }
         onEvent?(.triggerAction(actionID))
+        if actionID.rowID == .layoutPreset {
+            macOSSettingsMutationTrace.log(
+                "choiceRow dispatch after action=\(String(describing: actionID)) rowView=\(macOSSettingsMutationTrace.describe(view: self)) sender=\(macOSSettingsMutationTrace.describe(view: sender)) windowAttached=\(window != nil)"
+            )
+        }
     }
 
     @objc
@@ -459,7 +483,22 @@ private final class ChoiceRowView: NSView {
                 return
             }
 
+            if choice.id.rowID == .layoutPreset {
+                macOSSettingsMutationTrace.prepareSource(
+                    actionID: choice.id,
+                    rowView: self,
+                    senderView: sender
+                )
+                macOSSettingsMutationTrace.log(
+                    "choiceRow dispatch before action=\(String(describing: choice.id)) rowID=\(String(describing: choice.id.rowID)) rowView=\(macOSSettingsMutationTrace.describe(view: self)) sender=\(macOSSettingsMutationTrace.describe(view: sender)) selectedSegment=\(sender.selectedSegment)"
+                )
+            }
             onEvent?(.triggerAction(choice.id))
+            if choice.id.rowID == .layoutPreset {
+                macOSSettingsMutationTrace.log(
+                    "choiceRow dispatch after action=\(String(describing: choice.id)) rowView=\(macOSSettingsMutationTrace.describe(view: self)) sender=\(macOSSettingsMutationTrace.describe(view: sender)) windowAttached=\(window != nil)"
+                )
+            }
         case .independent:
             guard let toggledIndex = item.choices.indices.first(where: {
                 sender.isSelected(forSegment: $0) != item.choices[$0].isSelected
@@ -472,7 +511,22 @@ private final class ChoiceRowView: NSView {
                 return
             }
 
+            if choice.id.rowID == .layoutPreset {
+                macOSSettingsMutationTrace.prepareSource(
+                    actionID: choice.id,
+                    rowView: self,
+                    senderView: sender
+                )
+                macOSSettingsMutationTrace.log(
+                    "choiceRow dispatch before action=\(String(describing: choice.id)) rowID=\(String(describing: choice.id.rowID)) rowView=\(macOSSettingsMutationTrace.describe(view: self)) sender=\(macOSSettingsMutationTrace.describe(view: sender)) toggledIndex=\(toggledIndex)"
+                )
+            }
             onEvent?(.triggerAction(choice.id))
+            if choice.id.rowID == .layoutPreset {
+                macOSSettingsMutationTrace.log(
+                    "choiceRow dispatch after action=\(String(describing: choice.id)) rowView=\(macOSSettingsMutationTrace.describe(view: self)) sender=\(macOSSettingsMutationTrace.describe(view: sender)) windowAttached=\(window != nil)"
+                )
+            }
         }
     }
 }
