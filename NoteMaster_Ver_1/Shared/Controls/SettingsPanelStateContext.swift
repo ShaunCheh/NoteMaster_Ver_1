@@ -75,4 +75,20 @@ struct SettingsPanelStateContext: Equatable, Sendable {
             trainerDisplayState: trainerDisplayState
         )
     }
+
+    var fretboardLayoutContract: ExerciseFretboardLayoutContract {
+        let resolvedPreferences = ExerciseSceneValidator.normalizedPreferences(
+            exerciseLayoutPreferences,
+            trainerDisplayState: trainerDisplayState
+        )
+        let scene = ExerciseCompositionPolicy.makeScene(
+            preferences: resolvedPreferences
+        )
+        return scene.fretboardLayoutContract
+    }
+
+    var showsVerticalViewportHeightControl: Bool {
+        fretboardDisplayState.displayMode == .vertical
+            && fretboardLayoutContract.usesVerticalViewportHeightControl
+    }
 }

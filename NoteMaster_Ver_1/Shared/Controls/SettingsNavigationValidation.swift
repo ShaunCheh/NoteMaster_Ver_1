@@ -179,7 +179,7 @@ private extension SettingsNavigationValidationRunner {
             "确认在 root 页隐藏返回按钮；进入 section 或更深页面后显示返回按钮，点击后只回退卡片内一层。",
             "确认 root -> Exercise / Accessories / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
             "确认切换到 `single` / `sequence` 时 `Position Prompt` section 会消失；切回 `positionPrompt` 后会恢复。",
-            "确认切换到 horizontal 指板布局时 `Fretboard > Vertical Viewport` 深层页会消失；切回 vertical 后会恢复。",
+            "确认切换到 horizontal 指板布局，或在 side 布局下保持 vertical 指板时 `Fretboard > Vertical Viewport` 深层页会消失；切回 stacked + vertical 后会恢复。",
             "确认 `Exercise` 分区只显示 `Exercise Mode / Composition Preset / Layout Preset`，不再出现 `Top Content / Main Content`。",
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
@@ -431,61 +431,24 @@ private extension SettingsNavigationValidationRunner {
             issues: &issues
         )
 
-        assertIndexPage(
+        assertFormPage(
             route: .section(.fretboard),
             expectedTitle: fretboardSection.title,
-            expectedRouteItems: [
-                SettingsRouteItem(
-                    title: SettingsRouteID.fretboardDisplay.fallbackTitle,
-                    subtitle: "Instrument and labels",
-                    route: .fretboardDisplay
-                ),
-                SettingsRouteItem(
-                    title: SettingsRouteID.fretboardViewport.fallbackTitle,
-                    subtitle: "Vertical sizing",
-                    route: .fretboardViewport
-                )
-            ],
+            expectedSection: fretboardSection,
             in: navigationModel,
             fixtureName: fixtureName,
             pageDescription: "Fretboard section",
             issues: &issues
         )
-        assertFormPage(
-            route: .fretboardDisplay,
-            expectedTitle: SettingsRouteID.fretboardDisplay.fallbackTitle,
-            expectedSection: makeExpectedChildSection(
-                title: SettingsRouteID.fretboardDisplay.fallbackTitle,
-                from: fretboardSection,
-                keepingRowIDs: [
-                    .choice(.instrument),
-                    .choice(.displayMode),
-                    .choice(.stringThickness),
-                    .choice(.labels),
-                    .choice(.spelling),
-                    .choice(.octave)
-                ]
-            ),
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Fretboard Display",
-            issues: &issues
-        )
-        assertFormPage(
-            route: .fretboardViewport,
-            expectedTitle: SettingsRouteID.fretboardViewport.fallbackTitle,
-            expectedSection: makeExpectedChildSection(
-                title: SettingsRouteID.fretboardViewport.fallbackTitle,
-                from: fretboardSection,
-                keepingRowIDs: [
-                    .slider(.verticalHostHeightRatio)
-                ]
-            ),
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Fretboard Viewport",
-            issues: &issues
-        )
+        if navigationModel.page(for: .fretboardDisplay) != nil
+            || navigationModel.page(for: .fretboardViewport) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default side + vertical 场景下，Fretboard section 应收敛成单页 form，不再拆出 Display / Viewport 子页。"
+                )
+            )
+        }
 
         assertIndexPage(
             route: .section(.staff),
@@ -677,20 +640,60 @@ private extension SettingsNavigationValidationRunner {
         let fixtureName = "fretboard_viewport_route_visibility_tracks_display_mode"
         var issues: [SettingsNavigationValidationIssue] = []
 
-        let verticalStateContext = SettingsPanelStateContext.default
-        let verticalPanelModel = SettingsPanelSnapshotBuilder.makeModel(
-            from: verticalStateContext
+        let sideVerticalStateContext = SettingsPanelStateContext.default
+        let sideVerticalPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: sideVerticalStateContext
         )
-        let verticalNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
-            from: verticalStateContext
+        let sideVerticalNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: sideVerticalStateContext
         )
-        guard let verticalFretboardSection = resolveSection(.fretboard, in: verticalPanelModel) else {
+        guard let sideVerticalFretboardSection = resolveSection(.fretboard, in: sideVerticalPanelModel) else {
             issues.append(issue(fixtureName, "vertical 指板模式下应保留 Fretboard section。"))
+            return issues
+        }
+        assertFormPage(
+            route: .section(.fretboard),
+            expectedTitle: sideVerticalFretboardSection.title,
+            expectedSection: sideVerticalFretboardSection,
+            in: sideVerticalNavigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Side Vertical Fretboard section",
+            issues: &issues
+        )
+        if sideVerticalNavigationModel.page(for: .fretboardViewport) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "side + vertical 指板模式下不应继续生成 Fretboard Viewport 深层页。"
+                )
+            )
+        }
+
+        let stackedVerticalStateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardToNaturalNoteStrip,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            )
+        )
+        let stackedVerticalPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: stackedVerticalStateContext
+        )
+        let stackedVerticalNavigationModel = SettingsNavigationSnapshotBuilder
+            .makeModel(from: stackedVerticalStateContext)
+        guard let stackedVerticalFretboardSection = resolveSection(
+            .fretboard,
+            in: stackedVerticalPanelModel
+        ) else {
+            issues.append(issue(fixtureName, "stacked + vertical 指板模式下应保留 Fretboard section。"))
             return issues
         }
         assertIndexPage(
             route: .section(.fretboard),
-            expectedTitle: verticalFretboardSection.title,
+            expectedTitle: stackedVerticalFretboardSection.title,
             expectedRouteItems: [
                 SettingsRouteItem(
                     title: SettingsRouteID.fretboardDisplay.fallbackTitle,
@@ -703,14 +706,17 @@ private extension SettingsNavigationValidationRunner {
                     route: .fretboardViewport
                 )
             ],
-            in: verticalNavigationModel,
+            in: stackedVerticalNavigationModel,
             fixtureName: fixtureName,
-            pageDescription: "Vertical Fretboard section",
+            pageDescription: "Stacked Vertical Fretboard section",
             issues: &issues
         )
-        if verticalNavigationModel.page(for: .fretboardViewport) == nil {
+        if stackedVerticalNavigationModel.page(for: .fretboardViewport) == nil {
             issues.append(
-                issue(fixtureName, "vertical 指板模式下应生成 Fretboard Viewport 深层页。")
+                issue(
+                    fixtureName,
+                    "stacked + vertical 指板模式下应继续生成 Fretboard Viewport 深层页。"
+                )
             )
         }
 

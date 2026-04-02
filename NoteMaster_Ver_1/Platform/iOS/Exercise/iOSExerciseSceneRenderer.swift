@@ -91,6 +91,11 @@ final class iOSExerciseSceneRenderer {
         ) ?? false
     }
 
+    private var fretboardHeightPolicy: ExerciseFretboardHeightPolicy {
+        currentPresentationState?.fretboardLayoutContract.heightPolicy
+            ?? .followViewportRatio
+    }
+
     private func configureStaticHierarchy() {
         sceneContainerView.translatesAutoresizingMaskIntoConstraints = false
         sceneContentView.translatesAutoresizingMaskIntoConstraints = false
@@ -685,7 +690,10 @@ final class iOSExerciseSceneRenderer {
         verticalFretboardHostHeightConstraint?.isActive = false
         verticalFretboardHostHeightConstraint = nil
 
-        guard isShowingFretboard else {
+        guard
+            isShowingFretboard,
+            fretboardHeightPolicy == .followViewportRatio
+        else {
             return
         }
 
@@ -713,7 +721,9 @@ final class iOSExerciseSceneRenderer {
         }
 
         let isVertical = currentFretboardDisplayState.displayMode == .vertical
-        verticalFretboardHostHeightConstraint?.isActive = isVertical
+        let usesViewportRatio = isVertical
+            && fretboardHeightPolicy == .followViewportRatio
+        verticalFretboardHostHeightConstraint?.isActive = usesViewportRatio
         horizontalFretboardContentWidthConstraint?.isActive = !isVertical
         verticalFretboardContentWidthConstraint?.isActive = isVertical
 

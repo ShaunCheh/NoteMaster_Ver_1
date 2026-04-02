@@ -927,8 +927,9 @@ final class iOSViewController: UIViewController {
     }
 
     private func updateSceneViewportHeightConstraint() {
-        sceneViewportHeightConstraint?.isActive = exercisePresentationState.scene
-            .requiresViewportPinnedHeight
+        sceneViewportHeightConstraint?.isActive = exercisePresentationState
+            .fretboardLayoutContract
+            .pinsSceneToViewportHeight
     }
 
     private func applyDisplayState() {

@@ -9,8 +9,14 @@ import Foundation
 import CoreGraphics
 
 enum FretboardControlPanelSnapshotBuilder {
-    static func makeModel(from displayState: FretboardDisplayState) -> FretboardControlPanelModel {
-        guard displayState.displayMode == .vertical else {
+    static func makeModel(
+        from displayState: FretboardDisplayState,
+        showsVerticalViewportHeightControl: Bool = true
+    ) -> FretboardControlPanelModel {
+        guard
+            displayState.displayMode == .vertical,
+            showsVerticalViewportHeightControl
+        else {
             return .empty
         }
 

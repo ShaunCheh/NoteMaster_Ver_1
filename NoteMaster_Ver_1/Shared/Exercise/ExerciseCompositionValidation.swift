@@ -234,7 +234,7 @@ private extension ExerciseCompositionValidationRunner {
             "确认在 `single/sequence` 下打开 `Natural Strip Visible` 时，strip 会作为 accessory surface 参与布局，但不会抢走 answer surface 角色。",
             "确认 `Collapsible` accessory 收起时，隐藏的 accessory 不可见也不可交互；重新展开后恢复到原来的 surface。",
             "确认 `single/sequence + Side` 未投影 `natural note strip` 时，scene membership 仍为 absent，而 renderer/controller/router 只把它当作有效 `.hidden`，不会误判为混入布局。",
-            "确认 `vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 后该滑块消失，切回后沿用上次值。"
+            "确认 `stacked + vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 或 `side` 后该滑块消失，切回 `stacked + vertical` 后沿用上次值。"
         ]
 
         switch platform {
@@ -556,11 +556,37 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        if defaultPanelModel.sliderRow(for: .verticalHostHeightRatio) == nil {
+        if defaultPanelModel.sliderRow(for: .verticalHostHeightRatio) != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "vertical default settings snapshot 应继续暴露 Viewport Height 滑块。"
+                    "默认 side settings snapshot 不应继续暴露 Viewport Height 滑块。"
+                )
+            )
+        }
+
+        let stackedVerticalStateContext = SettingsPanelStateContext(
+            fretboardDisplayState: defaultStateContext.fretboardDisplayState,
+            staffDisplayState: defaultStateContext.staffDisplayState,
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardToNaturalNoteStrip,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            ),
+            trainerDisplayState: defaultStateContext.trainerDisplayState,
+            pianoPanelState: defaultStateContext.pianoPanelState
+        )
+        let stackedVerticalPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: stackedVerticalStateContext
+        )
+        if stackedVerticalPanelModel.sliderRow(for: .verticalHostHeightRatio) == nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked + vertical settings snapshot 应继续暴露 Viewport Height 滑块。"
                 )
             )
         }
@@ -1181,6 +1207,15 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
+        if sideBySidePositionPromptPresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合在阶段 2 应让主 fretboard 跟随 side 容器填满高度。"
+                )
+            )
+        }
 
         let singleTrainerDisplayState = TrainerDisplayState(exerciseMode: .single)
         let sideBySideTargetPromptPresentation = ExerciseCompositionPolicy
@@ -1244,11 +1279,20 @@ private extension ExerciseCompositionValidationRunner {
         default:
             break
         }
-        if sideBySideTargetPromptPresentation.scene.requiresViewportPinnedHeight {
+        if !sideBySideTargetPromptPresentation.scene.requiresViewportPinnedHeight {
             issues.append(
                 issue(
                     fixtureName,
-                    "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 不应误触发 viewport pin 高度语义。"
+                    "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 应通过 shared helper 请求 viewport pin 高度。"
+                )
+            )
+        }
+        if sideBySideTargetPromptPresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 应让主 fretboard 跟随 side 容器填满高度。"
                 )
             )
         }
@@ -1314,11 +1358,20 @@ private extension ExerciseCompositionValidationRunner {
         default:
             break
         }
-        if sideBySideStaffPresentation.scene.requiresViewportPinnedHeight {
+        if !sideBySideStaffPresentation.scene.requiresViewportPinnedHeight {
             issues.append(
                 issue(
                     fixtureName,
-                    "staff -> fretboard 的 sideBySide 组合在阶段 2 不应误触发 viewport pin 高度语义。"
+                    "staff -> fretboard 的 sideBySide 组合在阶段 2 应通过 shared helper 请求 viewport pin 高度。"
+                )
+            )
+        }
+        if sideBySideStaffPresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide 组合在阶段 2 应让主 fretboard 跟随 side 容器填满高度。"
                 )
             )
         }
@@ -2617,6 +2670,15 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
+        if stackedPresentation.fretboardLayoutContract.heightPolicy
+            != .followViewportRatio {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 的 fretboard -> natural note strip scene 在阶段 5 应继续沿用 viewport ratio 高度语义。"
+                )
+            )
+        }
 
         let targetPromptSideBySidePresentation = ExerciseCompositionPolicy.makePresentation(
             from: ExerciseCompositionPolicyInput(
@@ -2685,11 +2747,20 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        if targetPromptSideBySidePresentation.scene.requiresViewportPinnedHeight {
+        if !targetPromptSideBySidePresentation.scene.requiresViewportPinnedHeight {
             issues.append(
                 issue(
                     fixtureName,
-                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 5 不应误触发 viewport pin 高度。"
+                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 5 应继续要求 viewport pin 高度。"
+                )
+            )
+        }
+        if targetPromptSideBySidePresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 5 应让主 fretboard 跟随 side 容器填满高度。"
                 )
             )
         }

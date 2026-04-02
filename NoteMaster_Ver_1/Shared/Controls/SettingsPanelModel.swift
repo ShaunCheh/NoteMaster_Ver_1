@@ -1359,7 +1359,7 @@ enum SettingsSliderID: CaseIterable, Equatable, Hashable, Sendable {
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset, .pianoRowCount:
             return true
         case .verticalHostHeightRatio:
-            return stateContext.fretboardDisplayState.displayMode == .vertical
+            return stateContext.showsVerticalViewportHeightControl
         }
     }
 

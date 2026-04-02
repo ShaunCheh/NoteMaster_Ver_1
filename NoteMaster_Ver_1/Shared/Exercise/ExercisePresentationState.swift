@@ -227,19 +227,52 @@ struct ExerciseRenderedSceneLayout: Equatable, Sendable {
     var secondaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing?
 }
 
+enum ExerciseFretboardHeightPolicy: Equatable, Sendable {
+    case followViewportRatio
+    case fillAvailableHeight
+}
+
+struct ExerciseFretboardLayoutContract: Equatable, Sendable {
+    var pinsSceneToViewportHeight: Bool
+    var heightPolicy: ExerciseFretboardHeightPolicy
+
+    var usesVerticalViewportHeightControl: Bool {
+        heightPolicy == .followViewportRatio
+    }
+}
+
 extension ExercisePresentationState {
     func isSurfaceVisible(_ surfaceID: ExerciseSurfaceID) -> Bool {
         effectiveSurfaceState(for: surfaceID).isVisible
     }
 
     var renderedSceneLayout: ExerciseRenderedSceneLayout? {
-        renderedSceneLayout(for: scene.root)
+        scene.renderedSceneLayout
     }
 
-    private func renderedSceneLayout(
-        for node: ExerciseSceneNode
-    ) -> ExerciseRenderedSceneLayout? {
-        switch node {
+    var fretboardLayoutContract: ExerciseFretboardLayoutContract {
+        scene.fretboardLayoutContract
+    }
+}
+
+extension ExerciseScene {
+    var renderedSceneLayout: ExerciseRenderedSceneLayout? {
+        root.renderedSceneLayout
+    }
+
+    var fretboardLayoutContract: ExerciseFretboardLayoutContract {
+        ExerciseFretboardLayoutContract(
+            pinsSceneToViewportHeight: requiresViewportPinnedHeight,
+            heightPolicy: containsMainFretboardInSideBySideLayout
+                ? .fillAvailableHeight
+                : .followViewportRatio
+        )
+    }
+}
+
+private extension ExerciseSceneNode {
+    var renderedSceneLayout: ExerciseRenderedSceneLayout? {
+        switch self {
         case let .surface(surface):
             return ExerciseRenderedSceneLayout(
                 arrangement: .singleSurface,
@@ -263,9 +296,9 @@ extension ExercisePresentationState {
                 secondaryMainAxisSizing: children[1].mainAxisSizing
             )
         case let .overlay(base, _):
-            return renderedSceneLayout(for: base)
+            return base.renderedSceneLayout
         case let .collapsible(main, _, _):
-            return renderedSceneLayout(for: main)
+            return main.renderedSceneLayout
         }
     }
 }

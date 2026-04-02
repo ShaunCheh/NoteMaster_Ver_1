@@ -328,6 +328,25 @@ extension ExerciseSurfaceNode {
 }
 
 extension ExerciseSceneNode {
+    var containsMainFretboardInSideBySideLayout: Bool {
+        switch self {
+        case .surface:
+            return false
+        case let .split(axis, children):
+            let isCurrentSideBySideFretboard = axis == .horizontal
+                && children.count >= 2
+                && children.contains { $0.node.containsSurface(.fretboard) }
+            return isCurrentSideBySideFretboard
+                || children.contains {
+                    $0.node.containsMainFretboardInSideBySideLayout
+                }
+        case let .overlay(base, _):
+            return base.containsMainFretboardInSideBySideLayout
+        case let .collapsible(main, _, _):
+            return main.containsMainFretboardInSideBySideLayout
+        }
+    }
+
     func hasMixedMainAxisSizing(
         along axis: ExerciseSceneAxis
     ) -> Bool {
@@ -396,10 +415,15 @@ extension ExerciseSceneNode {
             || surfaceNodes.contains(where: {
                 $0.presentationStyle == .verticalRail
             })
+            || containsMainFretboardInSideBySideLayout
     }
 }
 
 extension ExerciseScene {
+    var containsMainFretboardInSideBySideLayout: Bool {
+        root.containsMainFretboardInSideBySideLayout
+    }
+
     func hasMixedMainAxisSizing(
         along axis: ExerciseSceneAxis
     ) -> Bool {

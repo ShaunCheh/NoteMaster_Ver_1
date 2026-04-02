@@ -4,22 +4,22 @@ overview: 为所有包含主 `fretboard` 的 `sideBySide` 场景建立统一的�
 todos:
   - id: shared-height-contract
     content: 在 shared exercise 层新增 scene viewport pin 与 fretboard height 的统一 contract
-    status: pending
+    status: completed
   - id: controllers-consume-contract
     content: 让 iOS/macOS controller 改为消费新的 viewport pin contract
-    status: pending
+    status: completed
   - id: renderers-fill-height
     content: 让 iOS/macOS renderer 在 side 下移除 ratio 高度约束并跟随容器高度
-    status: pending
+    status: completed
   - id: settings-hide-dead-slider
     content: 同步 settings 与 quick panel，在 side 下隐藏 Vertical Viewport Height
-    status: pending
+    status: completed
   - id: validation-upgrade
     content: 更新 composition/navigation/fretboard validation 以冻结新语义
-    status: pending
+    status: completed
   - id: build-and-regression
     content: 执行双端构建与 side/stacked 高度回归验证
-    status: pending
+    status: completed
 isProject: false
 ---
 
