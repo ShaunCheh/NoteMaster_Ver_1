@@ -69,62 +69,73 @@ final class macOSViewController: NSViewController {
             )
         )
 
+    private struct PendingPresentationTransaction {
+        var settingsPanelState = false
+        var fretboardDisplayState = false
+        var staffDisplayState = false
+        var scenePresentation = false
+        var sequenceRegenerateButton = false
+        var labelVisibilityButton = false
+        var answerSurfaceInteraction = false
+        var pianoDemoState = false
+        var quarterNoteSequenceTransition: (
+            old: ExercisePresentationState,
+            new: ExercisePresentationState
+        )?
+
+        var hasPendingWork: Bool {
+            settingsPanelState
+                || fretboardDisplayState
+                || staffDisplayState
+                || scenePresentation
+                || sequenceRegenerateButton
+                || labelVisibilityButton
+                || answerSurfaceInteraction
+                || pianoDemoState
+                || quarterNoteSequenceTransition != nil
+        }
+
+        mutating func mergeQuarterNoteSequenceTransition(
+            from oldValue: ExercisePresentationState,
+            to newValue: ExercisePresentationState
+        ) {
+            if let existingTransition = quarterNoteSequenceTransition {
+                quarterNoteSequenceTransition = (
+                    old: existingTransition.old,
+                    new: newValue
+                )
+            } else {
+                quarterNoteSequenceTransition = (old: oldValue, new: newValue)
+            }
+        }
+    }
+
     private var displayState = FretboardDisplayState.default {
         didSet {
-            guard isViewLoaded else {
-                return
-            }
-
-            applyFretboardDisplayState()
+            invalidateFretboardDisplayPresentation()
         }
     }
 
     private var staffDisplayState = macOSViewController.initialStaffDisplayState {
         didSet {
-            guard isViewLoaded else {
-                return
-            }
-
-            if !trainerDisplayState.isSequenceMode {
-                baseStaffDisplayState = staffDisplayState
-            }
-            applyStaffDisplayState()
+            invalidateStaffDisplayPresentation()
         }
     }
     private var exerciseLayoutPreferences = macOSViewController
         .initialExerciseLayoutPreferences {
         didSet {
-            guard isViewLoaded else {
-                return
-            }
-
-            applySettingsPanelState()
+            invalidateSettingsPanelPresentation()
         }
     }
     private var exercisePresentationState = macOSViewController
         .initialExercisePresentationState {
         didSet {
-            guard isViewLoaded else {
-                return
-            }
-
-            renderExercisePresentationState()
-            handleQuarterNoteSequencePresentationTransition(
-                from: oldValue,
-                to: exercisePresentationState
-            )
-            updateAnswerSurfaceInteractionState()
-            applyLabelVisibilityButtonState()
+            invalidateExerciseScenePresentation(from: oldValue)
         }
     }
     private var trainerDisplayState = TrainerDisplayState.default {
         didSet {
-            guard isViewLoaded else {
-                return
-            }
-
-            applySettingsPanelState()
-            applySequenceRegenerateButtonState()
+            invalidateTrainerDisplayPresentation()
         }
     }
     private var baseStaffDisplayState = macOSViewController.initialStaffDisplayState
@@ -140,12 +151,25 @@ final class macOSViewController: NSViewController {
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
     private var hasLoggedInitialLayoutPass = false
-    private var isDeferredLayoutPassScheduled = false
+    private var hasRenderedExerciseSceneOnce = false
+    private var isSceneLayoutSettlementScheduled = false
+    private var isSettlingSceneLayout = false
+    private var lastSettledSceneContainerBounds: CGRect = .zero
+    private var isSceneLayoutSettlementDirty = false
+    private var settingsMutationDepth = 0
     private let pianoBaseConfiguration = macOSViewController.initialPianoDemoConfiguration
     private var pianoBaseRows = macOSViewController.initialPianoDemoRows
-    private var pianoPanelState = macOSViewController.initialPianoPanelState
+    private var pianoPanelState = macOSViewController.initialPianoPanelState {
+        didSet {
+            invalidatePianoPanelPresentation()
+        }
+    }
     private var pianoDemoPreview: PianoPreviewState?
     private var pianoDemoLastEventText = "ready"
+    private var presentationTransactionDepth = 0
+    private var isCommittingPresentationTransaction = false
+    private var isPresentationTransactionCommitScheduled = false
+    private var pendingPresentationTransaction = PendingPresentationTransaction()
 
     private func logLifecycle(_ message: String) {
         print("[Startup][macOSVC] \(message) \(debugStateSnapshot())")
@@ -161,6 +185,237 @@ final class macOSViewController: NSViewController {
         "displayMode=\(String(describing: displayState.displayMode)) " +
         "showsFretboard=\(isShowingFretboard) " +
         "settingsPresented=\(isSettingsPresented)"
+    }
+
+    private var isHandlingSettingsMutation: Bool {
+        settingsMutationDepth > 0
+    }
+
+    private var hasUsableSceneLayoutBounds: Bool {
+        let bounds = exerciseSceneRenderer.sceneContainerView.bounds
+        return view.window != nil && bounds.width > 0 && bounds.height > 0
+    }
+
+    private var canSettleSceneLayoutNow: Bool {
+        isViewLoaded &&
+        hasRenderedExerciseSceneOnce &&
+        !isSettlingSceneLayout &&
+        !isHandlingSettingsMutation &&
+        !isCommittingPresentationTransaction &&
+        !isPresentationTransactionCommitScheduled &&
+        !pendingPresentationTransaction.hasPendingWork &&
+        hasUsableSceneLayoutBounds
+    }
+
+    private var canCommitPresentationTransactionNow: Bool {
+        isViewLoaded &&
+        presentationTransactionDepth == 0 &&
+        !isCommittingPresentationTransaction &&
+        !isHandlingSettingsMutation
+    }
+
+    private func performPresentationTransaction(
+        _ mutations: () -> Void
+    ) {
+        presentationTransactionDepth += 1
+        mutations()
+        presentationTransactionDepth -= 1
+
+        guard presentationTransactionDepth == 0 else {
+            return
+        }
+
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func commitPendingPresentationTransactionIfNeeded() {
+        guard canCommitPresentationTransactionNow,
+              pendingPresentationTransaction.hasPendingWork else {
+            return
+        }
+
+        isPresentationTransactionCommitScheduled = false
+        isCommittingPresentationTransaction = true
+        var shouldRequestSceneLayoutSettlement = false
+        var requiresDeferredSceneLayoutSettlement = false
+        defer {
+            isCommittingPresentationTransaction = false
+            if shouldRequestSceneLayoutSettlement {
+                if requiresDeferredSceneLayoutSettlement {
+                    requestDeferredSceneLayoutSettlement()
+                } else {
+                    requestSceneLayoutSettlement()
+                }
+            }
+            if pendingPresentationTransaction.hasPendingWork {
+                commitPresentationTransactionIfPossible()
+            }
+        }
+
+        while pendingPresentationTransaction.hasPendingWork {
+            let transaction = pendingPresentationTransaction
+            pendingPresentationTransaction = PendingPresentationTransaction()
+
+            if transaction.settingsPanelState {
+                applySettingsPanelState()
+            }
+            if transaction.sequenceRegenerateButton {
+                applySequenceRegenerateButtonState()
+            }
+            if transaction.pianoDemoState {
+                applyPianoDemoState()
+                shouldRequestSceneLayoutSettlement = true
+            }
+            if transaction.fretboardDisplayState {
+                applyFretboardDisplayState()
+                shouldRequestSceneLayoutSettlement = true
+            }
+            if transaction.staffDisplayState {
+                applyStaffDisplayState()
+                shouldRequestSceneLayoutSettlement = true
+            }
+            if transaction.scenePresentation {
+                renderExercisePresentationState()
+                shouldRequestSceneLayoutSettlement = true
+                requiresDeferredSceneLayoutSettlement = true
+            }
+            if let transition = transaction.quarterNoteSequenceTransition {
+                handleQuarterNoteSequencePresentationTransition(
+                    from: transition.old,
+                    to: transition.new
+                )
+            }
+            if transaction.answerSurfaceInteraction {
+                updateAnswerSurfaceInteractionState()
+            }
+            if transaction.labelVisibilityButton {
+                applyLabelVisibilityButtonState()
+            }
+        }
+    }
+
+    private func schedulePresentationTransactionCommitIfNeeded() {
+        guard isViewLoaded,
+              pendingPresentationTransaction.hasPendingWork,
+              !isPresentationTransactionCommitScheduled else {
+            return
+        }
+
+        isPresentationTransactionCommitScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.flushScheduledPresentationTransactionCommitIfNeeded()
+        }
+    }
+
+    private func flushScheduledPresentationTransactionCommitIfNeeded() {
+        guard isViewLoaded else {
+            return
+        }
+
+        isPresentationTransactionCommitScheduled = false
+        if canCommitPresentationTransactionNow,
+           pendingPresentationTransaction.hasPendingWork {
+            commitPendingPresentationTransactionIfNeeded()
+        } else if pendingPresentationTransaction.hasPendingWork,
+                  presentationTransactionDepth == 0,
+                  !isCommittingPresentationTransaction {
+            schedulePresentationTransactionCommitIfNeeded()
+        }
+    }
+
+    private func commitPresentationTransactionIfPossible() {
+        guard isViewLoaded,
+              pendingPresentationTransaction.hasPendingWork else {
+            return
+        }
+
+        if canCommitPresentationTransactionNow {
+            commitPendingPresentationTransactionIfNeeded()
+        } else if presentationTransactionDepth == 0 {
+            schedulePresentationTransactionCommitIfNeeded()
+        }
+    }
+
+    private func invalidateSettingsPanelPresentation() {
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.settingsPanelState = true
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func invalidateFretboardDisplayPresentation() {
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.fretboardDisplayState = true
+        pendingPresentationTransaction.settingsPanelState = true
+        pendingPresentationTransaction.labelVisibilityButton = true
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func invalidateStaffDisplayPresentation() {
+        if !trainerDisplayState.isSequenceMode {
+            baseStaffDisplayState = staffDisplayState
+        }
+
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.staffDisplayState = true
+        pendingPresentationTransaction.settingsPanelState = true
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func invalidateExerciseScenePresentation(
+        from oldValue: ExercisePresentationState
+    ) {
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.scenePresentation = true
+        pendingPresentationTransaction.answerSurfaceInteraction = true
+        pendingPresentationTransaction.labelVisibilityButton = true
+        pendingPresentationTransaction.mergeQuarterNoteSequenceTransition(
+            from: oldValue,
+            to: exercisePresentationState
+        )
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func invalidateTrainerDisplayPresentation() {
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.settingsPanelState = true
+        pendingPresentationTransaction.sequenceRegenerateButton = true
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func invalidatePianoPanelPresentation() {
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.settingsPanelState = true
+        pendingPresentationTransaction.pianoDemoState = true
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func markInitialPresentationTransactionDirty() {
+        pendingPresentationTransaction.settingsPanelState = true
+        pendingPresentationTransaction.fretboardDisplayState = true
+        pendingPresentationTransaction.staffDisplayState = true
+        pendingPresentationTransaction.scenePresentation = true
+        pendingPresentationTransaction.sequenceRegenerateButton = true
+        pendingPresentationTransaction.labelVisibilityButton = true
+        pendingPresentationTransaction.answerSurfaceInteraction = true
+        pendingPresentationTransaction.pianoDemoState = true
     }
 
     private var currentFretboardTrainerPrompt: FretboardNaturalNoteTrainerState.Prompt {
@@ -771,15 +1026,22 @@ final class macOSViewController: NSViewController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         configureLayout()
-        applyDisplayState()
-        applyPianoDemoState()
+        performInitialPresentationTransaction()
         logLifecycle("viewDidLoad end")
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        requestSceneLayoutSettlement()
     }
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        if exerciseSceneRenderer.handleLayoutPass() {
-            updateLayoutIfNeeded()
+        if hasRenderedExerciseSceneOnce,
+           !isSettlingSceneLayout,
+           exerciseSceneRenderer.sceneContainerView.bounds.integral
+                != lastSettledSceneContainerBounds {
+            requestSceneLayoutSettlementFromLayoutPass()
         }
         if !hasLoggedInitialLayoutPass {
             hasLoggedInitialLayoutPass = true
@@ -922,7 +1184,7 @@ final class macOSViewController: NSViewController {
             presentationState: exercisePresentationState,
             fretboardDisplayState: displayState
         )
-        updateLayoutIfNeeded()
+        hasRenderedExerciseSceneOnce = true
         macOSSettingsMutationTrace.logIfActive(
             "controller renderExercisePresentationState end sceneContainer=\(macOSSettingsMutationTrace.describe(view: exerciseSceneRenderer.sceneContainerView))"
         )
@@ -934,14 +1196,17 @@ final class macOSViewController: NSViewController {
             .requiresViewportPinnedHeight
     }
 
-    private func applyDisplayState() {
-        logLifecycle("applyDisplayState begin")
-        applyFretboardDisplayState()
-        applyStaffDisplayState()
-        applySequenceRegenerateButtonState()
-        applyLabelVisibilityButtonState()
-        synchronizeTrainerPresentationState(reason: "initial")
-        logLifecycle("applyDisplayState end")
+    private func performInitialPresentationTransaction() {
+        guard isViewLoaded else {
+            return
+        }
+
+        logLifecycle("performInitialPresentationTransaction begin")
+        performPresentationTransaction {
+            markInitialPresentationTransactionDirty()
+            synchronizeTrainerPresentationState(reason: "initial")
+        }
+        logLifecycle("performInitialPresentationTransaction end")
     }
 
     private func applyFretboardDisplayState() {
@@ -951,8 +1216,6 @@ final class macOSViewController: NSViewController {
         fretboardView.feedbackOverlayState = currentFretboardFeedbackOverlayState
         fretboardView.showsComponentBoundsOverlay = displayState.showsComponentBoundsOverlay
         exerciseSceneRenderer.applyFretboardDisplayState(displayState)
-        applySettingsPanelState()
-        applyLabelVisibilityButtonState()
 
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
@@ -969,8 +1232,6 @@ final class macOSViewController: NSViewController {
             applyCurrentFretboardFeedbackOverlayState()
             updateAnswerSurfaceInteractionState()
         }
-
-        updateLayoutIfNeeded()
         logLifecycle("applyFretboardDisplayState end")
     }
 
@@ -978,8 +1239,6 @@ final class macOSViewController: NSViewController {
         staffView.configuration = staffDisplayState.configuration
         staffView.sceneProvider = staffDisplayState.sceneProvider
         staffView.showsComponentBoundsOverlay = staffDisplayState.showsComponentBoundsOverlay
-        applySettingsPanelState()
-        updateLayoutIfNeeded()
     }
 
     private func applySettingsPanelState() {
@@ -991,39 +1250,108 @@ final class macOSViewController: NSViewController {
         )
     }
 
-    private func updateLayoutIfNeeded() {
+    private func requestSceneLayoutSettlement() {
+        isSceneLayoutSettlementDirty = true
+        guard isViewLoaded, hasRenderedExerciseSceneOnce else {
+            return
+        }
+
+        if canSettleSceneLayoutNow {
+            settleSceneLayoutIfNeeded()
+        } else {
+            scheduleSceneLayoutSettlementIfNeeded()
+        }
+    }
+
+    private func requestDeferredSceneLayoutSettlement() {
+        isSceneLayoutSettlementDirty = true
+        guard isViewLoaded, hasRenderedExerciseSceneOnce else {
+            return
+        }
+
+        // A freshly rebuilt scene must not immediately force AppKit to flush
+        // the scroll/document subtree in the same turn. Leave one turn for the
+        // rebuilt hierarchy to attach and let settlement happen afterward.
+        scheduleSceneLayoutSettlementIfNeeded()
+    }
+
+    private func requestSceneLayoutSettlementFromLayoutPass() {
+        isSceneLayoutSettlementDirty = true
+        scheduleSceneLayoutSettlementIfNeeded()
+    }
+
+    private func scheduleSceneLayoutSettlementIfNeeded() {
         macOSSettingsMutationTrace.logIfActive(
-            "controller updateLayoutIfNeeded schedule rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+            "controller scheduleSceneLayoutSettlement dirty=\(isSceneLayoutSettlementDirty) handlingSettingsMutation=\(isHandlingSettingsMutation) hasUsableBounds=\(hasUsableSceneLayoutBounds) rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
         )
+        guard isViewLoaded,
+              hasRenderedExerciseSceneOnce,
+              isSceneLayoutSettlementDirty,
+              !isSceneLayoutSettlementScheduled else {
+            return
+        }
+
+        isSceneLayoutSettlementScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.flushScheduledSceneLayoutSettlementIfNeeded()
+        }
+    }
+
+    private func flushScheduledSceneLayoutSettlementIfNeeded() {
         guard isViewLoaded else {
             return
         }
 
-        view.needsLayout = true
-        guard !isDeferredLayoutPassScheduled else {
+        isSceneLayoutSettlementScheduled = false
+        guard isSceneLayoutSettlementDirty, canSettleSceneLayoutNow else {
             return
         }
 
-        isDeferredLayoutPassScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            self?.flushDeferredLayoutPassIfNeeded()
-        }
+        settleSceneLayoutIfNeeded()
     }
 
-    private func flushDeferredLayoutPassIfNeeded() {
-        guard isViewLoaded, isDeferredLayoutPassScheduled else {
+    private func layoutExerciseSubtreeIfNeeded() {
+        exerciseSceneRenderer.sceneContainerView.needsLayout = true
+        exerciseSceneRenderer.sceneContainerView.layoutSubtreeIfNeeded()
+    }
+
+    private func settleSceneLayoutIfNeeded(maxPassCount: Int = 3) {
+        guard isSceneLayoutSettlementDirty, canSettleSceneLayoutNow else {
             return
         }
 
         macOSSettingsMutationTrace.logIfActive(
-            "controller flushDeferredLayoutPass begin rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+            "controller settleSceneLayout begin handlingSettingsMutation=\(isHandlingSettingsMutation) hasUsableBounds=\(hasUsableSceneLayoutBounds) rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
         )
-        isDeferredLayoutPassScheduled = false
-        view.needsLayout = true
-        view.layoutSubtreeIfNeeded()
-        macOSSettingsMutationTrace.logIfActive(
-            "controller flushDeferredLayoutPass end rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
-        )
+        isSceneLayoutSettlementScheduled = false
+        isSettlingSceneLayout = true
+        isSceneLayoutSettlementDirty = false
+        defer {
+            lastSettledSceneContainerBounds = exerciseSceneRenderer.sceneContainerView
+                .bounds
+                .integral
+            let shouldRescheduleSettlement = isSceneLayoutSettlementDirty
+            isSettlingSceneLayout = false
+            macOSSettingsMutationTrace.logIfActive(
+                "controller settleSceneLayout end rootView=\(macOSSettingsMutationTrace.describe(view: view)) settingsContainer=\(macOSSettingsMutationTrace.describe(view: settingsContainerView)) rootContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: view)) settingsContainsActiveSource=\(macOSSettingsMutationTrace.containsActiveSource(in: settingsContainerView))"
+            )
+            if shouldRescheduleSettlement {
+                scheduleSceneLayoutSettlementIfNeeded()
+            }
+        }
+
+        var didUpdateDynamicLayout = false
+        for _ in 0..<maxPassCount {
+            layoutExerciseSubtreeIfNeeded()
+            didUpdateDynamicLayout = exerciseSceneRenderer.handleLayoutPass()
+            if !didUpdateDynamicLayout {
+                break
+            }
+        }
+
+        if didUpdateDynamicLayout {
+            layoutExerciseSubtreeIfNeeded()
+        }
     }
 
     private func handleFretboardTrainerHitResult(_ hitResult: FretboardHitResult) {
@@ -1312,13 +1640,15 @@ final class macOSViewController: NSViewController {
     func startQuarterNoteSequenceExercise(
         with spec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec
     ) {
-        trainerDisplayState = TrainerDisplayState(
-            exerciseMode: .sequence,
-            sequenceConfiguration: TrainerSequenceConfiguration(
-                quarterNoteSequenceSpec: spec
+        performPresentationTransaction {
+            trainerDisplayState = TrainerDisplayState(
+                exerciseMode: .sequence,
+                sequenceConfiguration: TrainerSequenceConfiguration(
+                    quarterNoteSequenceSpec: spec
+                )
             )
-        )
-        synchronizeTrainerPresentationState(reason: "generated")
+            synchronizeTrainerPresentationState(reason: "generated")
+        }
     }
 
     private func synchronizeTrainerPresentationState(reason: String) {
@@ -1553,11 +1883,13 @@ final class macOSViewController: NSViewController {
             return
         }
 
-        fretboardTrainerState = FretboardNaturalNoteTrainerState(
-            quarterNoteSequenceSpec: configuredQuarterNoteSequenceSpec
-        )
-        resetQuarterNoteSequenceInteractionState()
-        synchronizeTrainerPresentationState(reason: reason)
+        performPresentationTransaction {
+            fretboardTrainerState = FretboardNaturalNoteTrainerState(
+                quarterNoteSequenceSpec: configuredQuarterNoteSequenceSpec
+            )
+            resetQuarterNoteSequenceInteractionState()
+            synchronizeTrainerPresentationState(reason: reason)
+        }
     }
 
     private func schedulePositionPromptTransition(
@@ -1626,7 +1958,6 @@ final class macOSViewController: NSViewController {
         pianoKeyboardView.rows = resolvedPianoDemoRows
         pianoKeyboardView.showsComponentBoundsOverlay = false
         updatePianoDemoStatusLabel()
-        updateLayoutIfNeeded()
     }
 
     private func updatePianoDemoStatusLabel() {
@@ -1707,6 +2038,19 @@ final class macOSViewController: NSViewController {
                 state: debugStateSnapshot()
             )
             : nil
+        settingsMutationDepth += 1
+        defer {
+            settingsMutationDepth -= 1
+            if settingsMutationDepth == 0 {
+                if pendingPresentationTransaction.hasPendingWork {
+                    // Scene-affecting commits must happen only after the settings
+                    // control finishes dispatching its action.
+                    schedulePresentationTransactionCommitIfNeeded()
+                } else if isSceneLayoutSettlementDirty {
+                    scheduleSceneLayoutSettlementIfNeeded()
+                }
+            }
+        }
         defer {
             if let tracedEventID {
                 macOSSettingsMutationTrace.end(
@@ -1753,61 +2097,61 @@ final class macOSViewController: NSViewController {
             "controller handleSettingsPanelEvent changes layout=\(didChangeExerciseLayoutPreferences) trainer=\(didChangeTrainer) fretboard=\(didChangeFretboard) staff=\(didChangeStaff) piano=\(didChangePianoPanel)"
         )
 
-        if nextTrainerDisplayState.isSequenceMode,
-           nextRequestedStaffDisplayState != staffDisplayState {
-            baseStaffDisplayState = sanitizedSequenceFreeStaffDisplayState(
-                nextRequestedStaffDisplayState
-            )
-        }
-
-        if didChangeTrainer {
-            trainerDisplayState = nextTrainerDisplayState
-        }
-
-        if didChangeExerciseLayoutPreferences {
-            macOSSettingsMutationTrace.logIfActive(
-                "controller write exerciseLayoutPreferences \(String(describing: exerciseLayoutPreferences.layoutPreset)) -> \(String(describing: nextExerciseLayoutPreferences.layoutPreset))"
-            )
-            exerciseLayoutPreferences = nextExerciseLayoutPreferences
-        }
-
-        if didChangeFretboard {
-            displayState = nextDisplayState
-        }
-
-        if didChangeStaff {
-            staffDisplayState = nextStaffDisplayState
-        }
-
-        if didChangePianoPanel {
-            pianoPanelState = nextPianoPanelState
-            applyPianoDemoState()
-            applySettingsPanelState()
-        }
-
-        if didChangeTrainer {
-            let trainerSyncReason: String
-            if didChangeExerciseMode {
-                trainerSyncReason = "exerciseModeChanged"
-            } else if didChangePositionPromptActiveFilter {
-                trainerSyncReason = "positionPromptFilterChanged"
-            } else {
-                trainerSyncReason = "trainerSettingsChanged"
+        performPresentationTransaction {
+            if nextTrainerDisplayState.isSequenceMode,
+               nextRequestedStaffDisplayState != staffDisplayState {
+                baseStaffDisplayState = sanitizedSequenceFreeStaffDisplayState(
+                    nextRequestedStaffDisplayState
+                )
             }
-            macOSSettingsMutationTrace.logIfActive(
-                "controller synchronizeTrainerPresentationState reason=\(trainerSyncReason)"
-            )
-            synchronizeTrainerPresentationState(reason: trainerSyncReason)
-        } else if didChangeExerciseLayoutPreferences
-            || didChangePianoPanel
-            || didChangeFretboard
-            || didChangeStaff {
-            macOSSettingsMutationTrace.logIfActive(
-                "controller synchronizeExerciseCompositionState reason=settingsStateChanged"
-            )
-            synchronizeExerciseCompositionState(
-                reason: "settingsStateChanged"
-            )
+
+            if didChangeTrainer {
+                trainerDisplayState = nextTrainerDisplayState
+            }
+
+            if didChangeExerciseLayoutPreferences {
+                macOSSettingsMutationTrace.logIfActive(
+                    "controller write exerciseLayoutPreferences \(String(describing: exerciseLayoutPreferences.layoutPreset)) -> \(String(describing: nextExerciseLayoutPreferences.layoutPreset))"
+                )
+                exerciseLayoutPreferences = nextExerciseLayoutPreferences
+            }
+
+            if didChangeFretboard {
+                displayState = nextDisplayState
+            }
+
+            if didChangeStaff {
+                staffDisplayState = nextStaffDisplayState
+            }
+
+            if didChangePianoPanel {
+                pianoPanelState = nextPianoPanelState
+            }
+
+            if didChangeTrainer {
+                let trainerSyncReason: String
+                if didChangeExerciseMode {
+                    trainerSyncReason = "exerciseModeChanged"
+                } else if didChangePositionPromptActiveFilter {
+                    trainerSyncReason = "positionPromptFilterChanged"
+                } else {
+                    trainerSyncReason = "trainerSettingsChanged"
+                }
+                macOSSettingsMutationTrace.logIfActive(
+                    "controller synchronizeTrainerPresentationState reason=\(trainerSyncReason)"
+                )
+                synchronizeTrainerPresentationState(reason: trainerSyncReason)
+            } else if didChangeExerciseLayoutPreferences
+                || didChangePianoPanel
+                || didChangeFretboard
+                || didChangeStaff {
+                macOSSettingsMutationTrace.logIfActive(
+                    "controller synchronizeExerciseCompositionState reason=settingsStateChanged"
+                )
+                synchronizeExerciseCompositionState(
+                    reason: "settingsStateChanged"
+                )
+            }
         }
     }
 }

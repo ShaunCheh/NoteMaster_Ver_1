@@ -4,7 +4,7 @@ overview: 彻底修复 macOS 上 `stacked/side` 切换反复崩溃的问题。�
 todos:
   - id: unify-presentation-transaction
     content: 在 macOSViewController 建立单一 presentation transaction owner，统一提交 settings、scene render 与 layout settlement
-    status: pending
+    status: completed
   - id: remove-didset-side-effects
     content: 去掉 exerciseLayoutPreferences 与 exercisePresentationState 等 didSet 上的重型 UI 副作用，改为纯状态写入加显式提交
     status: pending
