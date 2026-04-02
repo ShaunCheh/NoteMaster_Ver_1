@@ -181,12 +181,9 @@ enum ExerciseCompositionPolicy {
                 ]
             )
         case .sideBySide:
-            return .makeSplit(
-                axis: .horizontal,
-                children: [
-                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.prompt)),
-                    ExerciseSceneSplitChild(node: .surface(sceneSurfaces.answer))
-                ]
+            return makeSideBySideSceneNode(
+                from: sceneSurfaces,
+                preferences: preferences
             )
         case .singleSurface:
             return .surface(sceneSurfaces.prompt)
@@ -211,6 +208,48 @@ enum ExerciseCompositionPolicy {
             return preferences.compositionPreset == .fretboardSelfAnswer
                 ? .singleSurface
                 : .stacked
+        }
+    }
+
+    private static func makeSideBySideSceneNode(
+        from sceneSurfaces: (prompt: ExerciseSurfaceNode, answer: ExerciseSurfaceNode),
+        preferences: ExerciseLayoutPreferences
+    ) -> ExerciseSceneNode {
+        switch preferences.compositionPreset {
+        case .fretboardToNaturalNoteStrip:
+            return .makeSplit(
+                axis: .horizontal,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.prompt),
+                        mainAxisSizing: .weighted(1)
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(
+                            sceneSurfaces.answer.withPresentationStyle(
+                                .verticalRail
+                            )
+                        ),
+                        mainAxisSizing: .fitContent
+                    )
+                ]
+            )
+        case .staffToFretboard, .targetPromptToFretboard:
+            return .makeSplit(
+                axis: .horizontal,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.prompt),
+                        mainAxisSizing: .weighted(1)
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.answer),
+                        mainAxisSizing: .weighted(1)
+                    )
+                ]
+            )
+        case .fretboardSelfAnswer:
+            return .surface(sceneSurfaces.prompt)
         }
     }
 

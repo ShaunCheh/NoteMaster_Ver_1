@@ -9,6 +9,7 @@ enum ExerciseSceneValidationIssue: Equatable, Sendable {
     case duplicateSurfaceID(ExerciseSurfaceID)
     case missingPromptSurface
     case missingAnswerSurface
+    case verticalRailRequiresHorizontalSplit(ExerciseSurfaceID)
 }
 
 enum ExerciseSceneValidator {
@@ -31,6 +32,13 @@ enum ExerciseSceneValidator {
         if !surfaceNodes.contains(where: \.isAnswerSurface) {
             issues.append(.missingAnswerSurface)
         }
+
+        issues.append(
+            contentsOf: validatePresentationStyles(
+                in: scene.root,
+                withinHorizontalSplit: false
+            )
+        )
 
         return issues
     }
@@ -230,6 +238,49 @@ enum ExerciseSceneValidator {
         switch presentation {
         case .docked, .floating, .collapsible:
             return true
+        }
+    }
+
+    private static func validatePresentationStyles(
+        in node: ExerciseSceneNode,
+        withinHorizontalSplit: Bool
+    ) -> [ExerciseSceneValidationIssue] {
+        switch node {
+        case let .surface(surface):
+            guard
+                surface.presentationStyle == .verticalRail,
+                !withinHorizontalSplit
+            else {
+                return []
+            }
+            return [.verticalRailRequiresHorizontalSplit(surface.id)]
+        case let .split(axis, children):
+            let nextWithinHorizontalSplit = withinHorizontalSplit
+                || axis == .horizontal
+            return children.flatMap {
+                validatePresentationStyles(
+                    in: $0.node,
+                    withinHorizontalSplit: nextWithinHorizontalSplit
+                )
+            }
+        case let .overlay(base, floating):
+            return validatePresentationStyles(
+                in: base,
+                withinHorizontalSplit: withinHorizontalSplit
+            ) + floating.flatMap {
+                validatePresentationStyles(
+                    in: $0,
+                    withinHorizontalSplit: withinHorizontalSplit
+                )
+            }
+        case let .collapsible(main, accessory, _):
+            return validatePresentationStyles(
+                in: main,
+                withinHorizontalSplit: withinHorizontalSplit
+            ) + validatePresentationStyles(
+                in: accessory,
+                withinHorizontalSplit: withinHorizontalSplit
+            )
         }
     }
 }

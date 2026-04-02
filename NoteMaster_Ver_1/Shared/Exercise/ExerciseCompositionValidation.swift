@@ -191,6 +191,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSceneValidatorRejectsDuplicateLogicalSurfaceIDs
             ),
             ExerciseCompositionValidationFixture(
+                name: "scene_validator_restricts_vertical_rail_to_horizontal_split",
+                validate: validateSceneValidatorRestrictsVerticalRailToHorizontalSplit
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "shared_answer_contracts_default_position_prompt_to_same_pitch_class",
                 validate: validateSharedAnswerContractsDefaultPositionPromptToSamePitchClass
             ),
@@ -1018,15 +1022,6 @@ private extension ExerciseCompositionValidationRunner {
                         )
                     )
                 }
-
-                if children.contains(where: { !$0.mainAxisSizing.isWeighted }) {
-                    issues.append(
-                        issue(
-                            fixtureName,
-                            "\(sceneDescription) 在阶段 0 仍应保持 sideBySide child 的默认 weighted 主轴尺寸语义。"
-                        )
-                    )
-                }
             default:
                 issues.append(
                     issue(
@@ -1115,6 +1110,60 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
+        switch sideBySidePositionPromptPresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal
+                || children.count != 2
+                || children[0].mainAxisSizing != .weighted(1)
+                || children[1].mainAxisSizing != .fitContent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "positionPrompt 的 sideBySide 组合在阶段 2 应升级为左 fretboard weighted(1)、右 strip fitContent 的主轴尺寸语义。"
+                    )
+                )
+            }
+            guard
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(stripSurface) = children[1].node
+            else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "positionPrompt 的 sideBySide 组合在阶段 2 应继续由两个 surface child 组成。"
+                    )
+                )
+                break
+            }
+            if promptSurface.presentationStyle != .standard
+                || stripSurface.presentationStyle != .verticalRail {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "positionPrompt 的 sideBySide 组合在阶段 2 应保持左侧 standard fretboard、右侧 verticalRail strip。"
+                    )
+                )
+            }
+        default:
+            break
+        }
+        if !sideBySidePositionPromptPresentation.scene
+            .hasMixedMainAxisSizing(along: .horizontal) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合在阶段 2 应触发 horizontal mixed main-axis sizing 语义。"
+                )
+            )
+        }
+        if !sideBySidePositionPromptPresentation.scene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 的 sideBySide 组合在阶段 2 应通过 shared helper 请求 viewport pin 高度。"
+                )
+            )
+        }
 
         let singleTrainerDisplayState = TrainerDisplayState(exerciseMode: .single)
         let sideBySideTargetPromptPresentation = ExerciseCompositionPolicy
@@ -1144,6 +1193,45 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "targetPrompt -> fretboard 的 sideBySide 组合在阶段 0 不应混入 natural note strip surface。"
+                )
+            )
+        }
+        switch sideBySideTargetPromptPresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal
+                || children.count != 2
+                || !children[0].mainAxisSizing.isWeighted
+                || !children[1].mainAxisSizing.isWeighted {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 仍应保持双 weighted 主轴尺寸语义。"
+                    )
+                )
+            }
+            guard
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(answerSurface) = children[1].node
+            else {
+                break
+            }
+            if promptSurface.presentationStyle != .standard
+                || answerSurface.presentationStyle != .standard {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 不应被 verticalRail 语义污染。"
+                    )
+                )
+            }
+        default:
+            break
+        }
+        if sideBySideTargetPromptPresentation.scene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 不应误触发 viewport pin 高度语义。"
                 )
             )
         }
@@ -1177,6 +1265,45 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "staff -> fretboard 的 sideBySide 组合在阶段 0 不应混入 natural note strip surface。"
+                )
+            )
+        }
+        switch sideBySideStaffPresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal
+                || children.count != 2
+                || !children[0].mainAxisSizing.isWeighted
+                || !children[1].mainAxisSizing.isWeighted {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "staff -> fretboard 的 sideBySide 组合在阶段 2 仍应保持双 weighted 主轴尺寸语义。"
+                    )
+                )
+            }
+            guard
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(answerSurface) = children[1].node
+            else {
+                break
+            }
+            if promptSurface.presentationStyle != .standard
+                || answerSurface.presentationStyle != .standard {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "staff -> fretboard 的 sideBySide 组合在阶段 2 不应被 verticalRail 语义污染。"
+                    )
+                )
+            }
+        default:
+            break
+        }
+        if sideBySideStaffPresentation.scene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "staff -> fretboard 的 sideBySide 组合在阶段 2 不应误触发 viewport pin 高度语义。"
                 )
             )
         }
@@ -1380,6 +1507,32 @@ private extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
+            if children.count != 2
+                || !children[0].mainAxisSizing.isWeighted
+                || !children[1].mainAxisSizing.isWeighted {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 仍应保持双 weighted 主轴尺寸语义。"
+                    )
+                )
+            }
+            guard
+                children.count == 2,
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(answerSurface) = children[1].node
+            else {
+                break
+            }
+            if promptSurface.presentationStyle != .standard
+                || answerSurface.presentationStyle != .standard {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "targetPrompt -> fretboard 的 sideBySide 组合在阶段 2 不应带入 verticalRail presentation style。"
+                    )
+                )
+            }
         default:
             issues.append(
                 issue(
@@ -1393,6 +1546,113 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "horizontal split 在阶段 3 仍不应被误标记为 legacy page 可直接投影。"
+                )
+            )
+        }
+
+        let sideBySidePositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        if !ExerciseSceneValidator.validate(
+            sideBySidePositionPromptPresentation.scene
+        ).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应生成合法 scene。"
+                )
+            )
+        }
+        switch sideBySidePositionPromptPresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应投影到 horizontal split。"
+                    )
+                )
+            }
+            let childSurfaceIDs = children.compactMap {
+                $0.node.surfaceNodes.first?.id
+            }
+            if childSurfaceIDs != [.fretboard, .naturalNoteStrip] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应保持 fretboard 在左、natural note strip 在右。"
+                    )
+                )
+            }
+            if children.count != 2
+                || children[0].mainAxisSizing != .weighted(1)
+                || children[1].mainAxisSizing != .fitContent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应保持左 weighted(1)、右 fitContent 的主轴尺寸语义。"
+                    )
+                )
+            }
+            guard
+                children.count == 2,
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(answerSurface) = children[1].node
+            else {
+                break
+            }
+            if promptSurface.presentationStyle != .standard
+                || answerSurface.presentationStyle != .verticalRail {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应保持左侧 standard fretboard、右侧 verticalRail strip。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应生成 split scene。"
+                )
+            )
+        }
+        if !sideBySidePositionPromptPresentation.scene
+            .hasMixedMainAxisSizing(along: .horizontal) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应触发 horizontal mixed main-axis sizing 语义。"
+                )
+            )
+        }
+        if !sideBySidePositionPromptPresentation.scene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 应通过 verticalRail 语义要求 viewport pin 高度。"
+                )
+            )
+        }
+        if sideBySidePositionPromptPresentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "fretboard -> natural note strip 的 sideBySide 组合在阶段 2 仍不应被误投影成 legacy page 双槽位。"
                 )
             )
         }
@@ -1846,6 +2106,80 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "同时承担 prompt/answer 的单 fretboard scene 不应被 validator 误判为重复 surface。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateSceneValidatorRestrictsVerticalRailToHorizontalSplit()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "scene_validator_restricts_vertical_rail_to_horizontal_split"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let invalidVerticalRailStackedScene = ExerciseScene(
+            root: .makeSplit(
+                axis: .vertical,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(.fretboardPrompt),
+                        mainAxisSizing: .weighted(1)
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(
+                            .naturalNoteStripAnswer.withPresentationStyle(
+                                .verticalRail
+                            )
+                        ),
+                        mainAxisSizing: .fitContent
+                    )
+                ]
+            )
+        )
+        let invalidIssues = ExerciseSceneValidator.validate(
+            invalidVerticalRailStackedScene
+        )
+        if !invalidIssues.contains(
+            .verticalRailRequiresHorizontalSplit(.naturalNoteStrip)
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "validator 应拒绝把 verticalRail strip 放进非 horizontal split 语境。"
+                )
+            )
+        }
+
+        let validVerticalRailSideBySideScene = ExerciseScene(
+            root: .makeSplit(
+                axis: .horizontal,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(.fretboardPrompt),
+                        mainAxisSizing: .weighted(1)
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(
+                            .naturalNoteStripAnswer.withPresentationStyle(
+                                .verticalRail
+                            )
+                        ),
+                        mainAxisSizing: .fitContent
+                    )
+                ]
+            )
+        )
+        let validIssues = ExerciseSceneValidator.validate(
+            validVerticalRailSideBySideScene
+        )
+        if validIssues.contains(
+            .verticalRailRequiresHorizontalSplit(.naturalNoteStrip)
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "validator 不应误判位于 horizontal split 中的 verticalRail strip。"
                 )
             )
         }
