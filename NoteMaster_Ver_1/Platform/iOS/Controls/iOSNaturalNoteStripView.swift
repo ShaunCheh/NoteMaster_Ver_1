@@ -2,16 +2,38 @@
 import UIKit
 
 final class iOSNaturalNoteStripView: UIView {
+    enum LayoutMode: Equatable {
+        case horizontalStrip
+        case verticalRail
+    }
+
     var onPitchClassTap: ((PitchClass) -> Void)?
+    var layoutMode: LayoutMode = .horizontalStrip {
+        didSet {
+            guard oldValue != layoutMode else {
+                return
+            }
+            applyLayoutMode()
+        }
+    }
 
     override var intrinsicContentSize: CGSize {
+        layoutIfNeeded()
         let stackSize = stackView.systemLayoutSizeFitting(
             UIView.layoutFittingCompressedSize
         )
-        return CGSize(
-            width: UIView.noIntrinsicMetric,
-            height: directionalLayoutMargins.top + stackSize.height + directionalLayoutMargins.bottom
-        )
+        switch layoutMode {
+        case .horizontalStrip:
+            return CGSize(
+                width: UIView.noIntrinsicMetric,
+                height: directionalLayoutMargins.top + stackSize.height + directionalLayoutMargins.bottom
+            )
+        case .verticalRail:
+            return CGSize(
+                width: directionalLayoutMargins.leading + stackSize.width + directionalLayoutMargins.trailing,
+                height: UIView.noIntrinsicMetric
+            )
+        }
     }
 
     private let stackView = UIStackView()
@@ -31,6 +53,17 @@ final class iOSNaturalNoteStripView: UIView {
         configureView()
     }
 
+    func applyPresentationStyle(
+        _ presentationStyle: ExerciseSurfacePresentationStyle
+    ) {
+        switch presentationStyle {
+        case .verticalRail:
+            layoutMode = .verticalRail
+        case .standard, .horizontalStrip:
+            layoutMode = .horizontalStrip
+        }
+    }
+
     private func configureView() {
         accessibilityIdentifier = "natural-note-strip-view"
         directionalLayoutMargins = Style.contentInsets
@@ -41,12 +74,6 @@ final class iOSNaturalNoteStripView: UIView {
         layer.borderColor = UIColor.separator.withAlphaComponent(
             Style.borderOpacity
         ).cgColor
-        setContentHuggingPriority(.required, for: .vertical)
-        setContentCompressionResistancePriority(.required, for: .vertical)
-
-        stackView.axis = .horizontal
-        stackView.alignment = .fill
-        stackView.distribution = .fillEqually
         stackView.spacing = Style.itemSpacing
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -59,11 +86,14 @@ final class iOSNaturalNoteStripView: UIView {
             stackView.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor),
             stackView.bottomAnchor.constraint(equalTo: layoutMarginsGuide.bottomAnchor)
         ])
+
+        applyLayoutMode()
     }
 
     private func makeButton(for pitchClass: PitchClass) -> NaturalNoteButton {
         let button = NaturalNoteButton(frame: .zero)
         button.apply(pitchClass: pitchClass)
+        button.applyLayoutMode(layoutMode)
         button.addTarget(
             self,
             action: #selector(handleButtonTap(_:)),
@@ -79,6 +109,31 @@ final class iOSNaturalNoteStripView: UIView {
         }
 
         onPitchClassTap?(pitchClass)
+    }
+
+    private func applyLayoutMode() {
+        switch layoutMode {
+        case .horizontalStrip:
+            stackView.axis = .horizontal
+            stackView.alignment = .fill
+            stackView.distribution = .fillEqually
+            setContentHuggingPriority(.defaultLow, for: .horizontal)
+            setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            setContentHuggingPriority(.required, for: .vertical)
+            setContentCompressionResistancePriority(.required, for: .vertical)
+        case .verticalRail:
+            stackView.axis = .vertical
+            stackView.alignment = .fill
+            stackView.distribution = .fillEqually
+            setContentHuggingPriority(.required, for: .horizontal)
+            setContentCompressionResistancePriority(.required, for: .horizontal)
+            setContentHuggingPriority(.defaultLow, for: .vertical)
+            setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        }
+
+        buttons.forEach { $0.applyLayoutMode(layoutMode) }
+        invalidateIntrinsicContentSize()
+        setNeedsLayout()
     }
 }
 
@@ -130,9 +185,17 @@ private final class NaturalNoteButton: UIButton {
         titleLabel?.adjustsFontSizeToFitWidth = true
         titleLabel?.minimumScaleFactor = 0.7
         titleLabel?.lineBreakMode = .byClipping
+    }
 
-        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        setContentHuggingPriority(.defaultLow, for: .horizontal)
+    func applyLayoutMode(_ layoutMode: iOSNaturalNoteStripView.LayoutMode) {
+        switch layoutMode {
+        case .horizontalStrip:
+            setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            setContentHuggingPriority(.defaultLow, for: .horizontal)
+        case .verticalRail:
+            setContentCompressionResistancePriority(.required, for: .horizontal)
+            setContentHuggingPriority(.required, for: .horizontal)
+        }
     }
 
     private func resolvedBackgroundColor() -> UIColor {

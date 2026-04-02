@@ -259,6 +259,7 @@ final class iOSExerciseSceneRenderer {
         _ surface: ExerciseSurfaceNode,
         in hostView: UIView
     ) {
+        configurePresentationStyle(for: surface)
         guard let surfaceView = view(for: surface.id) else {
             return
         }
@@ -450,6 +451,14 @@ final class iOSExerciseSceneRenderer {
                 childHostView.widthAnchor.constraint(equalToConstant: size)
             )
         }
+    }
+
+    private func configurePresentationStyle(for surface: ExerciseSurfaceNode) {
+        guard surface.id == .naturalNoteStrip else {
+            return
+        }
+
+        naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
     }
 
     private func renderOverlay(
