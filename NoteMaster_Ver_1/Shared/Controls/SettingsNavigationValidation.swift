@@ -898,12 +898,12 @@ private extension SettingsNavigationValidationRunner {
             )
         }
         if layoutRow.choices.filter(\.isSelected).map(\.id) != [
-            .setLayoutPresetStacked
+            .setLayoutPresetSideBySide
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "default state 应继续默认选中 Stacked layout。"
+                    "default state 应默认选中 Side by Side layout。"
                 )
             )
         }

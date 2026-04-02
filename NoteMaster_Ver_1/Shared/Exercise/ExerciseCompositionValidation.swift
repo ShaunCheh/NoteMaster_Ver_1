@@ -1556,7 +1556,14 @@ private extension ExerciseCompositionValidationRunner {
                     fretboardDisplayState: .default,
                     staffDisplayState: .default,
                     pianoPanelState: .init(),
-                    layoutPreferences: .legacyPositionPrompt
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .stacked,
+                        accessoryPresentation: .docked,
+                        isNaturalNoteStripVisible: true,
+                        isPianoAccessoryVisible: false,
+                        isAccessoryExpanded: true
+                    )
                 )
             )
         if !stackedPositionPromptPresentation.containsSurface(.naturalNoteStrip) {
@@ -1943,7 +1950,14 @@ private extension ExerciseCompositionValidationRunner {
                 fretboardDisplayState: .default,
                 staffDisplayState: .default,
                 pianoPanelState: .init(),
-                layoutPreferences: .legacyPositionPrompt
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .stacked,
+                    accessoryPresentation: .docked,
+                    isNaturalNoteStripVisible: true,
+                    isPianoAccessoryVisible: false,
+                    isAccessoryExpanded: true
+                )
             )
         )
         if positionPromptPresentation.legacyPageDisplayState != .positionPrompt {
@@ -2869,7 +2883,14 @@ private extension ExerciseCompositionValidationRunner {
                     fretboardDisplayState: .default,
                     staffDisplayState: .default,
                     pianoPanelState: .init(),
-                    layoutPreferences: .legacyPositionPrompt
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .stacked,
+                        accessoryPresentation: .docked,
+                        isNaturalNoteStripVisible: true,
+                        isPianoAccessoryVisible: false,
+                        isAccessoryExpanded: true
+                    )
                 )
             )
         if ExerciseAnswerRouter.route(

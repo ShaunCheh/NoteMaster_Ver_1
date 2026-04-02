@@ -38,7 +38,7 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
     static let `default` = ExerciseLayoutPreferences()
     static let legacyPositionPrompt = ExerciseLayoutPreferences(
         compositionPreset: .fretboardToNaturalNoteStrip,
-        layoutPreset: .stacked,
+        layoutPreset: .sideBySide,
         accessoryPresentation: .docked,
         isNaturalNoteStripVisible: true,
         isPianoAccessoryVisible: false,
@@ -55,7 +55,7 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
 
     init(
         compositionPreset: ExerciseCompositionPreset = .staffToFretboard,
-        layoutPreset: ExerciseLayoutPreset = .stacked,
+        layoutPreset: ExerciseLayoutPreset = .sideBySide,
         accessoryPresentation: ExerciseAccessoryPresentation = .docked,
         isNaturalNoteStripVisible: Bool = false,
         isPianoAccessoryVisible: Bool = false,
