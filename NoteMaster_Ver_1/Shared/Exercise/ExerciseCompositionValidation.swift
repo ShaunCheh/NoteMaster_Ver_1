@@ -155,6 +155,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSharedSceneContractsCoverBasicLayouts
             ),
             ExerciseCompositionValidationFixture(
+                name: "shared_scene_contract_exposes_presentation_styles_and_main_axis_sizing",
+                validate: validateSharedSceneContractExposesPresentationStylesAndMainAxisSizing
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
                 validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
             ),
@@ -624,6 +628,16 @@ private extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
+            if children.count != 2
+                || children[0].mainAxisSizing != .fitContent
+                || children[1].mainAxisSizing != .weighted(1) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "stacked scene 应继续保持上方 staff fitContent、下方 fretboard weighted(1) 的主轴尺寸语义。"
+                    )
+                )
+            }
         default:
             issues.append(
                 issue(
@@ -655,6 +669,16 @@ private extension ExerciseCompositionValidationRunner {
                     issue(
                         fixtureName,
                         "sideBySide scene 应保持 targetPrompt 在左、fretboard 在右。"
+                    )
+                )
+            }
+            if children.count != 2
+                || !children[0].mainAxisSizing.isWeighted
+                || !children[1].mainAxisSizing.isWeighted {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "sideBySide scene 在阶段 1 应继续保持双 weighted 的默认主轴尺寸语义。"
                     )
                 )
             }
@@ -701,6 +725,121 @@ private extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateSharedSceneContractExposesPresentationStylesAndMainAxisSizing()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "shared_scene_contract_exposes_presentation_styles_and_main_axis_sizing"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        if ExerciseSurfaceNode.staffPrompt.presentationStyle != .standard
+            || ExerciseSurfaceNode.fretboardAnswer.presentationStyle != .standard
+            || ExerciseSurfaceNode.targetPrompt.presentationStyle != .standard {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "非 strip surface 在阶段 1 应默认保持 standard presentation style。"
+                )
+            )
+        }
+
+        if ExerciseSurfaceNode.naturalNoteStripAnswer.presentationStyle
+            != .horizontalStrip
+            || ExerciseSurfaceNode.naturalNoteStripAccessory.presentationStyle
+            != .horizontalStrip {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "natural note strip 的静态 surface 节点在阶段 1 应默认保持 horizontalStrip presentation style。"
+                )
+            )
+        }
+
+        let verticalRailStrip = ExerciseSurfaceNode.naturalNoteStripAnswer
+            .withPresentationStyle(.verticalRail)
+        if verticalRailStrip.id != .naturalNoteStrip
+            || verticalRailStrip.kind != .naturalNoteStrip
+            || verticalRailStrip.roles != Set([.answer])
+            || verticalRailStrip.presentationStyle != .verticalRail {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "withPresentationStyle(.verticalRail) 应只修改 strip 的 presentation style，不改变 logical surface 身份。"
+                )
+            )
+        }
+        if ExerciseSurfaceNode.naturalNoteStripAnswer.presentationStyle
+            != .horizontalStrip {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "withPresentationStyle(...) 应返回副本，不应回写静态 natural note strip surface。"
+                )
+            )
+        }
+
+        let stackedMixedScene = ExerciseScene.stacked(
+            top: .fretboardPrompt,
+            bottom: .naturalNoteStripAnswer
+        )
+        if !stackedMixedScene.hasMixedMainAxisSizing(along: .vertical) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "stacked 的 fretboard -> natural note strip scene 在阶段 1 应能被 shared helper 识别为 vertical mixed main-axis sizing。"
+                )
+            )
+        }
+        if !stackedMixedScene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "包含 vertical mixed main-axis sizing 的 scene 在阶段 1 应继续要求 viewport pin 高度。"
+                )
+            )
+        }
+
+        let railScene = ExerciseScene(
+            root: .makeSplit(
+                axis: .horizontal,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(.fretboardPrompt),
+                        mainAxisSizing: .weighted(1)
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(verticalRailStrip),
+                        mainAxisSizing: .fitContent
+                    )
+                ]
+            )
+        )
+        if !railScene.hasMixedMainAxisSizing(along: .horizontal) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "右侧 rail 的 horizontal split 在阶段 1 应能被 shared contract 表达为 mixed main-axis sizing。"
+                )
+            )
+        }
+        if railScene.hasMixedMainAxisSizing(along: .vertical) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "右侧 rail 的 horizontal split 在阶段 1 不应误报为 vertical mixed main-axis sizing。"
+                )
+            )
+        }
+        if !railScene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "包含 verticalRail surface 的 scene 在阶段 1 应能通过 shared helper 要求 viewport pin 高度。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateVerticalFitContentSplitSizingTracksSurfaceKinds()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "vertical_fit_content_split_sizing_tracks_surface_kinds"
@@ -714,12 +853,12 @@ private extension ExerciseCompositionValidationRunner {
         case let .split(axis, children):
             if axis != .vertical
                 || children.count != 2
-                || children[0].sizing != .fitContent
-                || children[1].sizing != .fill {
+                || children[0].mainAxisSizing != .fitContent
+                || children[1].mainAxisSizing != .weighted(1) {
                 issues.append(
                     issue(
                         fixtureName,
-                        "staff -> fretboard 的 vertical split 应保持上方 prompt fitContent、下方 fretboard fill。"
+                        "staff -> fretboard 的 vertical split 应保持上方 prompt fitContent、下方 fretboard weighted(1)。"
                     )
                 )
             }
@@ -746,12 +885,12 @@ private extension ExerciseCompositionValidationRunner {
         case let .split(axis, children):
             if axis != .vertical
                 || children.count != 2
-                || children[0].sizing != .fill
-                || children[1].sizing != .fitContent {
+                || children[0].mainAxisSizing != .weighted(1)
+                || children[1].mainAxisSizing != .fitContent {
                 issues.append(
                     issue(
                         fixtureName,
-                        "fretboard -> natural note strip 的 vertical split 应保持上方 fretboard fill、下方 strip fitContent。"
+                        "fretboard -> natural note strip 的 vertical split 应保持上方 fretboard weighted(1)、下方 strip fitContent。"
                     )
                 )
             }
@@ -763,11 +902,11 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        if !positionPromptScene.hasVerticalFitContentSplit {
+        if !positionPromptScene.hasMixedMainAxisSizing(along: .vertical) {
             issues.append(
                 issue(
                     fixtureName,
-                    "包含 natural note strip answer 的 vertical split 应触发 fitContent scene 语义。"
+                    "包含 natural note strip answer 的 vertical split 应触发 vertical mixed main-axis sizing 语义。"
                 )
             )
         }
@@ -797,12 +936,12 @@ private extension ExerciseCompositionValidationRunner {
                 return issues
             }
             if accessoryChildren.count != 2
-                || accessoryChildren[0].sizing != .fitContent
-                || accessoryChildren[1].sizing != .fill {
+                || accessoryChildren[0].mainAxisSizing != .fitContent
+                || accessoryChildren[1].mainAxisSizing != .weighted(1.3) {
                 issues.append(
                     issue(
                         fixtureName,
-                        "threePane accessory split 应保持 strip fitContent、piano fill。"
+                        "threePane accessory split 应保持 strip fitContent、piano weighted(1.3)。"
                     )
                 )
             }
@@ -825,11 +964,11 @@ private extension ExerciseCompositionValidationRunner {
                 isAccessoryExpanded: true
             )
         )
-        if sideBySideScene.hasVerticalFitContentSplit {
+        if sideBySideScene.hasMixedMainAxisSizing(along: .vertical) {
             issues.append(
                 issue(
                     fixtureName,
-                    "sideBySide scene 不应误触发 vertical fitContent split 语义。"
+                    "sideBySide scene 不应误触发 vertical mixed main-axis sizing 语义。"
                 )
             )
         }
@@ -880,11 +1019,11 @@ private extension ExerciseCompositionValidationRunner {
                     )
                 }
 
-                if children.contains(where: { $0.sizing != .fill }) {
+                if children.contains(where: { !$0.mainAxisSizing.isWeighted }) {
                     issues.append(
                         issue(
                             fixtureName,
-                            "\(sceneDescription) 在阶段 0 仍应保持 sideBySide child 的默认 fill sizing。"
+                            "\(sceneDescription) 在阶段 0 仍应保持 sideBySide child 的默认 weighted 主轴尺寸语义。"
                         )
                     )
                 }
@@ -897,11 +1036,11 @@ private extension ExerciseCompositionValidationRunner {
                 )
             }
 
-            if presentation.scene.hasVerticalFitContentSplit {
+            if presentation.scene.hasMixedMainAxisSizing(along: .vertical) {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(sceneDescription) 在阶段 0 不应误触发 vertical fitContent split 语义。"
+                        "\(sceneDescription) 在阶段 0 不应误触发 vertical mixed main-axis sizing 语义。"
                     )
                 )
             }

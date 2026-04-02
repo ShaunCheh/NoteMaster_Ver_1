@@ -187,9 +187,9 @@ enum ExerciseRenderedSceneArrangement: Equatable, Sendable {
 struct ExerciseRenderedSceneLayout: Equatable, Sendable {
     var arrangement: ExerciseRenderedSceneArrangement
     var primarySurface: ExerciseSurfaceNode
-    var primaryWeight: Double
+    var primaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing
     var secondarySurface: ExerciseSurfaceNode?
-    var secondaryWeight: Double?
+    var secondaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing?
 }
 
 extension ExercisePresentationState {
@@ -209,9 +209,9 @@ extension ExercisePresentationState {
             return ExerciseRenderedSceneLayout(
                 arrangement: .singleSurface,
                 primarySurface: surface,
-                primaryWeight: 1,
+                primaryMainAxisSizing: .weighted(1),
                 secondarySurface: nil,
-                secondaryWeight: nil
+                secondaryMainAxisSizing: nil
             )
         case let .split(axis, children):
             guard children.count == 2,
@@ -223,9 +223,9 @@ extension ExercisePresentationState {
             return ExerciseRenderedSceneLayout(
                 arrangement: axis == .vertical ? .stacked : .sideBySide,
                 primarySurface: primarySurface,
-                primaryWeight: children[0].weight,
+                primaryMainAxisSizing: children[0].mainAxisSizing,
                 secondarySurface: secondarySurface,
-                secondaryWeight: children[1].weight
+                secondaryMainAxisSizing: children[1].mainAxisSizing
             )
         case let .overlay(base, _):
             return renderedSceneLayout(for: base)

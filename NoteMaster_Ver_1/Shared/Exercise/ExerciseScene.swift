@@ -27,25 +27,46 @@ enum ExerciseSurfaceKind: String, CaseIterable, Equatable, Hashable, Sendable {
     case piano
 }
 
+enum ExerciseSurfacePresentationStyle: String, CaseIterable, Equatable, Hashable, Sendable {
+    case standard
+    case horizontalStrip
+    case verticalRail
+}
+
 enum ExerciseSceneAxis: String, Equatable, Hashable, Sendable {
     case vertical
     case horizontal
 }
 
-enum ExerciseSceneSplitChildSizing: String, Equatable, Hashable, Sendable {
-    case fill
+enum ExerciseSceneSplitChildMainAxisSizing: Equatable, Hashable, Sendable {
+    case weighted(Double)
     case fitContent
+    case fixed(Double)
+
+    var weightedValue: Double? {
+        guard case let .weighted(weight) = self else {
+            return nil
+        }
+
+        return weight
+    }
+
+    var isWeighted: Bool {
+        weightedValue != nil
+    }
 }
 
 struct ExerciseSurfaceNode: Equatable, Sendable {
     var id: ExerciseSurfaceID
     var kind: ExerciseSurfaceKind
     private(set) var roles: Set<ExerciseRole>
+    var presentationStyle: ExerciseSurfacePresentationStyle
 
     init(
         id: ExerciseSurfaceID,
         kind: ExerciseSurfaceKind,
-        roles: Set<ExerciseRole>
+        roles: Set<ExerciseRole>,
+        presentationStyle: ExerciseSurfacePresentationStyle = .standard
     ) {
         precondition(
             !roles.isEmpty,
@@ -54,6 +75,7 @@ struct ExerciseSurfaceNode: Equatable, Sendable {
         self.id = id
         self.kind = kind
         self.roles = roles
+        self.presentationStyle = presentationStyle
     }
 
     var isPromptSurface: Bool {
@@ -67,25 +89,40 @@ struct ExerciseSurfaceNode: Equatable, Sendable {
     var isAuxiliarySurface: Bool {
         roles.contains(.auxiliary)
     }
+
+    func withPresentationStyle(
+        _ presentationStyle: ExerciseSurfacePresentationStyle
+    ) -> ExerciseSurfaceNode {
+        var copy = self
+        copy.presentationStyle = presentationStyle
+        return copy
+    }
 }
 
 struct ExerciseSceneSplitChild: Equatable, Sendable {
     var node: ExerciseSceneNode
-    var weight: Double
-    var sizing: ExerciseSceneSplitChildSizing
+    var mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing
 
     init(
         node: ExerciseSceneNode,
-        weight: Double = 1,
-        sizing: ExerciseSceneSplitChildSizing = .fill
+        mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing = .weighted(1)
     ) {
-        precondition(
-            weight > 0,
-            "Exercise scene split child weight must be greater than zero."
-        )
+        switch mainAxisSizing {
+        case let .weighted(weight):
+            precondition(
+                weight > 0,
+                "Exercise scene split child weight must be greater than zero."
+            )
+        case let .fixed(size):
+            precondition(
+                size > 0,
+                "Exercise scene split child fixed size must be greater than zero."
+            )
+        case .fitContent:
+            break
+        }
         self.node = node
-        self.weight = weight
-        self.sizing = sizing
+        self.mainAxisSizing = mainAxisSizing
     }
 }
 
@@ -187,11 +224,11 @@ struct ExerciseScene: Equatable, Sendable {
                 children: [
                     ExerciseSceneSplitChild(
                         node: .surface(top),
-                        sizing: top.preferredVerticalSplitSizing
+                        mainAxisSizing: top.preferredVerticalMainAxisSizing()
                     ),
                     ExerciseSceneSplitChild(
                         node: .surface(bottom),
-                        sizing: bottom.preferredVerticalSplitSizing
+                        mainAxisSizing: bottom.preferredVerticalMainAxisSizing()
                     )
                 ]
             )
@@ -227,12 +264,14 @@ struct ExerciseScene: Equatable, Sendable {
 }
 
 extension ExerciseSurfaceNode {
-    var preferredVerticalSplitSizing: ExerciseSceneSplitChildSizing {
+    func preferredVerticalMainAxisSizing(
+        weight: Double = 1
+    ) -> ExerciseSceneSplitChildMainAxisSizing {
         switch kind {
         case .staff, .targetPrompt, .naturalNoteStrip:
             return .fitContent
         case .fretboard, .piano:
-            return .fill
+            return .weighted(weight)
         }
     }
 
@@ -264,12 +303,14 @@ extension ExerciseSurfaceNode {
     static let naturalNoteStripAnswer = ExerciseSurfaceNode(
         id: .naturalNoteStrip,
         kind: .naturalNoteStrip,
-        roles: [.answer]
+        roles: [.answer],
+        presentationStyle: .horizontalStrip
     )
     static let naturalNoteStripAccessory = ExerciseSurfaceNode(
         id: .naturalNoteStrip,
         kind: .naturalNoteStrip,
-        roles: [.auxiliary]
+        roles: [.auxiliary],
+        presentationStyle: .horizontalStrip
     )
     static let pianoAccessory = ExerciseSurfaceNode(
         id: .piano,
@@ -279,62 +320,94 @@ extension ExerciseSurfaceNode {
 }
 
 extension ExerciseSceneNode {
-    var hasVerticalFitContentSplit: Bool {
+    func hasMixedMainAxisSizing(
+        along axis: ExerciseSceneAxis
+    ) -> Bool {
         switch self {
         case .surface:
             return false
-        case let .split(axis, children):
-            let hasCurrentFitContentSplit = axis == .vertical
-                && children.contains(where: { $0.sizing == .fitContent })
-                && children.contains(where: { $0.sizing == .fill })
-            return hasCurrentFitContentSplit
-                || children.contains { $0.node.hasVerticalFitContentSplit }
+        case let .split(splitAxis, children):
+            let hasCurrentMixedMainAxisSizing = splitAxis == axis
+                && children.contains(where: { $0.mainAxisSizing.isWeighted })
+                && children.contains(where: { !$0.mainAxisSizing.isWeighted })
+            return hasCurrentMixedMainAxisSizing
+                || children.contains { $0.node.hasMixedMainAxisSizing(along: axis) }
         case let .overlay(base, floating):
-            return base.hasVerticalFitContentSplit
-                || floating.contains { $0.hasVerticalFitContentSplit }
+            return base.hasMixedMainAxisSizing(along: axis)
+                || floating.contains { $0.hasMixedMainAxisSizing(along: axis) }
         case let .collapsible(main, accessory, _):
-            return main.hasVerticalFitContentSplit
-                || accessory.hasVerticalFitContentSplit
+            return main.hasMixedMainAxisSizing(along: axis)
+                || accessory.hasMixedMainAxisSizing(along: axis)
         }
     }
 
-    func hasVerticalFitContentSplit(
+    func hasMixedMainAxisSizing(
+        along axis: ExerciseSceneAxis,
         containing surfaceID: ExerciseSurfaceID
     ) -> Bool {
         switch self {
         case .surface:
             return false
-        case let .split(axis, children):
-            let hasCurrentFitContentSplit = axis == .vertical
-                && children.contains(where: { $0.sizing == .fitContent })
-                && children.contains(where: { $0.sizing == .fill })
+        case let .split(splitAxis, children):
+            let hasCurrentMixedMainAxisSizing = splitAxis == axis
+                && children.contains(where: { $0.mainAxisSizing.isWeighted })
+                && children.contains(where: { !$0.mainAxisSizing.isWeighted })
                 && children.contains {
                     $0.node.surfaceNode(for: surfaceID) != nil
                 }
-            return hasCurrentFitContentSplit
+            return hasCurrentMixedMainAxisSizing
                 || children.contains {
-                    $0.node.hasVerticalFitContentSplit(containing: surfaceID)
+                    $0.node.hasMixedMainAxisSizing(
+                        along: axis,
+                        containing: surfaceID
+                    )
                 }
         case let .overlay(base, floating):
-            return base.hasVerticalFitContentSplit(containing: surfaceID)
+            return base.hasMixedMainAxisSizing(
+                along: axis,
+                containing: surfaceID
+            )
                 || floating.contains {
-                    $0.hasVerticalFitContentSplit(containing: surfaceID)
+                    $0.hasMixedMainAxisSizing(
+                        along: axis,
+                        containing: surfaceID
+                    )
                 }
         case let .collapsible(main, accessory, _):
-            return main.hasVerticalFitContentSplit(containing: surfaceID)
-                || accessory.hasVerticalFitContentSplit(containing: surfaceID)
+            return main.hasMixedMainAxisSizing(
+                along: axis,
+                containing: surfaceID
+            )
+                || accessory.hasMixedMainAxisSizing(
+                    along: axis,
+                    containing: surfaceID
+                )
         }
+    }
+
+    var requiresViewportPinnedHeight: Bool {
+        hasMixedMainAxisSizing(along: .vertical)
+            || surfaceNodes.contains(where: {
+                $0.presentationStyle == .verticalRail
+            })
     }
 }
 
 extension ExerciseScene {
-    var hasVerticalFitContentSplit: Bool {
-        root.hasVerticalFitContentSplit
+    func hasMixedMainAxisSizing(
+        along axis: ExerciseSceneAxis
+    ) -> Bool {
+        root.hasMixedMainAxisSizing(along: axis)
     }
 
-    func hasVerticalFitContentSplit(
+    func hasMixedMainAxisSizing(
+        along axis: ExerciseSceneAxis,
         containing surfaceID: ExerciseSurfaceID
     ) -> Bool {
-        root.hasVerticalFitContentSplit(containing: surfaceID)
+        root.hasMixedMainAxisSizing(along: axis, containing: surfaceID)
+    }
+
+    var requiresViewportPinnedHeight: Bool {
+        root.requiresViewportPinnedHeight
     }
 }

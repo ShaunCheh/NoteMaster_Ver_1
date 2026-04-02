@@ -88,7 +88,8 @@ final class macOSExerciseSceneRenderer {
     }
 
     private var prefersFlexibleVerticalFretboardHeight: Bool {
-        currentPresentationState?.scene.hasVerticalFitContentSplit(
+        currentPresentationState?.scene.hasMixedMainAxisSizing(
+            along: .vertical,
             containing: .fretboard
         ) ?? false
     }
@@ -287,7 +288,7 @@ final class macOSExerciseSceneRenderer {
 
         if axis == .vertical {
             for (index, childHostView) in childHostViews.enumerated() {
-                guard children[index].sizing == .fitContent else {
+                guard !children[index].mainAxisSizing.isWeighted else {
                     continue
                 }
                 childHostView.setContentHuggingPriority(.required, for: .vertical)
@@ -341,12 +342,12 @@ final class macOSExerciseSceneRenderer {
         let proportionalIndices: [Int]
         switch axis {
         case .vertical:
-            let fillIndices = children.indices.filter {
-                children[$0].sizing == .fill
+            let weightedIndices = children.indices.filter {
+                children[$0].mainAxisSizing.isWeighted
             }
-            proportionalIndices = fillIndices.isEmpty
+            proportionalIndices = weightedIndices.isEmpty
                 ? Array(children.indices)
-                : fillIndices
+                : weightedIndices
         case .horizontal:
             proportionalIndices = Array(children.indices)
         }
@@ -380,8 +381,14 @@ final class macOSExerciseSceneRenderer {
                 continue
             }
 
-            let referenceWeight = max(children[referenceIndex].weight, 0.0001)
-            let childWeight = max(children[index].weight, 0.0001)
+            let referenceWeight = max(
+                children[referenceIndex].mainAxisSizing.weightedValue ?? 1,
+                0.0001
+            )
+            let childWeight = max(
+                children[index].mainAxisSizing.weightedValue ?? 1,
+                0.0001
+            )
             switch axis {
             case .vertical:
                 activeSceneConstraints.append(

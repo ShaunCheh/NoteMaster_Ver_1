@@ -923,7 +923,7 @@ final class macOSViewController: NSViewController {
 
     private func updateSceneViewportHeightConstraint() {
         sceneViewportHeightConstraint?.isActive = exercisePresentationState.scene
-            .hasVerticalFitContentSplit
+            .requiresViewportPinnedHeight
     }
 
     private func applyDisplayState() {
