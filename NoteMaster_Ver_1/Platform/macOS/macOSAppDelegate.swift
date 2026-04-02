@@ -58,6 +58,39 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         print("[Startup][macOSApp] activate app")
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
+
+        #if DEBUG
+        if RuntimeSmokeScenario.shouldRunLayoutPresetRegression {
+            print(
+                "[RuntimeSmoke][macOS] scheduled scenario=layout_preset_regression"
+            )
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard
+                    let self,
+                    let window = self.window,
+                    let viewController = window.contentViewController
+                    as? macOSViewController
+                else {
+                    let summary =
+                        "[RuntimeSmoke][macOS] FAIL scenario=layout_preset_regression reason=missing_window_or_view_controller"
+                    print(summary)
+                    fatalError(summary)
+                }
+
+                viewController.runLayoutPresetRegressionSmokeTest(
+                    in: window
+                ) { passed, summary in
+                    print(summary)
+                    if passed {
+                        NSApp.terminate(nil)
+                    } else {
+                        fatalError(summary)
+                    }
+                }
+            }
+        }
+        #endif
+
         print("[Startup][macOSApp] applicationDidFinishLaunching end")
     }
 
@@ -65,4 +98,16 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 }
+
+#if DEBUG
+private enum RuntimeSmokeScenario {
+    static let environmentKey = "NOTE_MASTER_RUNTIME_SMOKE_TEST"
+    static let layoutPresetRegressionValue = "layout-preset-regression"
+
+    static var shouldRunLayoutPresetRegression: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == layoutPresetRegressionValue
+    }
+}
+#endif
 #endif

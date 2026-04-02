@@ -2158,6 +2158,128 @@ final class macOSViewController: NSViewController {
     }
 }
 
+#if DEBUG
+extension macOSViewController {
+    func runLayoutPresetRegressionSmokeTest(
+        in window: NSWindow,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        typealias SmokeStep = (
+            name: String,
+            expectedLayout: ExerciseLayoutPreset,
+            action: () -> Void
+        )
+
+        let steps: [SmokeStep] = [
+            (
+                name: "switch_to_stacked",
+                expectedLayout: .stacked,
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setLayoutPresetStacked)
+                    )
+                }
+            ),
+            (
+                name: "resize_wide",
+                expectedLayout: .stacked,
+                action: {
+                    var nextFrame = window.frame
+                    nextFrame.size = NSSize(width: 1120, height: 720)
+                    window.setFrame(nextFrame, display: true)
+                }
+            ),
+            (
+                name: "switch_to_side",
+                expectedLayout: .sideBySide,
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setLayoutPresetSideBySide)
+                    )
+                }
+            ),
+            (
+                name: "resize_compact",
+                expectedLayout: .sideBySide,
+                action: {
+                    var nextFrame = window.frame
+                    nextFrame.size = NSSize(width: 760, height: 540)
+                    window.setFrame(nextFrame, display: true)
+                }
+            ),
+            (
+                name: "switch_to_stacked_again",
+                expectedLayout: .stacked,
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setLayoutPresetStacked)
+                    )
+                }
+            ),
+            (
+                name: "switch_to_side_final",
+                expectedLayout: .sideBySide,
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setLayoutPresetSideBySide)
+                    )
+                }
+            )
+        ]
+
+        print(
+            "[RuntimeSmoke][macOS] begin scenario=layout_preset_regression initialLayout=\(exerciseLayoutPreferences.layoutPreset.rawValue)"
+        )
+        runLayoutPresetRegressionSmokeSteps(
+            steps,
+            index: 0,
+            completion: completion
+        )
+    }
+
+    private func runLayoutPresetRegressionSmokeSteps(
+        _ steps: [(name: String, expectedLayout: ExerciseLayoutPreset, action: () -> Void)],
+        index: Int,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        guard index < steps.count else {
+            let summary =
+                "[RuntimeSmoke][macOS] PASS scenario=layout_preset_regression finalLayout=\(exerciseLayoutPreferences.layoutPreset.rawValue) sceneBounds=\(NSStringFromRect(exerciseSceneRenderer.sceneContainerView.bounds))"
+            completion(true, summary)
+            return
+        }
+
+        let step = steps[index]
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            print(
+                "[RuntimeSmoke][macOS] step=\(step.name) begin currentLayout=\(self.exerciseLayoutPreferences.layoutPreset.rawValue)"
+            )
+            step.action()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                let resolvedLayout = self.exerciseLayoutPreferences.layoutPreset
+                let summary =
+                    "[RuntimeSmoke][macOS] step=\(step.name) end resolvedLayout=\(resolvedLayout.rawValue) sceneBounds=\(NSStringFromRect(self.exerciseSceneRenderer.sceneContainerView.bounds))"
+                print(summary)
+
+                guard resolvedLayout == step.expectedLayout else {
+                    completion(
+                        false,
+                        "[RuntimeSmoke][macOS] FAIL scenario=layout_preset_regression step=\(step.name) expectedLayout=\(step.expectedLayout.rawValue) resolvedLayout=\(resolvedLayout.rawValue)"
+                    )
+                    return
+                }
+
+                self.runLayoutPresetRegressionSmokeSteps(
+                    steps,
+                    index: index + 1,
+                    completion: completion
+                )
+            }
+        }
+    }
+}
+#endif
+
 private enum Layout {
     static let horizontalInset: CGFloat = 16
     static let topInset: CGFloat = 16
