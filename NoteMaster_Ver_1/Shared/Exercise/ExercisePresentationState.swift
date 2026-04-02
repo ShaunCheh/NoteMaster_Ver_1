@@ -266,7 +266,7 @@ enum ExerciseNaturalNoteStripRailVerticalAlignment: Equatable, Sendable {
 }
 
 struct ExerciseNaturalNoteStripRailContract: Equatable, Sendable {
-    static let defaultButtonExtent: Double = 20
+    static let defaultButtonExtent: Double = 50
     static let defaultSideBySideAnswerRail = ExerciseNaturalNoteStripRailContract(
         appliesToSurface: .naturalNoteStrip,
         slotModel: .chromatic12Preserved,

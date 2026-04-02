@@ -952,7 +952,7 @@ private extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "阶段 1 的 rail contract 应继续给出 square + 20 的默认按钮几何语义。"
+                        "阶段 1 的 rail contract 应继续给出 square + 50 的默认按钮几何语义。"
                     )
                 )
             }
