@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: extend-validations
     content: 补齐 composition validation，冻结自然音/升号双列错位的 shared placement 不变量
-    status: pending
+    status: completed
   - id: refactor-platform-strip-views
     content: 让 iOS/macOS NaturalNoteStripView 的 verticalRail 改为渲染 shared placement，horizontalStrip 继续保留现有路径
     status: pending

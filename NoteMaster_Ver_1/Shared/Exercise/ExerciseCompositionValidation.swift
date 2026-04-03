@@ -182,6 +182,16 @@ private extension ExerciseCompositionValidationRunner {
                     validateNaturalNoteStripStageCLayoutBuilderExposesSharedLayoutOutput
             ),
             ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_staggered_two_column_layout_matches_pitchclass_topology",
+                validate:
+                    validateNaturalNoteStripStaggeredTwoColumnLayoutMatchesPitchclassTopology
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_shared_layout_content_size_matches_intrinsic_semantics",
+                validate:
+                    validateNaturalNoteStripSharedLayoutContentSizeMatchesIntrinsicSemantics
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
                 validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
             ),
@@ -993,6 +1003,47 @@ private extension ExerciseCompositionValidationRunner {
             )
         }
 
+        switch railPresentation.naturalNoteStripRailLayout {
+        case let .some(layout):
+            if layout.context.appliesToSurface != .naturalNoteStrip
+                || layout.context.slotModel != .chromatic12Preserved
+                || layout.placements.count != PitchClass.allCases.count
+                || layout.placements.map(\.pitchClass) != PitchClass.allCases {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 3 的 rail contract 应继续稳定投影为 shared rail layout 摘要：12 个 chromatic placements 与 natural note strip surface 作用域都不能丢。"
+                    )
+                )
+            }
+
+            if layout.contentSize.width <= 0 || layout.contentSize.height <= 0 {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 3 的 rail contract 应继续投影出正值 contentSize 的 shared rail layout 摘要，而不是零尺寸布局。"
+                    )
+                )
+            }
+        case .none:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的 fretboard -> natural note strip scene 在阶段 3 应同时暴露 active shared rail layout 摘要，而不是 nil。"
+                )
+            )
+        }
+
+        if railPresentation.scene.naturalNoteStripRailLayout
+            != railPresentation.naturalNoteStripRailLayout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 3 的 ExerciseScene 应继续把 shared rail layout 摘要原样透传给 presentation 层。"
+                )
+            )
+        }
+
         if railPresentation.fretboardLayoutContract.heightPolicy
             != .fillAvailableHeight {
             issues.append(
@@ -1019,11 +1070,13 @@ private extension ExerciseCompositionValidationRunner {
 
         if stackedRailPresentation.scene
             .containsNaturalNoteStripAnswerRailInSideBySideLayout
-            || stackedRailPresentation.naturalNoteStripRailContract != nil {
+            || stackedRailPresentation.naturalNoteStripRailContract != nil
+            || stackedRailPresentation.naturalNoteStripRailLayout != nil
+            || stackedRailPresentation.scene.naturalNoteStripRailLayout != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "stacked 的 fretboard -> natural note strip scene 在阶段 1 不应被误纳入 right rail contract。"
+                    "stacked 的 fretboard -> natural note strip scene 在阶段 3 不应被误纳入 right rail contract / shared rail layout 摘要。"
                 )
             )
         }
@@ -1047,11 +1100,14 @@ private extension ExerciseCompositionValidationRunner {
         if targetPromptSideBySidePresentation.scene
             .containsNaturalNoteStripAnswerRailInSideBySideLayout
             || targetPromptSideBySidePresentation.naturalNoteStripRailContract
-            != nil {
+            != nil
+            || targetPromptSideBySidePresentation.naturalNoteStripRailLayout != nil
+            || targetPromptSideBySidePresentation.scene
+                .naturalNoteStripRailLayout != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 1 不应被误纳入 natural note strip rail contract。"
+                    "targetPrompt -> fretboard 的 sideBySide scene 在阶段 3 不应被误纳入 natural note strip rail contract / shared rail layout 摘要。"
                 )
             )
         }
@@ -1075,11 +1131,14 @@ private extension ExerciseCompositionValidationRunner {
 
         if staffSideBySidePresentation.scene
             .containsNaturalNoteStripAnswerRailInSideBySideLayout
-            || staffSideBySidePresentation.naturalNoteStripRailContract != nil {
+            || staffSideBySidePresentation.naturalNoteStripRailContract != nil
+            || staffSideBySidePresentation.naturalNoteStripRailLayout != nil
+            || staffSideBySidePresentation.scene.naturalNoteStripRailLayout
+            != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "staff -> fretboard 的 sideBySide scene 在阶段 1 不应被误纳入 natural note strip rail contract。"
+                    "staff -> fretboard 的 sideBySide scene 在阶段 3 不应被误纳入 natural note strip rail contract / shared rail layout 摘要。"
                 )
             )
         }
@@ -1127,6 +1186,27 @@ private extension ExerciseCompositionValidationRunner {
                 )
             )
         }
+        let expectedPureSharedLayout =
+            ExerciseNaturalNoteStripRailContract.defaultSideBySideAnswerRail
+                .defaultLayoutContext.resolvedLayout
+        if sideRailPresentation.naturalNoteStripRailLayout
+            != expectedPureSharedLayout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "sideBySide 的 shared rail layout 应继续只由 rail contract / layoutContext 决定，而不依赖 fretboardLayoutContract。"
+                )
+            )
+        }
+        if sideRailPresentation.scene.naturalNoteStripRailLayout
+            != expectedPureSharedLayout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "ExerciseScene 应继续把由默认 rail contract 纯计算出来的 shared rail layout 原样透传给 presentation 层。"
+                )
+            )
+        }
         if sideRailPresentation.fretboardLayoutContract
             != ExerciseFretboardLayoutContract(
                 pinsSceneToViewportHeight: true,
@@ -1164,11 +1244,13 @@ private extension ExerciseCompositionValidationRunner {
         )
 
         if stackedRailPresentation.naturalNoteStripRailContract != nil
-            || stackedRailPresentation.scene.naturalNoteStripRailContract != nil {
+            || stackedRailPresentation.scene.naturalNoteStripRailContract != nil
+            || stackedRailPresentation.naturalNoteStripRailLayout != nil
+            || stackedRailPresentation.scene.naturalNoteStripRailLayout != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "stacked 的 fretboard -> natural note strip 场景不应误暴露 right rail contract。"
+                    "stacked 的 fretboard -> natural note strip 场景不应误暴露 right rail contract / shared rail layout。"
                 )
             )
         }
@@ -1209,11 +1291,14 @@ private extension ExerciseCompositionValidationRunner {
         )
 
         if sideTargetPromptPresentation.naturalNoteStripRailContract != nil
-            || sideTargetPromptPresentation.scene.naturalNoteStripRailContract != nil {
+            || sideTargetPromptPresentation.scene.naturalNoteStripRailContract != nil
+            || sideTargetPromptPresentation.naturalNoteStripRailLayout != nil
+            || sideTargetPromptPresentation.scene.naturalNoteStripRailLayout
+            != nil {
             issues.append(
                 issue(
                     fixtureName,
-                    "不包含 natural note strip answer rail 的 sideBySide 场景不应误携带 rail contract。"
+                    "不包含 natural note strip answer rail 的 sideBySide 场景不应误携带 rail contract / shared rail layout。"
                 )
             )
         }
@@ -1792,6 +1877,306 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "方案 C 阶段 2 的非 rail sideBySide scene 不应误暴露 natural note strip shared rail layout。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripStaggeredTwoColumnLayoutMatchesPitchclassTopology()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_staggered_two_column_layout_matches_pitchclass_topology"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        let tolerance = 0.0001
+
+        func approximatelyEqual(_ lhs: Double, _ rhs: Double) -> Bool {
+            abs(lhs - rhs) <= tolerance
+        }
+
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .positionPrompt),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        guard let layout = sideRailPresentation.naturalNoteStripRailLayout else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 应能从 side rail presentation 读到 active shared rail layout。"
+                )
+            )
+            return issues
+        }
+
+        let geometry = layout.context.geometry
+        let expectedAccidentalX = geometry.contentInsets.leading
+        let expectedNaturalX = geometry.contentInsets.leading
+            + geometry.resolvedButtonExtent
+            + geometry.resolvedColumnGap
+        let expectedTopologies =
+            PitchClass.naturalNoteStripStaggeredRailTopologiesInChromaticOrder
+
+        func expectedCenterY(
+            for anchor: ExerciseNaturalNoteStripRailPitchTopologyAnchor
+        ) -> Double {
+            switch anchor {
+            case let .naturalRow(index):
+                return geometry.contentInsets.top
+                    + (geometry.resolvedButtonExtent / 2)
+                    + (Double(index) * geometry.naturalRowStride)
+            case let .midpointBetweenNaturalRows(top, bottom):
+                let topCenter = geometry.contentInsets.top
+                    + (geometry.resolvedButtonExtent / 2)
+                    + (Double(top) * geometry.naturalRowStride)
+                let bottomCenter = geometry.contentInsets.top
+                    + (geometry.resolvedButtonExtent / 2)
+                    + (Double(bottom) * geometry.naturalRowStride)
+                return (topCenter + bottomCenter) / 2
+            }
+        }
+
+        func placement(
+            for pitchClass: PitchClass
+        ) -> ExerciseNaturalNoteStripRailPlacement? {
+            layout.placements.first { $0.pitchClass == pitchClass }
+        }
+
+        if layout.context.placementModel != .staggeredNaturalAccidentalTwoColumn {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 rail layout 应继续使用 staggeredNaturalAccidentalTwoColumn placement model。"
+                )
+            )
+        }
+
+        if layout.placements.map(\.topology) != expectedTopologies {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 rail placements 应继续按 chromatic12 顺序携带 stage0 冻结的双列错位 topology。"
+                )
+            )
+        }
+
+        let naturalCenters = PitchClass.naturalCasesInOrder.compactMap {
+            pitchClass -> Double? in
+            guard let currentPlacement = placement(for: pitchClass) else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 3 的 rail layout 缺少自然音 \(pitchClass.displayText()) 的 placement。"
+                    )
+                )
+                return nil
+            }
+
+            if !approximatelyEqual(
+                Double(currentPlacement.frame.minX),
+                expectedNaturalX
+            ) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 3 应继续把自然音 \(pitchClass.displayText()) 放在右列固定 x 位置。"
+                    )
+                )
+            }
+
+            let expectedMidY = expectedCenterY(for: currentPlacement.topology.anchor)
+            if !approximatelyEqual(
+                Double(currentPlacement.frame.midY),
+                expectedMidY
+            ) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 3 应继续让自然音 \(pitchClass.displayText()) 的中心点与 natural row 锚点对齐。"
+                    )
+                )
+            }
+
+            return Double(currentPlacement.frame.midY)
+        }
+
+        let hasBrokenNaturalStride = zip(
+            naturalCenters,
+            naturalCenters.dropFirst()
+        ).contains(where: { pair in
+            !approximatelyEqual(pair.1 - pair.0, geometry.naturalRowStride)
+        })
+        if hasBrokenNaturalStride {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 应继续让 C-D-E-F-G-A-B 的主行中心按 naturalRowStride 连续递增。"
+                )
+            )
+        }
+
+        for pitchClass in PitchClass.accidentalCasesInOrder {
+            guard let currentPlacement = placement(for: pitchClass) else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 3 的 rail layout 缺少 accidental \(pitchClass.displayText()) 的 placement。"
+                    )
+                )
+                continue
+            }
+
+            if !approximatelyEqual(
+                Double(currentPlacement.frame.minX),
+                expectedAccidentalX
+            ) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 3 应继续把 accidental \(pitchClass.displayText()) 放在左列固定 x 位置。"
+                    )
+                )
+            }
+
+            let expectedMidY = expectedCenterY(for: currentPlacement.topology.anchor)
+            if !approximatelyEqual(
+                Double(currentPlacement.frame.midY),
+                expectedMidY
+            ) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 3 应继续让 accidental \(pitchClass.displayText()) 的中心点落在相邻自然音主行中点。"
+                    )
+                )
+            }
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripSharedLayoutContentSizeMatchesIntrinsicSemantics()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_shared_layout_content_size_matches_intrinsic_semantics"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        let tolerance = 0.0001
+
+        func approximatelyEqual(_ lhs: Double, _ rhs: Double) -> Bool {
+            abs(lhs - rhs) <= tolerance
+        }
+
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .positionPrompt),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        guard let layout = sideRailPresentation.naturalNoteStripRailLayout else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 应能从 side rail presentation 读到 active shared rail layout。"
+                )
+            )
+            return issues
+        }
+
+        let geometry = layout.context.geometry
+        let expectedContentWidth = geometry.twoColumnContentWidth
+        let expectedContentHeight = geometry.naturalColumnContentHeight(
+            rowCount: PitchClass.naturalCasesInOrder.count
+        )
+        let legacySingleColumnHeight = geometry.columnContentHeight(
+            rowCount: layout.context.slotModel.slotCount
+        )
+
+        if !approximatelyEqual(
+            Double(layout.contentSize.width),
+            expectedContentWidth
+        ) || !approximatelyEqual(
+            Double(layout.contentSize.height),
+            expectedContentHeight
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 shared rail contentSize 应继续由两列按钮宽度、列间距、7 个自然音主行与内容内边距共同决定。"
+                )
+            )
+        }
+
+        if approximatelyEqual(
+            Double(layout.contentSize.height),
+            legacySingleColumnHeight
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 shared rail contentHeight 不应退回 12 槽位单列公式；它必须继续来自 7 个自然音主行。"
+                )
+            )
+        }
+
+        let minX = layout.placements.map { Double($0.frame.minX) }.min()
+        let maxX = layout.placements.map { Double($0.frame.maxX) }.max()
+        let minY = layout.placements.map { Double($0.frame.minY) }.min()
+        let maxY = layout.placements.map { Double($0.frame.maxY) }.max()
+
+        if !approximatelyEqual(minX ?? -1, geometry.contentInsets.leading)
+            || !approximatelyEqual(
+                expectedContentWidth - (maxX ?? -1),
+                geometry.contentInsets.trailing
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 shared rail contentWidth 应继续精确包裹左右两列按钮，并保留 leading / trailing contentInsets。"
+                )
+            )
+        }
+
+        if !approximatelyEqual(minY ?? -1, geometry.contentInsets.top)
+            || !approximatelyEqual(
+                expectedContentHeight - (maxY ?? -1),
+                geometry.contentInsets.bottom
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 shared rail contentHeight 应继续精确包裹最上/最下 natural row，并保留 top / bottom contentInsets。"
+                )
+            )
+        }
+
+        var widenedScaleContract =
+            ExerciseNaturalNoteStripRailContract.defaultSideBySideAnswerRail
+        widenedScaleContract.crossAxisWidthScale = 99
+        let widenedScaleLayout = widenedScaleContract.defaultLayoutContext
+            .resolvedLayout
+        if widenedScaleLayout != layout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 3 的 shared rail layout 不应再依赖过渡字段 crossAxisWidthScale；width 必须继续由 shared geometry 自身决定。"
                 )
             )
         }
