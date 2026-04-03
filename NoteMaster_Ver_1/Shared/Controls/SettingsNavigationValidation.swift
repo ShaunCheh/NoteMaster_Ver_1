@@ -182,10 +182,10 @@ private extension SettingsNavigationValidationRunner {
             "在 \(platform.displayName) 上确认 close 永远关闭整个 settings card，而不是只关闭当前子页。",
             "确认在 root 页隐藏返回按钮；进入 section 或更深页面后显示返回按钮，点击后只回退卡片内一层。",
             "确认 root -> Exercise / Accessories / Staff / Piano 的 section page 可以继续进入深层子页，标题与内容和共享 builder 生成的 route 一致。",
-            "确认切换到 `single` / `sequence` 时 `Position Prompt` section 会消失；切回 `positionPrompt` 后会恢复。",
+            "确认 settings root 不再暴露 `Position Prompt` section；Position 模式相关的音名候选入口统一收口在 `Exercise > Mode`。",
             "确认切换到 horizontal 指板布局，或在 side 布局下保持 vertical 指板时 `Fretboard > Vertical Viewport` 深层页会消失；切回 stacked + vertical 后会恢复。",
             "确认 settings 中没有新增 `Rail` / `Strip Size` / `Strip Alignment` 一类入口；右侧 natural note strip 的尺寸与居中仍保持为内部布局契约。",
-            "确认 `Exercise` 分区只显示 `Exercise Mode / Composition Preset / Layout Preset`，不再出现 `Top Content / Main Content`。",
+            "确认 `Exercise > Mode` 页始终包含 `Exercise Mode`，并且仅在 `positionPrompt` 模式下追加 `Note Names` 多选行。",
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
@@ -258,10 +258,6 @@ private extension SettingsNavigationValidationRunner {
             issues.append(issue(fixtureName, "default state 应保留 Exercise section。"))
             return issues
         }
-        guard let positionPromptSection = resolveSection(.positionPrompt, in: panelModel) else {
-            issues.append(issue(fixtureName, "positionPrompt 默认态应保留 Position Prompt section。"))
-            return issues
-        }
         guard let accessoriesSection = resolveSection(.accessories, in: panelModel) else {
             issues.append(issue(fixtureName, "default state 应保留 Accessories section。"))
             return issues
@@ -285,7 +281,6 @@ private extension SettingsNavigationValidationRunner {
 
         if panelModel.sections.map(\.id) != [
             .exercise,
-            .positionPrompt,
             .accessories,
             .fretboard,
             .staff,
@@ -295,7 +290,15 @@ private extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "default state 的 section 顺序应保持 Exercise -> Position Prompt -> Accessories -> Fretboard -> Staff -> Piano -> Debug。"
+                    "default state 的 section 顺序应保持 Exercise -> Accessories -> Fretboard -> Staff -> Piano -> Debug。"
+                )
+            )
+        }
+        if resolveSection(.positionPrompt, in: panelModel) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 不应再保留 Position Prompt section。"
                 )
             )
         }
@@ -380,7 +383,8 @@ private extension SettingsNavigationValidationRunner {
                 title: SettingsRouteID.exerciseMode.fallbackTitle,
                 from: exerciseSection,
                 keepingRowIDs: [
-                    .choice(.exerciseMode)
+                    .choice(.exerciseMode),
+                    .positionFilter(.positionQuestionPitchClasses)
                 ]
             ),
             in: navigationModel,
@@ -419,15 +423,14 @@ private extension SettingsNavigationValidationRunner {
             issues: &issues
         )
 
-        assertFormPage(
-            route: .section(.positionPrompt),
-            expectedTitle: positionPromptSection.title,
-            expectedSection: positionPromptSection,
-            in: navigationModel,
-            fixtureName: fixtureName,
-            pageDescription: "Position Prompt section",
-            issues: &issues
-        )
+        if navigationModel.page(for: .section(.positionPrompt)) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 不应继续生成 Position Prompt section page。"
+                )
+            )
+        }
 
         assertIndexPage(
             route: .section(.accessories),
@@ -659,29 +662,47 @@ private extension SettingsNavigationValidationRunner {
             from: positionPromptStateContext
         )
 
-        guard let positionPromptSection = resolveSection(
-            .positionPrompt,
+        if resolveSection(.positionPrompt, in: positionPromptPanelModel) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 模式下不应继续暴露 Position Prompt section。"
+                )
+            )
+        }
+        if positionPromptNavigationModel.page(for: .section(.positionPrompt)) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "positionPrompt 模式下不应继续生成 Position Prompt section page。"
+                )
+            )
+        }
+        guard let exerciseSection = resolveSection(
+            .exercise,
             in: positionPromptPanelModel
         ) else {
             issues.append(
-                issue(fixtureName, "position prompt 模式下应保留 Position Prompt section。")
+                issue(fixtureName, "positionPrompt 模式下应保留 Exercise section。")
             )
             return issues
         }
         assertFormPage(
-            route: .section(.positionPrompt),
-            expectedTitle: positionPromptSection.title,
-            expectedSection: positionPromptSection,
+            route: .exerciseMode,
+            expectedTitle: SettingsRouteID.exerciseMode.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.exerciseMode.fallbackTitle,
+                from: exerciseSection,
+                keepingRowIDs: [
+                    .choice(.exerciseMode),
+                    .positionFilter(.positionQuestionPitchClasses)
+                ]
+            ),
             in: positionPromptNavigationModel,
             fixtureName: fixtureName,
-            pageDescription: "Position Prompt active section",
+            pageDescription: "Position exercise mode page",
             issues: &issues
         )
-        if positionPromptNavigationModel.page(for: .positionPromptFilter) != nil {
-            issues.append(
-                issue(fixtureName, "只有一个 Position Prompt 子分组时，不应继续暴露独立的深层页。")
-            )
-        }
 
         return issues
     }
@@ -988,13 +1009,14 @@ private extension SettingsNavigationValidationRunner {
 
         if exerciseSection.rows.map(\.id) != [
             .choice(.exerciseMode),
+            .positionFilter(.positionQuestionPitchClasses),
             .choice(.compositionPreset),
             .choice(.layoutPreset)
         ] {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise section row 顺序应保持 Exercise Mode -> Composition Preset -> Layout Preset。"
+                    "Exercise section row 顺序应保持 Exercise Mode -> Position Question Notes -> Composition Preset -> Layout Preset。"
                 )
             )
         }

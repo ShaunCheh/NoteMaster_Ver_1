@@ -720,6 +720,7 @@ private final class ToggleRowView: UIView {
 private final class PositionFilterRowView: UIView {
     var onEvent: ((SettingsPanelEvent) -> Void)?
 
+    private var rowID: SettingsPositionFilterRowID?
     private var buttonsByOptionID: [SettingsPositionFilterOptionID: PositionFilterButton] = [:]
 
     private let contentStackView = UIStackView()
@@ -737,6 +738,7 @@ private final class PositionFilterRowView: UIView {
     }
 
     func apply(item: SettingsPositionFilterRow) {
+        rowID = item.id
         accessibilityIdentifier = "settings-panel-position-filter-row-\(String(describing: item.id))"
         accessibilityLabel = item.accessibilityLabel
         titleLabel.text = item.title
@@ -838,13 +840,14 @@ private final class PositionFilterRowView: UIView {
     @objc
     private func handleOptionButtonTap(_ sender: PositionFilterButton) {
         guard
+            let rowID,
             let optionID = sender.optionID,
             sender.isEnabled
         else {
             return
         }
 
-        onEvent?(.togglePositionPromptFilterOption(optionID))
+        onEvent?(.togglePositionFilterOption(rowID, optionID))
     }
 }
 

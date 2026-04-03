@@ -585,7 +585,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     func makePositionPromptSession(
         configuration: FretboardConfiguration,
-        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter
+        filter: PositionPromptCandidateFilter = TrainerPositionQuestionConfiguration.default.activeFilter
     ) -> PositionPromptSession {
         var generator = SystemRandomNumberGenerator()
         return makePositionPromptSession(
@@ -607,7 +607,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     func makePositionPromptSession<R: RandomNumberGenerator>(
         configuration: FretboardConfiguration,
-        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
+        filter: PositionPromptCandidateFilter = TrainerPositionQuestionConfiguration.default.activeFilter,
         using generator: inout R
     ) -> PositionPromptSession {
         let normalizedFilter = Self.normalizedPositionPromptFilter(filter)
@@ -792,7 +792,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     mutating func handlePositionPromptAnswer(
         _ pitchClass: PitchClass,
         configuration: FretboardConfiguration,
-        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
+        filter: PositionPromptCandidateFilter = TrainerPositionQuestionConfiguration.default.activeFilter,
         session: inout PositionPromptSession
     ) -> PositionPromptAnswerResult {
         var generator = SystemRandomNumberGenerator()
@@ -823,7 +823,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         _ event: ExerciseAnswerEvent,
         configuration: FretboardConfiguration,
         answerRule: PositionPromptAnswerRule,
-        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
+        filter: PositionPromptCandidateFilter = TrainerPositionQuestionConfiguration.default.activeFilter,
         session: inout PositionPromptSession
     ) -> PositionPromptAnswerResult? {
         guard let pitchClass = Self.resolvedPositionPromptAnswerPitchClass(
@@ -845,7 +845,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     mutating func handlePositionPromptAnswer<R: RandomNumberGenerator>(
         _ pitchClass: PitchClass,
         configuration: FretboardConfiguration,
-        filter: PositionPromptCandidateFilter = TrainerPositionPromptConfiguration.default.activeFilter,
+        filter: PositionPromptCandidateFilter = TrainerPositionQuestionConfiguration.default.activeFilter,
         session: inout PositionPromptSession,
         using generator: inout R
     ) -> PositionPromptAnswerResult {

@@ -25,6 +25,97 @@ enum PositionPromptAnswerRule: Equatable, Hashable, Sendable {
     case samePitchClass
 }
 
+struct TrainerPositionQuestionConfiguration: Equatable, Sendable {
+    static let supportedPitchClasses: [PitchClass] = PitchClass.naturalCasesInOrder
+    static let defaultSelectedPitchClasses: Set<PitchClass> = [
+        .c, .e, .f, .b
+    ]
+    static let `default` = TrainerPositionQuestionConfiguration()
+
+    private(set) var selectedPitchClasses: Set<PitchClass>
+
+    init(
+        selectedPitchClasses: Set<PitchClass> = Self.defaultSelectedPitchClasses
+    ) {
+        self.selectedPitchClasses = Self.normalizedSelectedPitchClasses(
+            selectedPitchClasses
+        )
+    }
+
+    var activeFilter: PositionPromptCandidateFilter {
+        .noteNames(selectedPitchClasses)
+    }
+
+    var sortedSelectedPitchClasses: [PitchClass] {
+        Self.supportedPitchClasses.filter {
+            selectedPitchClasses.contains($0)
+        }
+    }
+
+    func normalized() -> TrainerPositionQuestionConfiguration {
+        TrainerPositionQuestionConfiguration(
+            selectedPitchClasses: selectedPitchClasses
+        )
+    }
+
+    func contains(_ pitchClass: PitchClass) -> Bool {
+        selectedPitchClasses.contains(pitchClass)
+    }
+
+    func canDeselect(_ pitchClass: PitchClass) -> Bool {
+        guard selectedPitchClasses.contains(pitchClass) else {
+            return true
+        }
+
+        return selectedPitchClasses.count > 1
+    }
+
+    func toggled(
+        pitchClass: PitchClass
+    ) -> TrainerPositionQuestionConfiguration {
+        guard pitchClass.isNatural else {
+            return self
+        }
+
+        var nextSelectedPitchClasses = selectedPitchClasses
+        if nextSelectedPitchClasses.contains(pitchClass) {
+            guard canDeselect(pitchClass) else {
+                return self
+            }
+            nextSelectedPitchClasses.remove(pitchClass)
+        } else {
+            nextSelectedPitchClasses.insert(pitchClass)
+        }
+
+        return TrainerPositionQuestionConfiguration(
+            selectedPitchClasses: nextSelectedPitchClasses
+        )
+    }
+
+    mutating func setSelectedPitchClasses(
+        _ selectedPitchClasses: Set<PitchClass>
+    ) {
+        self.selectedPitchClasses = Self.normalizedSelectedPitchClasses(
+            selectedPitchClasses
+        )
+    }
+
+    mutating func togglePitchClass(_ pitchClass: PitchClass) {
+        self = toggled(pitchClass: pitchClass)
+    }
+
+    private static func normalizedSelectedPitchClasses(
+        _ selectedPitchClasses: Set<PitchClass>
+    ) -> Set<PitchClass> {
+        let normalizedPitchClasses = Set(
+            selectedPitchClasses.filter(\.isNatural)
+        )
+        return normalizedPitchClasses.isEmpty
+            ? defaultSelectedPitchClasses
+            : normalizedPitchClasses
+    }
+}
+
 struct TrainerPositionPromptConfiguration: Equatable, Sendable {
     static let supportedFretRange: ClosedRange<Int> = 1...12
     static let supportedPitchClasses: [PitchClass] = PitchClass.naturalCasesInOrder
@@ -244,6 +335,7 @@ struct TrainerSequenceConfiguration: Equatable, Sendable {
 struct TrainerDisplayState: Equatable, Sendable {
     var exerciseMode: TrainerExerciseMode
     var sequenceConfiguration: TrainerSequenceConfiguration
+    var positionQuestionConfiguration: TrainerPositionQuestionConfiguration
     var positionPromptConfiguration: TrainerPositionPromptConfiguration
 
     static let `default` = TrainerDisplayState(
@@ -253,10 +345,12 @@ struct TrainerDisplayState: Equatable, Sendable {
     init(
         exerciseMode: TrainerExerciseMode = .single,
         sequenceConfiguration: TrainerSequenceConfiguration = .default,
+        positionQuestionConfiguration: TrainerPositionQuestionConfiguration = .default,
         positionPromptConfiguration: TrainerPositionPromptConfiguration = .default
     ) {
         self.exerciseMode = exerciseMode
         self.sequenceConfiguration = sequenceConfiguration
+        self.positionQuestionConfiguration = positionQuestionConfiguration.normalized()
         self.positionPromptConfiguration = positionPromptConfiguration.normalized()
     }
 
@@ -272,6 +366,10 @@ struct TrainerDisplayState: Equatable, Sendable {
         positionPromptConfiguration.answerRule
     }
 
+    var positionQuestionCandidateFilter: PositionPromptCandidateFilter {
+        positionQuestionConfiguration.activeFilter
+    }
+
     mutating func setExerciseMode(_ mode: TrainerExerciseMode) {
         exerciseMode = mode
     }
@@ -280,6 +378,12 @@ struct TrainerDisplayState: Equatable, Sendable {
         _ configuration: TrainerPositionPromptConfiguration
     ) {
         positionPromptConfiguration = configuration.normalized()
+    }
+
+    mutating func setPositionQuestionConfiguration(
+        _ configuration: TrainerPositionQuestionConfiguration
+    ) {
+        positionQuestionConfiguration = configuration.normalized()
     }
 
     mutating func setPositionPromptFilterMode(
@@ -292,6 +396,14 @@ struct TrainerDisplayState: Equatable, Sendable {
         _ answerRule: PositionPromptAnswerRule
     ) {
         positionPromptConfiguration.setAnswerRule(answerRule)
+    }
+
+    mutating func togglePositionQuestionPitchClass(
+        _ pitchClass: PitchClass
+    ) {
+        positionQuestionConfiguration = positionQuestionConfiguration.toggled(
+            pitchClass: pitchClass
+        )
     }
 
     mutating func togglePositionPromptPitchClass(

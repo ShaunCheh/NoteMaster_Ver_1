@@ -223,14 +223,14 @@ final class iOSViewController: UIViewController {
         )
     }
 
-    private var currentPositionPromptFilter: PositionPromptCandidateFilter {
-        trainerDisplayState.positionPromptConfiguration.activeFilter
+    private var currentPositionQuestionCandidateFilter: PositionPromptCandidateFilter {
+        trainerDisplayState.positionQuestionCandidateFilter
     }
 
     private var currentPositionPromptCandidatePoolSignature: FretboardNaturalNoteTrainerState.PositionPromptSession.SchedulingState.CandidatePoolSignature {
         FretboardNaturalNoteTrainerState.positionPromptCandidatePoolSignature(
             in: displayState.configuration,
-            filter: currentPositionPromptFilter
+            filter: currentPositionQuestionCandidateFilter
         )
     }
 
@@ -419,7 +419,7 @@ final class iOSViewController: UIViewController {
             return false
         }
 
-        switch currentPositionPromptFilter {
+        switch currentPositionQuestionCandidateFilter {
         case let .noteNames(selectedPitchClasses):
             return selectedPitchClasses.contains(resolvedPitchClass)
         case let .frets(selectedFrets):
@@ -444,7 +444,7 @@ final class iOSViewController: UIViewController {
         var generator = SystemRandomNumberGenerator()
         positionPromptSession = fretboardTrainerState.makePositionPromptSession(
             configuration: displayState.configuration,
-            filter: currentPositionPromptFilter,
+            filter: currentPositionQuestionCandidateFilter,
             using: &generator
         )
         clearPositionPromptFeedbackState()
@@ -1123,7 +1123,7 @@ final class iOSViewController: UIViewController {
             routedAnswer.event,
             configuration: displayState.configuration,
             answerRule: trainerDisplayState.positionPromptAnswerRule,
-            filter: currentPositionPromptFilter,
+            filter: currentPositionQuestionCandidateFilter,
             session: &positionPromptSession
         ) else {
             print(
@@ -1345,7 +1345,8 @@ final class iOSViewController: UIViewController {
             staffDisplayState = baseStaffDisplayState
         }
 
-        if reason == "positionPromptFilterChanged" {
+        if reason == "positionPromptFilterChanged"
+            || reason == "positionQuestionCandidatesChanged" {
             resetPositionPromptInteractionState()
         }
 
@@ -1709,9 +1710,9 @@ final class iOSViewController: UIViewController {
         let didChangePianoPanel = nextPianoPanelState != pianoPanelState
         let didChangeSettingsDebug = nextSettingsDebugState != settingsDebugState
         let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
-        let didChangePositionPromptActiveFilter =
-            nextTrainerDisplayState.positionPromptConfiguration.activeFilter
-            != trainerDisplayState.positionPromptConfiguration.activeFilter
+        let didChangePositionQuestionCandidates =
+            nextTrainerDisplayState.positionQuestionCandidateFilter
+            != trainerDisplayState.positionQuestionCandidateFilter
 
         guard didChangeFretboard
             || didChangeStaff
@@ -1759,8 +1760,8 @@ final class iOSViewController: UIViewController {
             let trainerSyncReason: String
             if didChangeExerciseMode {
                 trainerSyncReason = "exerciseModeChanged"
-            } else if didChangePositionPromptActiveFilter {
-                trainerSyncReason = "positionPromptFilterChanged"
+            } else if didChangePositionQuestionCandidates {
+                trainerSyncReason = "positionQuestionCandidatesChanged"
             } else {
                 trainerSyncReason = "trainerSettingsChanged"
             }

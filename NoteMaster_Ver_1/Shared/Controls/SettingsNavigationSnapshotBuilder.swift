@@ -159,7 +159,8 @@ enum SettingsNavigationSnapshotBuilder {
                     title: SettingsRouteID.exerciseMode.fallbackTitle,
                     subtitle: "Single, sequence, or position",
                     rowIDs: [
-                        .choice(.exerciseMode)
+                        .choice(.exerciseMode),
+                        .positionFilter(.positionQuestionPitchClasses)
                     ]
                 ),
                 ChildPageSpec(

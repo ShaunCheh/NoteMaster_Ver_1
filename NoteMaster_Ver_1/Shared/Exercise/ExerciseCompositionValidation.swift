@@ -344,21 +344,20 @@ private extension ExerciseCompositionValidationRunner {
             return issues
         }
 
-        if exerciseSection.rows.map(\.id) != [
-            .choice(.exerciseMode),
-            .choice(.compositionPreset),
-            .choice(.layoutPreset)
-        ] {
-            issues.append(
-                issue(
-                    fixtureName,
-                    "阶段 2 的 Exercise section 应稳定暴露 Exercise Mode / Composition Preset / Layout Preset。"
-                )
-            )
-        }
-
         switch exerciseMode {
         case .single, .sequence:
+            if exerciseSection.rows.map(\.id) != [
+                .choice(.exerciseMode),
+                .choice(.compositionPreset),
+                .choice(.layoutPreset)
+            ] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "single / sequence 模式下的 Exercise section 应暴露 Exercise Mode / Composition Preset / Layout Preset。"
+                    )
+                )
+            }
             if expectedPageDisplayState.topContentMode != .staff
                 || expectedPageDisplayState.mainContentMode != .fretboard {
                 issues.append(
@@ -415,6 +414,7 @@ private extension ExerciseCompositionValidationRunner {
             }
             let expectedPositionPromptRowIDs: [SettingsRowID] = [
                 .choice(.exerciseMode),
+                .positionFilter(.positionQuestionPitchClasses),
                 .choice(.compositionPreset),
                 .choice(.layoutPreset)
             ]
@@ -422,29 +422,15 @@ private extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "positionPrompt 模式下 Exercise section 应继续保留 3 行基础预设入口。"
+                        "positionPrompt 模式下 Exercise section 应暴露 Exercise Mode / Note Names / Composition Preset / Layout Preset。"
                     )
                 )
             }
-            guard let positionPromptSection = panelModel.sections.first(where: {
-                $0.id == .positionPrompt
-            }) else {
+            if panelModel.sections.contains(where: { $0.id == .positionPrompt }) {
                 issues.append(
                     issue(
                         fixtureName,
-                        "positionPrompt 模式下应继续暴露 Position Prompt section。"
-                    )
-                )
-                return issues
-            }
-            if positionPromptSection.rows.map(\.id) != [
-                .choice(.positionPromptFilterMode),
-                .positionFilter(.positionPromptFilterOptions)
-            ] {
-                issues.append(
-                    issue(
-                        fixtureName,
-                        "positionPrompt 模式下 Position Prompt section 应继续暴露 Filter / Position Filter 两行。"
+                        "positionPrompt 模式下不应继续暴露 Position Prompt section。"
                     )
                 )
             }

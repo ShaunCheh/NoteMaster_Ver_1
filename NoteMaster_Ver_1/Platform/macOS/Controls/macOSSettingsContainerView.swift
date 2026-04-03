@@ -20,7 +20,7 @@ enum macOSSettingsMutationTrace {
         switch event {
         case let .triggerAction(actionID):
             return actionID.rowID == .layoutPreset
-        case .togglePositionPromptFilterOption, .setSliderValue, .setToggleValue:
+        case .togglePositionFilterOption, .setSliderValue, .setToggleValue:
             return false
         }
     }

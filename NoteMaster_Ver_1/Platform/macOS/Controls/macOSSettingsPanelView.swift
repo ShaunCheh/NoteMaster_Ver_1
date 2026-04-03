@@ -825,6 +825,7 @@ private final class ToggleRowView: NSView {
 private final class PositionFilterRowView: NSView {
     var onEvent: ((SettingsPanelEvent) -> Void)?
 
+    private var rowID: SettingsPositionFilterRowID?
     private var buttonsByOptionID: [SettingsPositionFilterOptionID: PositionFilterButton] = [:]
 
     private let contentStackView = NSStackView()
@@ -842,6 +843,7 @@ private final class PositionFilterRowView: NSView {
     }
 
     func apply(item: SettingsPositionFilterRow) {
+        rowID = item.id
         identifier = NSUserInterfaceItemIdentifier(
             "settings-panel-position-filter-row-\(String(describing: item.id))"
         )
@@ -946,13 +948,14 @@ private final class PositionFilterRowView: NSView {
     @objc
     private func handleOptionButtonTap(_ sender: PositionFilterButton) {
         guard
+            let rowID,
             let optionID = sender.optionID,
             sender.isEnabled
         else {
             return
         }
 
-        onEvent?(.togglePositionPromptFilterOption(optionID))
+        onEvent?(.togglePositionFilterOption(rowID, optionID))
     }
 }
 

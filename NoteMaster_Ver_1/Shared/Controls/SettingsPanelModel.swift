@@ -39,7 +39,6 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     static var allCases: [SettingsSectionID] {
         [
             .exercise,
-            .positionPrompt,
             .accessories,
             .fretboard,
             .staff,
@@ -76,6 +75,7 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         case .exercise:
             return [
                 .choice(.exerciseMode),
+                .positionFilter(.positionQuestionPitchClasses),
                 .choice(.compositionPreset),
                 .choice(.layoutPreset)
             ]
@@ -135,10 +135,13 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
 }
 
 enum SettingsPositionFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
+    case positionQuestionPitchClasses
     case positionPromptFilterOptions
 
     var sectionID: SettingsSectionID {
         switch self {
+        case .positionQuestionPitchClasses:
+            return .exercise
         case .positionPromptFilterOptions:
             return .positionPrompt
         }
@@ -146,6 +149,8 @@ enum SettingsPositionFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var supportedFrets: ClosedRange<Int> {
         switch self {
+        case .positionQuestionPitchClasses:
+            return TrainerPositionPromptConfiguration.supportedFretRange
         case .positionPromptFilterOptions:
             return TrainerPositionPromptConfiguration.supportedFretRange
         }
@@ -153,6 +158,8 @@ enum SettingsPositionFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var supportedPitchClasses: [PitchClass] {
         switch self {
+        case .positionQuestionPitchClasses:
+            return TrainerPositionQuestionConfiguration.supportedPitchClasses
         case .positionPromptFilterOptions:
             return TrainerPositionPromptConfiguration.supportedPitchClasses
         }
@@ -1535,7 +1542,10 @@ struct SettingsPanelModel: Equatable, Sendable {
 
 enum SettingsPanelEvent: Equatable, Sendable {
     case triggerAction(SettingsActionID)
-    case togglePositionPromptFilterOption(SettingsPositionFilterOptionID)
+    case togglePositionFilterOption(
+        SettingsPositionFilterRowID,
+        SettingsPositionFilterOptionID
+    )
     case setSliderValue(SettingsSliderID, CGFloat)
     case setToggleValue(SettingsToggleID, Bool)
 
@@ -1545,14 +1555,27 @@ enum SettingsPanelEvent: Equatable, Sendable {
         switch self {
         case let .triggerAction(actionID):
             actionID.apply(to: &stateContext)
-        case let .togglePositionPromptFilterOption(optionID):
-            switch optionID {
-            case let .pitchClass(pitchClass):
-                stateContext.trainerDisplayState.togglePositionPromptPitchClass(
+        case let .togglePositionFilterOption(rowID, optionID):
+            switch rowID {
+            case .positionQuestionPitchClasses:
+                guard case let .pitchClass(pitchClass) = optionID else {
+                    return
+                }
+                stateContext.trainerDisplayState.togglePositionQuestionPitchClass(
                     pitchClass
                 )
-            case let .fret(fret):
-                stateContext.trainerDisplayState.togglePositionPromptFret(fret)
+            case .positionPromptFilterOptions:
+                switch optionID {
+                case let .pitchClass(pitchClass):
+                    stateContext.trainerDisplayState
+                        .togglePositionPromptPitchClass(
+                            pitchClass
+                        )
+                case let .fret(fret):
+                    stateContext.trainerDisplayState.togglePositionPromptFret(
+                        fret
+                    )
+                }
             }
         case let .setSliderValue(sliderID, value):
             sliderID.apply(value: value, to: &stateContext)

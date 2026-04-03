@@ -172,27 +172,48 @@ enum SettingsPanelSnapshotBuilder {
         id: SettingsPositionFilterRowID,
         stateContext: SettingsPanelStateContext
     ) -> SettingsPositionFilterRow {
-        let configuration = stateContext.trainerDisplayState.positionPromptConfiguration
-
-        switch configuration.filterMode {
-        case .noteName:
+        switch id {
+        case .positionQuestionPitchClasses:
+            let configuration = stateContext.trainerDisplayState
+                .positionQuestionConfiguration
             return SettingsPositionFilterRow(
                 id: id,
                 title: "Note Names",
-                accessibilityLabel: "Select the note names used when generating position prompt questions",
+                accessibilityLabel: "Select the note names used when generating position questions",
                 options: id.supportedPitchClasses.map { pitchClass in
                     let title = pitchClass.displayText()
                     let isSelected = configuration.contains(pitchClass)
                     return SettingsPositionFilterItem(
                         id: .pitchClass(pitchClass),
                         title: title,
-                        accessibilityLabel: "Toggle note name \(title) for position prompt questions",
+                        accessibilityLabel: "Toggle note name \(title) for position questions",
                         isSelected: isSelected,
                         isEnabled: !isSelected || configuration.canDeselect(pitchClass)
                     )
                 }
             )
-        case .fret:
+        case .positionPromptFilterOptions:
+            let configuration = stateContext.trainerDisplayState
+                .positionPromptConfiguration
+            switch configuration.filterMode {
+            case .noteName:
+                return SettingsPositionFilterRow(
+                    id: id,
+                    title: "Note Names",
+                    accessibilityLabel: "Select the note names used when generating position prompt questions",
+                    options: id.supportedPitchClasses.map { pitchClass in
+                        let title = pitchClass.displayText()
+                        let isSelected = configuration.contains(pitchClass)
+                        return SettingsPositionFilterItem(
+                            id: .pitchClass(pitchClass),
+                            title: title,
+                            accessibilityLabel: "Toggle note name \(title) for position prompt questions",
+                            isSelected: isSelected,
+                            isEnabled: !isSelected || configuration.canDeselect(pitchClass)
+                        )
+                    }
+                )
+            case .fret:
             return SettingsPositionFilterRow(
                 id: id,
                 title: "Frets",
@@ -208,6 +229,7 @@ enum SettingsPanelSnapshotBuilder {
                     )
                 }
             )
+            }
         }
     }
 
@@ -242,8 +264,10 @@ enum SettingsPanelSnapshotBuilder {
         stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch positionFilterRowID {
-        case .positionPromptFilterOptions:
+        case .positionQuestionPitchClasses:
             return stateContext.trainerDisplayState.isPositionPromptMode
+        case .positionPromptFilterOptions:
+            return false
         }
     }
 }
