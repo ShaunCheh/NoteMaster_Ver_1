@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: build-placement-builder
     content: 实现 deterministic 的 shared placement builder，并把输出暴露到 ExerciseScene / ExercisePresentationState
-    status: pending
+    status: completed
   - id: extend-validations
     content: 补齐 composition validation，冻结自然音/升号双列错位的 shared placement 不变量
     status: pending

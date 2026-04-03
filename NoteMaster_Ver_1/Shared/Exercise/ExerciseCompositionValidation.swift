@@ -5,6 +5,7 @@
 //  Created by Cursor on 2026/4/1.
 //
 
+import CoreGraphics
 import Foundation
 
 enum ExerciseCompositionValidationPlatform: String {
@@ -174,6 +175,11 @@ private extension ExerciseCompositionValidationRunner {
                 name: "natural_note_strip_stage_c_layout_context_freezes_default_geometry_tokens",
                 validate:
                     validateNaturalNoteStripStageCLayoutContextFreezesDefaultGeometryTokens
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_stage_c_layout_builder_exposes_shared_layout_output",
+                validate:
+                    validateNaturalNoteStripStageCLayoutBuilderExposesSharedLayoutOutput
             ),
             ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
@@ -1631,6 +1637,161 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "方案 C 阶段 1 的非 rail sideBySide scene 不应误暴露 natural note strip rail layoutContext。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripStageCLayoutBuilderExposesSharedLayoutOutput()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_stage_c_layout_builder_exposes_shared_layout_output"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let positionPromptTrainerDisplayState = TrainerDisplayState(
+            exerciseMode: .positionPrompt
+        )
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+
+        let expectedPitchClasses = PitchClass.allCases
+        switch sideRailPresentation.naturalNoteStripRailLayout {
+        case let .some(layout):
+            if layout.context != sideRailPresentation.naturalNoteStripRailLayoutContext {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 2 的 shared rail layout 应继续直接引用当前 presentation 暴露的 layoutContext。"
+                    )
+                )
+            }
+
+            if layout.placements.map(\.pitchClass) != expectedPitchClasses {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 2 的 shared rail layout 应继续按 chromatic12 顺序输出 C/C#/D/.../B 的 placements。"
+                    )
+                )
+            }
+
+            if layout.placements.count != layout.context.slotModel.slotCount {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 2 的 shared rail layout 应继续为每个语义槽位产出一个 placement。"
+                    )
+                )
+            }
+
+            if layout.contentSize.width <= 0 || layout.contentSize.height <= 0 {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 2 的 shared rail layout 应继续产出正值 contentSize，而不是零尺寸布局。"
+                    )
+                )
+            }
+
+            let resolvedButtonExtent = layout.context.geometry.resolvedButtonExtent
+            let hasMismatchedButtonFrames = layout.placements.contains { placement in
+                placement.frame.width != resolvedButtonExtent
+                    || placement.frame.height != resolvedButtonExtent
+            }
+            if hasMismatchedButtonFrames {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 2 的 shared rail layout 应继续让全部 placement frame 与 rail buttonExtent 对齐。"
+                    )
+                )
+            }
+
+            if layout.context.titleDisplayPolicy == .allPitchClasses
+                && layout.placements.contains(where: { !$0.showsTitle }) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "方案 C 阶段 2 的 shared rail layout 在 allPitchClasses 策略下，不应漏掉任何按钮标题可见性。"
+                    )
+                )
+            }
+        case .none:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 2 的 side rail presentation 应暴露 active shared rail layout，而不是 nil。"
+                )
+            )
+        }
+
+        if sideRailPresentation.scene.naturalNoteStripRailLayout
+            != sideRailPresentation.naturalNoteStripRailLayout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 2 的 ExerciseScene 应继续把 shared rail layout 原样透传给 presentation 层。"
+                )
+            )
+        }
+
+        let stackedRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: positionPromptTrainerDisplayState,
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .stacked
+                )
+            )
+        )
+        if stackedRailPresentation.naturalNoteStripRailLayout != nil
+            || stackedRailPresentation.scene.naturalNoteStripRailLayout != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 2 的 stacked scene 不应误暴露 natural note strip shared rail layout。"
+                )
+            )
+        }
+
+        let targetPromptSideBySidePresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .targetPromptToFretboard,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        if targetPromptSideBySidePresentation.naturalNoteStripRailLayout != nil
+            || targetPromptSideBySidePresentation.scene.naturalNoteStripRailLayout
+            != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 2 的非 rail sideBySide scene 不应误暴露 natural note strip shared rail layout。"
                 )
             )
         }
