@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: add-shared-placement-types
     content: 在 Shared/Exercise 层新增 rail placement 数据模型与几何 token，补足 shared 直接产出布局所需的信息
-    status: pending
+    status: completed
   - id: build-placement-builder
     content: 实现 deterministic 的 shared placement builder，并把输出暴露到 ExerciseScene / ExercisePresentationState
     status: pending
