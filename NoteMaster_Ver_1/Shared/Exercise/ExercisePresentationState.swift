@@ -265,6 +265,22 @@ enum ExerciseNaturalNoteStripRailVerticalAlignment: Equatable, Sendable {
     case centered
 }
 
+enum ExerciseNaturalNoteStripRailPitchTopologyColumn: Equatable, Sendable {
+    case accidentalLeft
+    case naturalRight
+}
+
+enum ExerciseNaturalNoteStripRailPitchTopologyAnchor: Equatable, Sendable {
+    case naturalRow(index: Int)
+    case midpointBetweenNaturalRows(top: Int, bottom: Int)
+}
+
+struct ExerciseNaturalNoteStripRailPitchTopology: Equatable, Sendable {
+    var pitchClass: PitchClass
+    var column: ExerciseNaturalNoteStripRailPitchTopologyColumn
+    var anchor: ExerciseNaturalNoteStripRailPitchTopologyAnchor
+}
+
 struct ExerciseNaturalNoteStripRailContract: Equatable, Sendable {
     static let defaultButtonExtent: Double = 50
     static let defaultCrossAxisWidthScale: Double = 2
@@ -290,6 +306,95 @@ struct ExerciseNaturalNoteStripRailContract: Equatable, Sendable {
 
     var resolvedCrossAxisWidthScale: Double {
         max(crossAxisWidthScale, 1)
+    }
+}
+
+extension PitchClass {
+    static var accidentalCasesInOrder: [PitchClass] {
+        allCases.filter(\.isAccidental)
+    }
+
+    static var naturalNoteStripStaggeredRailTopologiesInChromaticOrder:
+        [ExerciseNaturalNoteStripRailPitchTopology] {
+        allCases.map(\.naturalNoteStripStaggeredRailPitchTopology)
+    }
+
+    var naturalNoteStripStaggeredRailPitchTopology:
+        ExerciseNaturalNoteStripRailPitchTopology {
+        switch self {
+        case .c:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 0)
+            )
+        case .cSharp:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 0, bottom: 1)
+            )
+        case .d:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 1)
+            )
+        case .dSharp:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 1, bottom: 2)
+            )
+        case .e:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 2)
+            )
+        case .f:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 3)
+            )
+        case .fSharp:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 3, bottom: 4)
+            )
+        case .g:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 4)
+            )
+        case .gSharp:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 4, bottom: 5)
+            )
+        case .a:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 5)
+            )
+        case .aSharp:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 5, bottom: 6)
+            )
+        case .b:
+            return ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: self,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 6)
+            )
+        }
     }
 }
 

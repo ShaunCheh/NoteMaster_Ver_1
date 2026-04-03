@@ -167,6 +167,10 @@ private extension ExerciseCompositionValidationRunner {
                 validate: validateSideRailContractRemainsOrthogonalToFretboardHeightContract
             ),
             ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_stage_c_topology_freezes_chromatic12_semantics",
+                validate: validateNaturalNoteStripStageCTopologyFreezesChromatic12Semantics
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "vertical_fit_content_split_sizing_tracks_surface_kinds",
                 validate: validateVerticalFitContentSplitSizingTracksSurfaceKinds
             ),
@@ -1210,6 +1214,209 @@ private extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "sideBySide 的非 rail fretboard 场景仍应保持 fillAvailableHeight，证明 rail contract 不会篡改 side 布局的 fretboard 高度语义。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripStageCTopologyFreezesChromatic12Semantics()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_stage_c_topology_freezes_chromatic12_semantics"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let expectedNaturals: [PitchClass] = [.c, .d, .e, .f, .g, .a, .b]
+        if PitchClass.naturalCasesInOrder != expectedNaturals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续把 naturalCasesInOrder 冻结为 C-D-E-F-G-A-B，作为右列自然音主行顺序。"
+                )
+            )
+        }
+
+        let expectedAccidentals: [PitchClass] = [
+            .cSharp,
+            .dSharp,
+            .fSharp,
+            .gSharp,
+            .aSharp
+        ]
+        if PitchClass.accidentalCasesInOrder != expectedAccidentals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续把 accidentalCasesInOrder 冻结为 C#-D#-F#-G#-A#，不在 E-F / B-C 之间伪造 accidental 槽位。"
+                )
+            )
+        }
+
+        let naturalColumns = PitchClass.naturalCasesInOrder.map {
+            $0.naturalNoteStripStaggeredRailPitchTopology.column
+        }
+        if naturalColumns != Array(
+            repeating: .naturalRight,
+            count: PitchClass.naturalCasesInOrder.count
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续把全部自然音拓扑冻结在右列，而不是让平台层重新决定列归属。"
+                )
+            )
+        }
+
+        let accidentalColumns = PitchClass.accidentalCasesInOrder.map {
+            $0.naturalNoteStripStaggeredRailPitchTopology.column
+        }
+        if accidentalColumns != Array(
+            repeating: .accidentalLeft,
+            count: PitchClass.accidentalCasesInOrder.count
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续把全部 accidental 拓扑冻结在左列，而不是让平台层自行推导左右列。"
+                )
+            )
+        }
+
+        let naturalRowIndices = PitchClass.naturalCasesInOrder.compactMap {
+            pitchClass -> Int? in
+            guard case let .naturalRow(index) =
+                pitchClass.naturalNoteStripStaggeredRailPitchTopology.anchor else {
+                return nil
+            }
+
+            return index
+        }
+        if naturalRowIndices != Array(0...6) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续把自然音主行索引冻结为 0...6，保证 C-D-E-F-G-A-B 上下连续相邻。"
+                )
+            )
+        }
+
+        let accidentalMidpointPairs = PitchClass.accidentalCasesInOrder.compactMap {
+            pitchClass -> [Int]? in
+            guard case let .midpointBetweenNaturalRows(top, bottom) =
+                pitchClass.naturalNoteStripStaggeredRailPitchTopology.anchor else {
+                return nil
+            }
+
+            return [top, bottom]
+        }
+        let expectedAccidentalMidpointPairs = [
+            [0, 1],
+            [1, 2],
+            [3, 4],
+            [4, 5],
+            [5, 6]
+        ]
+        if accidentalMidpointPairs != expectedAccidentalMidpointPairs {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续冻结 C#/D#/F#/G#/A# 位于相邻自然音中点，且 E-F / B-C 之间没有 accidental midpoint。"
+                )
+            )
+        }
+
+        let expectedTopologies: [ExerciseNaturalNoteStripRailPitchTopology] = [
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .c,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 0)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .cSharp,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 0, bottom: 1)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .d,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 1)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .dSharp,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 1, bottom: 2)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .e,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 2)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .f,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 3)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .fSharp,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 3, bottom: 4)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .g,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 4)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .gSharp,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 4, bottom: 5)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .a,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 5)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .aSharp,
+                column: .accidentalLeft,
+                anchor: .midpointBetweenNaturalRows(top: 5, bottom: 6)
+            ),
+            ExerciseNaturalNoteStripRailPitchTopology(
+                pitchClass: .b,
+                column: .naturalRight,
+                anchor: .naturalRow(index: 6)
+            )
+        ]
+        if PitchClass.naturalNoteStripStaggeredRailTopologiesInChromaticOrder
+            != expectedTopologies {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续把 12 个 PitchClass 的双列错位拓扑冻结在 shared 层，而不是依赖平台 stack 顺序临时拼装。"
+                )
+            )
+        }
+
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .positionPrompt),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+        if sideRailPresentation.naturalNoteStripRailContract?.slotModel.slotCount
+            != expectedTopologies.count {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "方案 C 阶段 0 应继续保持 side rail 的 12 个语义槽位，与未来双列错位视觉拓扑一一对应。"
                 )
             )
         }

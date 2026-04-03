@@ -4,7 +4,7 @@ overview: 为 side 模式下 natural note strip 的方案 C 制定分阶段实�
 todos:
   - id: freeze-c-boundary
     content: 冻结方案 C 的共享边界与迁移不变量，明确 12 个 PitchClass 语义槽位与双列错位视觉 placement 的关系
-    status: pending
+    status: completed
   - id: add-shared-placement-types
     content: 在 Shared/Exercise 层新增 rail placement 数据模型与几何 token，补足 shared 直接产出布局所需的信息
     status: pending
