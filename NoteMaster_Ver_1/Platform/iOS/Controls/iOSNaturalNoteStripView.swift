@@ -44,6 +44,7 @@ final class iOSNaturalNoteStripView: UIView {
     }
 
     private let stackView = UIStackView()
+    private let railCanvasView = UIView()
     private lazy var buttons: [NaturalNoteButton] = {
         PitchClass.allCases.map { pitchClass in
             makeButton(for: pitchClass)
@@ -57,33 +58,14 @@ final class iOSNaturalNoteStripView: UIView {
     private var activeRailContract: ExerciseNaturalNoteStripRailContract {
         railContract
     }
-    private var activeRailButtonExtent: CGFloat {
-        CGFloat(activeRailContract.buttonExtent)
-    }
-    private var activeRailCrossAxisWidthScale: CGFloat {
-        CGFloat(activeRailContract.resolvedCrossAxisWidthScale)
-    }
-    private var verticalRailContentWidth: CGFloat {
-        directionalLayoutMargins.leading
-            + activeRailButtonExtent
-            + directionalLayoutMargins.trailing
+    private var activeRailLayout: ExerciseNaturalNoteStripRailLayout {
+        activeRailContract.defaultLayoutContext.resolvedLayout
     }
     private var verticalRailIntrinsicWidth: CGFloat {
-        switch activeRailContract.crossAxisPolicy {
-        case .fitContent:
-            return verticalRailContentWidth * activeRailCrossAxisWidthScale
-        }
+        CGFloat(activeRailLayout.contentSize.width)
     }
     private var verticalRailIntrinsicHeight: CGFloat {
-        switch activeRailContract.mainAxisPolicy {
-        case .contentSized:
-            let slotCount = CGFloat(activeRailContract.slotModel.slotCount)
-            let totalSpacing = max(0, slotCount - 1) * Style.itemSpacing
-            return directionalLayoutMargins.top
-                + (slotCount * activeRailButtonExtent)
-                + totalSpacing
-                + directionalLayoutMargins.bottom
-        }
+        CGFloat(activeRailLayout.contentSize.height)
     }
 
     override init(frame: CGRect) {
@@ -111,6 +93,11 @@ final class iOSNaturalNoteStripView: UIView {
         self.railContract = railContract ?? .defaultSideBySideAnswerRail
     }
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutRailCanvasIfNeeded()
+    }
+
     private func configureView() {
         accessibilityIdentifier = "natural-note-strip-view"
         directionalLayoutMargins = Style.contentInsets
@@ -123,9 +110,11 @@ final class iOSNaturalNoteStripView: UIView {
         ).cgColor
         stackView.spacing = Style.itemSpacing
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        railCanvasView.isHidden = true
+        railCanvasView.clipsToBounds = true
 
         addSubview(stackView)
-        buttons.forEach { stackView.addArrangedSubview($0) }
+        addSubview(railCanvasView)
 
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
@@ -178,11 +167,94 @@ final class iOSNaturalNoteStripView: UIView {
             setContentCompressionResistancePriority(.required, for: .vertical)
         }
 
+        syncButtonContainer()
         buttons.forEach {
             $0.applyLayoutMode(layoutMode, railContract: activeRailContract)
+            $0.applyVisibleTitle(
+                resolvedVisibleTitle(for: $0.pitchClass)
+            )
         }
         invalidateIntrinsicContentSize()
         setNeedsLayout()
+    }
+
+    private func syncButtonContainer() {
+        switch layoutMode {
+        case .horizontalStrip:
+            stackView.isHidden = false
+            railCanvasView.isHidden = true
+            buttons.forEach { button in
+                detachButtonFromCurrentContainer(button)
+                stackView.addArrangedSubview(button)
+            }
+        case .verticalRail:
+            stackView.isHidden = true
+            railCanvasView.isHidden = false
+            buttons.forEach { button in
+                detachButtonFromCurrentContainer(button)
+                railCanvasView.addSubview(button)
+            }
+        }
+    }
+
+    private func detachButtonFromCurrentContainer(_ button: NaturalNoteButton) {
+        if stackView.arrangedSubviews.contains(button) {
+            stackView.removeArrangedSubview(button)
+        }
+        button.removeFromSuperview()
+    }
+
+    private func resolvedVisibleTitle(for pitchClass: PitchClass?) -> String {
+        guard let pitchClass else {
+            return ""
+        }
+
+        switch layoutMode {
+        case .horizontalStrip:
+            return pitchClass.stripVisibleTitle
+        case .verticalRail:
+            return pitchClass.stripVisibleTitle(
+                showsTitle: railPlacement(for: pitchClass)?.showsTitle ?? false
+            )
+        }
+    }
+
+    private func railPlacement(
+        for pitchClass: PitchClass
+    ) -> ExerciseNaturalNoteStripRailPlacement? {
+        activeRailLayout.placements.first { $0.pitchClass == pitchClass }
+    }
+
+    private func layoutRailCanvasIfNeeded() {
+        guard layoutMode == .verticalRail else {
+            railCanvasView.frame = .zero
+            return
+        }
+
+        let contentSize = CGSize(
+            width: verticalRailIntrinsicWidth,
+            height: verticalRailIntrinsicHeight
+        )
+        let contentFrame = CGRect(
+            x: max(0, (bounds.width - contentSize.width) / 2),
+            y: max(0, (bounds.height - contentSize.height) / 2),
+            width: min(bounds.width, contentSize.width),
+            height: min(bounds.height, contentSize.height)
+        )
+        railCanvasView.frame = contentFrame
+
+        buttons.forEach { button in
+            guard
+                let pitchClass = button.pitchClass,
+                let placement = railPlacement(for: pitchClass)
+            else {
+                button.isHidden = true
+                return
+            }
+
+            button.isHidden = false
+            button.frame = placement.frame
+        }
     }
 }
 
@@ -215,7 +287,11 @@ private final class NaturalNoteButton: UIButton {
         self.pitchClass = pitchClass
         accessibilityIdentifier = "natural-note-strip-button-\(pitchClass.stripIdentifierToken)"
         accessibilityLabel = "Choose note \(pitchClass.stripAccessibilityLabel)"
-        setTitle(pitchClass.stripVisibleTitle, for: .normal)
+        applyVisibleTitle(pitchClass.stripVisibleTitle)
+    }
+
+    func applyVisibleTitle(_ title: String) {
+        setTitle(title, for: .normal)
         invalidateIntrinsicContentSize()
         setNeedsUpdateConfiguration()
     }
@@ -341,6 +417,10 @@ private enum Style {
 private extension PitchClass {
     var stripVisibleTitle: String {
         isNatural ? displayText() : ""
+    }
+
+    func stripVisibleTitle(showsTitle: Bool) -> String {
+        showsTitle ? displayText() : ""
     }
 
     var stripAccessibilityLabel: String {

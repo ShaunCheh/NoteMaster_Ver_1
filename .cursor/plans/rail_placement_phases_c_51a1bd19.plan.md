@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: refactor-platform-strip-views
     content: 让 iOS/macOS NaturalNoteStripView 的 verticalRail 改为渲染 shared placement，horizontalStrip 继续保留现有路径
-    status: pending
+    status: completed
   - id: align-renderer-and-regressions
     content: 清理 renderer 与 host 对齐耦合，执行双端 build、validation 与 runtime smoke 回归
     status: pending
