@@ -39,6 +39,7 @@ final class iOSExerciseSceneRenderer {
 
     private var currentPresentationState: ExercisePresentationState?
     private var currentFretboardDisplayState = FretboardDisplayState.default
+    private var currentDebugState = SettingsDebugState()
 
     private var activeSceneConstraints: [NSLayoutConstraint] = []
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
@@ -69,10 +70,12 @@ final class iOSExerciseSceneRenderer {
 
     func render(
         presentationState: ExercisePresentationState,
-        fretboardDisplayState: FretboardDisplayState
+        fretboardDisplayState: FretboardDisplayState,
+        debugState: SettingsDebugState
     ) {
         currentPresentationState = presentationState
         currentFretboardDisplayState = fretboardDisplayState
+        currentDebugState = debugState
 
         rebuildSceneHierarchy(for: presentationState.scene.root)
         updateSurfaceVisibility()
@@ -438,6 +441,7 @@ final class iOSExerciseSceneRenderer {
             && childHostViews.count == 2
             && hostView.superview === sceneContentView
             && currentPresentationState?.renderedSceneLayout?.arrangement == .sideBySide
+            && currentDebugState.showsSideBySideContainerOutlines
 
         for (index, childHostView) in childHostViews.enumerated() {
             let outlineColor = shouldOutlineContainers

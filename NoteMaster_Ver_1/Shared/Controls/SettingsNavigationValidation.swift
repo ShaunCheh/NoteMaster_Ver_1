@@ -189,6 +189,7 @@ private extension SettingsNavigationValidationRunner {
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
+            "确认 `Debug` 分区包含 `Component Bounds` 与 `Side Container Borders` 两个开关；切换 `Side Container Borders` 时 side 布局的红/蓝容器边框会立即显示或隐藏。",
             "停留在 `Exercise > Layout` 子页时直接切换 `Stacked / Side / Single`，确认当前页不会闪跳、不会被重建回上一层，且选中态立即更新。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
@@ -300,6 +301,51 @@ private extension SettingsNavigationValidationRunner {
         }
         if resolveSection(.layout, in: panelModel) != nil {
             issues.append(issue(fixtureName, "default state 不应再保留 Layout section。"))
+        }
+        if debugSection.rows.map(\.id) != [
+            .toggle(.showsComponentBounds),
+            .toggle(.showsSideBySideContainerOutlines)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Debug section rows 应保持 Component Bounds -> Side Container Borders。"
+                )
+            )
+        }
+        if panelModel.toggleRow(for: .showsSideBySideContainerOutlines)?.isOn ?? true {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "default state 的 Side Container Borders 开关应默认关闭。"
+                )
+            )
+        }
+        var outlinedStateContext = stateContext
+        SettingsToggleID.showsSideBySideContainerOutlines.apply(
+            value: true,
+            to: &outlinedStateContext
+        )
+        if !outlinedStateContext.debugState.showsSideBySideContainerOutlines {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Side Container Borders 开关写回后应把 debugState.showsSideBySideContainerOutlines 置为 true。"
+                )
+            )
+        }
+        let outlinedPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: outlinedStateContext
+        )
+        if !(outlinedPanelModel.toggleRow(
+            for: .showsSideBySideContainerOutlines
+        )?.isOn ?? false) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Side Container Borders 开关写回后，settings snapshot 也应回显为 true。"
+                )
+            )
         }
 
         assertIndexPage(

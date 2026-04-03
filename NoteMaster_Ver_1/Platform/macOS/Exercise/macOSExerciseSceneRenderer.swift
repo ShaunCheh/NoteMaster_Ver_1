@@ -202,6 +202,7 @@ final class macOSExerciseSceneRenderer {
 
     private var currentPresentationState: ExercisePresentationState?
     private var currentFretboardDisplayState = FretboardDisplayState.default
+    private var currentDebugState = SettingsDebugState()
 
     private var activeSceneConstraints: [NSLayoutConstraint] = []
     private var sceneHostViews: [SceneHostPath: SceneHostView] = [:]
@@ -239,10 +240,12 @@ final class macOSExerciseSceneRenderer {
     @discardableResult
     func render(
         presentationState: ExercisePresentationState,
-        fretboardDisplayState: FretboardDisplayState
+        fretboardDisplayState: FretboardDisplayState,
+        debugState: SettingsDebugState
     ) -> Bool {
         currentPresentationState = presentationState
         currentFretboardDisplayState = fretboardDisplayState
+        currentDebugState = debugState
 
         let didChangeStructure = syncSceneHierarchy(for: presentationState.scene.root)
         updateSurfaceVisibility()
@@ -646,6 +649,7 @@ final class macOSExerciseSceneRenderer {
             && path == .root
             && childHostViews.count == 2
             && currentPresentationState?.renderedSceneLayout?.arrangement == .sideBySide
+            && currentDebugState.showsSideBySideContainerOutlines
 
         for (index, childHostView) in childHostViews.enumerated() {
             childHostView.applyContainerOutline(

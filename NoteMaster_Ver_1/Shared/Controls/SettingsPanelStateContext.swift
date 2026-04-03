@@ -5,6 +5,10 @@
 //  Created by Cursor on 2026/3/27.
 //
 
+struct SettingsDebugState: Equatable, Sendable {
+    var showsSideBySideContainerOutlines: Bool = false
+}
+
 struct SettingsPanelStateContext: Equatable, Sendable {
     var fretboardDisplayState: FretboardDisplayState
     var staffDisplayState: StaffDisplayState
@@ -12,6 +16,7 @@ struct SettingsPanelStateContext: Equatable, Sendable {
     var exerciseLayoutPreferences: ExerciseLayoutPreferences
     var trainerDisplayState: TrainerDisplayState
     var pianoPanelState: PianoPanelState
+    var debugState: SettingsDebugState
 
     static let `default` = SettingsPanelStateContext(
         exerciseLayoutPreferences: .legacyPositionPrompt,
@@ -25,12 +30,14 @@ struct SettingsPanelStateContext: Equatable, Sendable {
         pageDisplayState: PageDisplayState? = nil,
         exerciseLayoutPreferences: ExerciseLayoutPreferences? = nil,
         trainerDisplayState: TrainerDisplayState = .default,
-        pianoPanelState: PianoPanelState = .init()
+        pianoPanelState: PianoPanelState = .init(),
+        debugState: SettingsDebugState = .init()
     ) {
         self.fretboardDisplayState = fretboardDisplayState
         self.staffDisplayState = staffDisplayState
         self.trainerDisplayState = trainerDisplayState
         self.pianoPanelState = pianoPanelState
+        self.debugState = debugState
         self.exerciseLayoutPreferences = Self.resolvedLayoutPreferences(
             pageDisplayState: pageDisplayState,
             exerciseLayoutPreferences: exerciseLayoutPreferences,

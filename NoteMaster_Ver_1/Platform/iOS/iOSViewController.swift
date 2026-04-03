@@ -127,6 +127,15 @@ final class iOSViewController: UIViewController {
             applySequenceRegenerateButtonState()
         }
     }
+    private var settingsDebugState = SettingsDebugState() {
+        didSet {
+            guard isViewLoaded else {
+                return
+            }
+
+            renderExercisePresentationState()
+        }
+    }
     private var baseStaffDisplayState = iOSViewController.initialStaffDisplayState
 
     private var isSettingsPresented = false
@@ -535,7 +544,8 @@ final class iOSViewController: UIViewController {
             staffDisplayState: staffDisplayState,
             exerciseLayoutPreferences: exerciseLayoutPreferences,
             trainerDisplayState: trainerDisplayState,
-            pianoPanelState: pianoPanelState
+            pianoPanelState: pianoPanelState,
+            debugState: settingsDebugState
         )
     }
 
@@ -917,7 +927,8 @@ final class iOSViewController: UIViewController {
         updateSceneViewportHeightConstraint()
         exerciseSceneRenderer.render(
             presentationState: exercisePresentationState,
-            fretboardDisplayState: displayState
+            fretboardDisplayState: displayState,
+            debugState: settingsDebugState
         )
         applySettingsPanelState()
         updateLayoutIfNeeded()
@@ -1688,6 +1699,7 @@ final class iOSViewController: UIViewController {
             .exerciseLayoutPreferences
         let nextTrainerDisplayState = nextStateContext.trainerDisplayState
         let nextPianoPanelState = nextStateContext.pianoPanelState
+        let nextSettingsDebugState = nextStateContext.debugState
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
@@ -1695,6 +1707,7 @@ final class iOSViewController: UIViewController {
             nextExerciseLayoutPreferences != exerciseLayoutPreferences
         let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
         let didChangePianoPanel = nextPianoPanelState != pianoPanelState
+        let didChangeSettingsDebug = nextSettingsDebugState != settingsDebugState
         let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
         let didChangePositionPromptActiveFilter =
             nextTrainerDisplayState.positionPromptConfiguration.activeFilter
@@ -1704,7 +1717,8 @@ final class iOSViewController: UIViewController {
             || didChangeStaff
             || didChangeExerciseLayoutPreferences
             || didChangeTrainer
-            || didChangePianoPanel else {
+            || didChangePianoPanel
+            || didChangeSettingsDebug else {
             return
         }
 
@@ -1735,6 +1749,10 @@ final class iOSViewController: UIViewController {
             pianoPanelState = nextPianoPanelState
             applyPianoDemoState()
             applySettingsPanelState()
+        }
+
+        if didChangeSettingsDebug {
+            settingsDebugState = nextSettingsDebugState
         }
 
         if didChangeTrainer {

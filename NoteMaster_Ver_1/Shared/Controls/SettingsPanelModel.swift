@@ -127,7 +127,8 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
             ]
         case .debug:
             return [
-                .toggle(.showsComponentBounds)
+                .toggle(.showsComponentBounds),
+                .toggle(.showsSideBySideContainerOutlines)
             ]
         }
     }
@@ -1128,6 +1129,7 @@ struct SettingsPositionFilterRow: Equatable, Sendable {
 
 enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
     case showsComponentBounds
+    case showsSideBySideContainerOutlines
     case naturalStripVisible
     case pianoAccessoryVisible
     case accessoryExpanded
@@ -1135,7 +1137,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
 
     var sectionID: SettingsSectionID {
         switch self {
-        case .showsComponentBounds:
+        case .showsComponentBounds,
+             .showsSideBySideContainerOutlines:
             return .debug
         case .naturalStripVisible,
              .pianoAccessoryVisible,
@@ -1150,6 +1153,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             return "Component Bounds"
+        case .showsSideBySideContainerOutlines:
+            return "Side Container Borders"
         case .naturalStripVisible:
             return "Natural Strip Visible"
         case .pianoAccessoryVisible:
@@ -1165,6 +1170,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             return "Toggle green bounds overlay for fretboard and staff"
+        case .showsSideBySideContainerOutlines:
+            return "Toggle red and blue borders for the side layout containers"
         case .naturalStripVisible:
             return "Toggle whether the natural note strip participates as an accessory surface"
         case .pianoAccessoryVisible:
@@ -1183,6 +1190,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             return stateContext.fretboardDisplayState.showsComponentBoundsOverlay
                 || stateContext.staffDisplayState.showsComponentBoundsOverlay
+        case .showsSideBySideContainerOutlines:
+            return stateContext.debugState.showsSideBySideContainerOutlines
         case .naturalStripVisible:
             return stateContext.exerciseLayoutPreferences.isNaturalNoteStripVisible
         case .pianoAccessoryVisible:
@@ -1198,7 +1207,10 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
-        case .showsComponentBounds, .pianoAccessoryVisible, .pianoSnapEnabled:
+        case .showsComponentBounds,
+             .showsSideBySideContainerOutlines,
+             .pianoAccessoryVisible,
+             .pianoSnapEnabled:
             return true
         case .naturalStripVisible:
             return LegacyPageLayoutAdapter.isNaturalStripToggleSupported(
@@ -1216,7 +1228,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
-        case .naturalStripVisible,
+        case .showsSideBySideContainerOutlines,
+             .naturalStripVisible,
              .pianoAccessoryVisible,
              .accessoryExpanded,
              .pianoSnapEnabled:
@@ -1228,7 +1241,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         switch self {
         case .showsComponentBounds:
             displayState.showsComponentBoundsOverlay = value
-        case .naturalStripVisible,
+        case .showsSideBySideContainerOutlines,
+             .naturalStripVisible,
              .pianoAccessoryVisible,
              .accessoryExpanded,
              .pianoSnapEnabled:
@@ -1244,6 +1258,8 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
         case .showsComponentBounds:
             apply(value: value, to: &stateContext.fretboardDisplayState)
             apply(value: value, to: &stateContext.staffDisplayState)
+        case .showsSideBySideContainerOutlines:
+            stateContext.debugState.showsSideBySideContainerOutlines = value
         case .naturalStripVisible:
             stateContext.exerciseLayoutPreferences.isNaturalNoteStripVisible = value
             LegacyPageLayoutAdapter.reconcile(&stateContext)

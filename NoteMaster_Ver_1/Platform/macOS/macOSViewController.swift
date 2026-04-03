@@ -138,6 +138,11 @@ final class macOSViewController: NSViewController {
             invalidateTrainerDisplayPresentation()
         }
     }
+    private var settingsDebugState = SettingsDebugState() {
+        didSet {
+            invalidateSettingsDebugPresentation()
+        }
+    }
     private var baseStaffDisplayState = macOSViewController.initialStaffDisplayState
 
     private var isSettingsPresented = false
@@ -396,6 +401,16 @@ final class macOSViewController: NSViewController {
 
         pendingPresentationTransaction.settingsPanelState = true
         pendingPresentationTransaction.sequenceRegenerateButton = true
+        commitPresentationTransactionIfPossible()
+    }
+
+    private func invalidateSettingsDebugPresentation() {
+        guard isViewLoaded else {
+            return
+        }
+
+        pendingPresentationTransaction.settingsPanelState = true
+        pendingPresentationTransaction.scenePresentation = true
         commitPresentationTransactionIfPossible()
     }
 
@@ -793,7 +808,8 @@ final class macOSViewController: NSViewController {
             staffDisplayState: staffDisplayState,
             exerciseLayoutPreferences: exerciseLayoutPreferences,
             trainerDisplayState: trainerDisplayState,
-            pianoPanelState: pianoPanelState
+            pianoPanelState: pianoPanelState,
+            debugState: settingsDebugState
         )
     }
 
@@ -1188,7 +1204,8 @@ final class macOSViewController: NSViewController {
         updateSceneViewportHeightConstraint()
         let didChangeSceneStructure = exerciseSceneRenderer.render(
             presentationState: exercisePresentationState,
-            fretboardDisplayState: displayState
+            fretboardDisplayState: displayState,
+            debugState: settingsDebugState
         )
         hasRenderedExerciseSceneOnce = true
         macOSSettingsMutationTrace.logIfActive(
@@ -2072,6 +2089,7 @@ final class macOSViewController: NSViewController {
             .exerciseLayoutPreferences
         let nextTrainerDisplayState = nextStateContext.trainerDisplayState
         let nextPianoPanelState = nextStateContext.pianoPanelState
+        let nextSettingsDebugState = nextStateContext.debugState
 
         let didChangeFretboard = nextDisplayState != displayState
         let didChangeStaff = nextStaffDisplayState != staffDisplayState
@@ -2079,6 +2097,7 @@ final class macOSViewController: NSViewController {
             nextExerciseLayoutPreferences != exerciseLayoutPreferences
         let didChangeTrainer = nextTrainerDisplayState != trainerDisplayState
         let didChangePianoPanel = nextPianoPanelState != pianoPanelState
+        let didChangeSettingsDebug = nextSettingsDebugState != settingsDebugState
         let didChangeExerciseMode = nextTrainerDisplayState.exerciseMode != trainerDisplayState.exerciseMode
         let didChangePositionPromptActiveFilter =
             nextTrainerDisplayState.positionPromptConfiguration.activeFilter
@@ -2088,7 +2107,8 @@ final class macOSViewController: NSViewController {
             || didChangeStaff
             || didChangeExerciseLayoutPreferences
             || didChangeTrainer
-            || didChangePianoPanel else {
+            || didChangePianoPanel
+            || didChangeSettingsDebug else {
             macOSSettingsMutationTrace.logIfActive(
                 "controller handleSettingsPanelEvent no-op"
             )
@@ -2096,7 +2116,7 @@ final class macOSViewController: NSViewController {
         }
 
         macOSSettingsMutationTrace.logIfActive(
-            "controller handleSettingsPanelEvent changes layout=\(didChangeExerciseLayoutPreferences) trainer=\(didChangeTrainer) fretboard=\(didChangeFretboard) staff=\(didChangeStaff) piano=\(didChangePianoPanel)"
+            "controller handleSettingsPanelEvent changes layout=\(didChangeExerciseLayoutPreferences) trainer=\(didChangeTrainer) fretboard=\(didChangeFretboard) staff=\(didChangeStaff) piano=\(didChangePianoPanel) debug=\(didChangeSettingsDebug)"
         )
 
         performPresentationTransaction {
@@ -2128,6 +2148,10 @@ final class macOSViewController: NSViewController {
 
             if didChangePianoPanel {
                 pianoPanelState = nextPianoPanelState
+            }
+
+            if didChangeSettingsDebug {
+                settingsDebugState = nextSettingsDebugState
             }
 
             if didChangeTrainer {
