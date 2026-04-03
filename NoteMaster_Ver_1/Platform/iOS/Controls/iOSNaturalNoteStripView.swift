@@ -60,12 +60,18 @@ final class iOSNaturalNoteStripView: UIView {
     private var activeRailButtonExtent: CGFloat {
         CGFloat(activeRailContract.buttonExtent)
     }
+    private var activeRailCrossAxisWidthScale: CGFloat {
+        CGFloat(activeRailContract.resolvedCrossAxisWidthScale)
+    }
+    private var verticalRailContentWidth: CGFloat {
+        directionalLayoutMargins.leading
+            + activeRailButtonExtent
+            + directionalLayoutMargins.trailing
+    }
     private var verticalRailIntrinsicWidth: CGFloat {
         switch activeRailContract.crossAxisPolicy {
         case .fitContent:
-            return directionalLayoutMargins.leading
-                + activeRailButtonExtent
-                + directionalLayoutMargins.trailing
+            return verticalRailContentWidth * activeRailCrossAxisWidthScale
         }
     }
     private var verticalRailIntrinsicHeight: CGFloat {

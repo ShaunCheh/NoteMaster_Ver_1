@@ -959,11 +959,13 @@ private extension ExerciseCompositionValidationRunner {
 
             if railContract.mainAxisPolicy != .contentSized
                 || railContract.crossAxisPolicy != .fitContent
+                || railContract.crossAxisWidthScale
+                != ExerciseNaturalNoteStripRailContract.defaultCrossAxisWidthScale
                 || railContract.verticalAlignment != .centered {
                 issues.append(
                     issue(
                         fixtureName,
-                        "阶段 1 的 rail contract 应继续给出 contentSized / fitContent / centered 的 shared 布局语义。"
+                        "阶段 1 的 rail contract 应继续给出 contentSized / fitContent(x2) / centered 的 shared 布局语义。"
                     )
                 )
             }

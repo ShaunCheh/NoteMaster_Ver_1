@@ -293,6 +293,12 @@ final class iOSExerciseSceneRenderer {
             return childHostView
         }
 
+        applySideBySideContainerOutlines(
+            to: childHostViews,
+            axis: axis,
+            hostView: hostView
+        )
+
         for (index, child) in children.enumerated() {
             render(node: child.node, in: childHostViews[index])
         }
@@ -421,6 +427,33 @@ final class iOSExerciseSceneRenderer {
                 )
             }
         }
+    }
+
+    private func applySideBySideContainerOutlines(
+        to childHostViews: [UIView],
+        axis: ExerciseSceneAxis,
+        hostView: UIView
+    ) {
+        let shouldOutlineContainers = axis == .horizontal
+            && childHostViews.count == 2
+            && hostView.superview === sceneContentView
+            && currentPresentationState?.renderedSceneLayout?.arrangement == .sideBySide
+
+        for (index, childHostView) in childHostViews.enumerated() {
+            let outlineColor = shouldOutlineContainers
+                ? sideBySideContainerOutlineColor(for: index)
+                : nil
+            childHostView.layer.cornerRadius = outlineColor == nil ? 0 : 14
+            childHostView.layer.cornerCurve = .continuous
+            childHostView.layer.borderWidth = outlineColor == nil ? 0 : 2
+            childHostView.layer.borderColor = outlineColor?
+                .withAlphaComponent(0.9)
+                .cgColor
+        }
+    }
+
+    private func sideBySideContainerOutlineColor(for index: Int) -> UIColor {
+        index == 0 ? .systemRed : .systemBlue
     }
 
     private func configureMainAxisSizing(

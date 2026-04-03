@@ -65,12 +65,18 @@ final class macOSNaturalNoteStripView: NSView {
     private var activeRailButtonExtent: CGFloat {
         CGFloat(activeRailContract.buttonExtent)
     }
+    private var activeRailCrossAxisWidthScale: CGFloat {
+        CGFloat(activeRailContract.resolvedCrossAxisWidthScale)
+    }
+    private var verticalRailContentWidth: CGFloat {
+        Style.contentInsets.left
+            + activeRailButtonExtent
+            + Style.contentInsets.right
+    }
     private var verticalRailIntrinsicWidth: CGFloat {
         switch activeRailContract.crossAxisPolicy {
         case .fitContent:
-            return Style.contentInsets.left
-                + activeRailButtonExtent
-                + Style.contentInsets.right
+            return verticalRailContentWidth * activeRailCrossAxisWidthScale
         }
     }
     private var verticalRailIntrinsicHeight: CGFloat {

@@ -80,6 +80,14 @@ final class macOSExerciseSceneRenderer {
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
+
+        func applyContainerOutline(color: NSColor?) {
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+            layer?.cornerRadius = color == nil ? 0 : 14
+            layer?.borderWidth = color == nil ? 0 : 2
+            layer?.borderColor = color?.withAlphaComponent(0.9).cgColor
+        }
     }
 
     private final class SurfaceSlotView: NSView {
@@ -497,6 +505,12 @@ final class macOSExerciseSceneRenderer {
             return childHostView
         }
 
+        applySideBySideContainerOutlines(
+            to: childHostViews,
+            axis: axis,
+            path: path
+        )
+
         for (index, childHostView) in childHostViews.enumerated() {
             configureMainAxisSizing(
                 children[index].mainAxisSizing,
@@ -621,6 +635,29 @@ final class macOSExerciseSceneRenderer {
                 )
             }
         }
+    }
+
+    private func applySideBySideContainerOutlines(
+        to childHostViews: [SceneHostView],
+        axis: ExerciseSceneAxis,
+        path: SceneHostPath
+    ) {
+        let shouldOutlineContainers = axis == .horizontal
+            && path == .root
+            && childHostViews.count == 2
+            && currentPresentationState?.renderedSceneLayout?.arrangement == .sideBySide
+
+        for (index, childHostView) in childHostViews.enumerated() {
+            childHostView.applyContainerOutline(
+                color: shouldOutlineContainers
+                    ? sideBySideContainerOutlineColor(for: index)
+                    : nil
+            )
+        }
+    }
+
+    private func sideBySideContainerOutlineColor(for index: Int) -> NSColor {
+        index == 0 ? .systemRed : .systemBlue
     }
 
     private func ensureSceneHost(
