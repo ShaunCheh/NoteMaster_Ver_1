@@ -501,12 +501,9 @@ final class iOSExerciseSceneRenderer {
         for surface: ExerciseSurfaceNode
     ) -> EmbeddedViewLayout {
         guard
-            surface.id == .naturalNoteStrip,
-            surface.presentationStyle == .verticalRail,
-            let railContract = currentPresentationState?.naturalNoteStripRailContract,
-            railContract.appliesToSurface == .naturalNoteStrip,
-            railContract.mainAxisPolicy == .contentSized,
-            railContract.verticalAlignment == .centered
+            surface.isNaturalNoteStripAnswerRail,
+            currentPresentationState?.naturalNoteStripRailLayout?
+                .usesVerticallyCenteredHostLayout == true
         else {
             return .fill
         }
@@ -520,8 +517,8 @@ final class iOSExerciseSceneRenderer {
         }
 
         naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
-        naturalNoteStripView.applyRailContract(
-            currentPresentationState?.naturalNoteStripRailContract
+        naturalNoteStripView.applyRailLayout(
+            currentPresentationState?.naturalNoteStripRailLayout
         )
     }
 

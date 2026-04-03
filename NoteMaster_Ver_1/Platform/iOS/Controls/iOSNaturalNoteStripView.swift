@@ -1,6 +1,11 @@
 #if os(iOS)
 import UIKit
 
+private let defaultNaturalNoteStripRailLayout =
+    ExerciseNaturalNoteStripRailContract.defaultSideBySideAnswerRail
+        .defaultLayoutContext
+        .resolvedLayout
+
 final class iOSNaturalNoteStripView: UIView {
     enum LayoutMode: Equatable {
         case horizontalStrip
@@ -17,9 +22,10 @@ final class iOSNaturalNoteStripView: UIView {
         }
     }
 
-    private var railContract: ExerciseNaturalNoteStripRailContract = .defaultSideBySideAnswerRail {
+    private var railLayout: ExerciseNaturalNoteStripRailLayout =
+        defaultNaturalNoteStripRailLayout {
         didSet {
-            guard oldValue != railContract else {
+            guard oldValue != railLayout else {
                 return
             }
             applyLayoutMode()
@@ -55,11 +61,8 @@ final class iOSNaturalNoteStripView: UIView {
             max(partialResult, button.intrinsicContentSize.height)
         }
     }
-    private var activeRailContract: ExerciseNaturalNoteStripRailContract {
-        railContract
-    }
     private var activeRailLayout: ExerciseNaturalNoteStripRailLayout {
-        activeRailContract.defaultLayoutContext.resolvedLayout
+        railLayout
     }
     private var verticalRailIntrinsicWidth: CGFloat {
         CGFloat(activeRailLayout.contentSize.width)
@@ -89,8 +92,8 @@ final class iOSNaturalNoteStripView: UIView {
         }
     }
 
-    func applyRailContract(_ railContract: ExerciseNaturalNoteStripRailContract?) {
-        self.railContract = railContract ?? .defaultSideBySideAnswerRail
+    func applyRailLayout(_ railLayout: ExerciseNaturalNoteStripRailLayout?) {
+        self.railLayout = railLayout ?? defaultNaturalNoteStripRailLayout
     }
 
     override func layoutSubviews() {
@@ -129,7 +132,7 @@ final class iOSNaturalNoteStripView: UIView {
     private func makeButton(for pitchClass: PitchClass) -> NaturalNoteButton {
         let button = NaturalNoteButton(frame: .zero)
         button.apply(pitchClass: pitchClass)
-        button.applyLayoutMode(layoutMode, railContract: activeRailContract)
+        button.applyLayoutMode(layoutMode, railLayout: activeRailLayout)
         button.addTarget(
             self,
             action: #selector(handleButtonTap(_:)),
@@ -169,7 +172,7 @@ final class iOSNaturalNoteStripView: UIView {
 
         syncButtonContainer()
         buttons.forEach {
-            $0.applyLayoutMode(layoutMode, railContract: activeRailContract)
+            $0.applyLayoutMode(layoutMode, railLayout: activeRailLayout)
             $0.applyVisibleTitle(
                 resolvedVisibleTitle(for: $0.pitchClass)
             )
@@ -261,15 +264,22 @@ final class iOSNaturalNoteStripView: UIView {
 private final class NaturalNoteButton: UIButton {
     var pitchClass: PitchClass?
     private var layoutMode: iOSNaturalNoteStripView.LayoutMode = .horizontalStrip
-    private var railContract: ExerciseNaturalNoteStripRailContract = .defaultSideBySideAnswerRail
+    private var railLayout: ExerciseNaturalNoteStripRailLayout =
+        defaultNaturalNoteStripRailLayout
+
+    private var activeRailButtonExtent: CGFloat {
+        CGFloat(railLayout.buttonExtent)
+    }
 
     override var intrinsicContentSize: CGSize {
         switch layoutMode {
         case .horizontalStrip:
             return super.intrinsicContentSize
         case .verticalRail:
-            let buttonExtent = CGFloat(railContract.buttonExtent)
-            return CGSize(width: buttonExtent, height: buttonExtent)
+            return CGSize(
+                width: activeRailButtonExtent,
+                height: activeRailButtonExtent
+            )
         }
     }
 
@@ -334,10 +344,10 @@ private final class NaturalNoteButton: UIButton {
 
     func applyLayoutMode(
         _ layoutMode: iOSNaturalNoteStripView.LayoutMode,
-        railContract: ExerciseNaturalNoteStripRailContract
+        railLayout: ExerciseNaturalNoteStripRailLayout
     ) {
         self.layoutMode = layoutMode
-        self.railContract = railContract
+        self.railLayout = railLayout
         switch layoutMode {
         case .horizontalStrip:
             setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -387,7 +397,7 @@ private final class NaturalNoteButton: UIButton {
         case .verticalRail:
             let railFontSize = min(
                 Style.fontSize,
-                max(9, CGFloat(railContract.buttonExtent) * 0.55)
+                max(9, activeRailButtonExtent * 0.55)
             )
             return UIFont.systemFont(ofSize: railFontSize, weight: .medium)
         }

@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: align-renderer-and-regressions
     content: 清理 renderer 与 host 对齐耦合，执行双端 build、validation 与 runtime smoke 回归
-    status: pending
+    status: completed
 isProject: false
 ---
 

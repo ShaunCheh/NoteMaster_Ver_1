@@ -157,6 +157,14 @@ extension ExerciseNaturalNoteStripRailLayoutContext {
 }
 
 extension ExerciseNaturalNoteStripRailLayout {
+    var buttonExtent: Double {
+        context.geometry.resolvedButtonExtent
+    }
+
+    var usesVerticallyCenteredHostLayout: Bool {
+        context.hostVerticalAlignment == .centered
+    }
+
     static func build(
         from context: ExerciseNaturalNoteStripRailLayoutContext
     ) -> ExerciseNaturalNoteStripRailLayout {
