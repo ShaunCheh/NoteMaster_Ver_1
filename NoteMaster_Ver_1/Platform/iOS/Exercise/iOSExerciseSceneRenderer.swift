@@ -516,9 +516,9 @@ final class iOSExerciseSceneRenderer {
             return
         }
 
-        naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
-        naturalNoteStripView.applyRailLayout(
-            currentPresentationState?.naturalNoteStripRailLayout
+        naturalNoteStripView.applyConfiguration(
+            presentationStyle: surface.presentationStyle,
+            railLayout: currentPresentationState?.naturalNoteStripRailLayout
         )
     }
 

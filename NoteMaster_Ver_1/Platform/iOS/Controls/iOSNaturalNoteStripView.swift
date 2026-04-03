@@ -13,24 +13,9 @@ final class iOSNaturalNoteStripView: UIView {
     }
 
     var onPitchClassTap: ((PitchClass) -> Void)?
-    var layoutMode: LayoutMode = .horizontalStrip {
-        didSet {
-            guard oldValue != layoutMode else {
-                return
-            }
-            applyLayoutMode()
-        }
-    }
-
+    private var layoutMode: LayoutMode = .horizontalStrip
     private var railLayout: ExerciseNaturalNoteStripRailLayout =
-        defaultNaturalNoteStripRailLayout {
-        didSet {
-            guard oldValue != railLayout else {
-                return
-            }
-            applyLayoutMode()
-        }
-    }
+        defaultNaturalNoteStripRailLayout
 
     override var intrinsicContentSize: CGSize {
         switch layoutMode {
@@ -81,24 +66,27 @@ final class iOSNaturalNoteStripView: UIView {
         configureView()
     }
 
-    func applyPresentationStyle(
-        _ presentationStyle: ExerciseSurfacePresentationStyle
+    func applyConfiguration(
+        presentationStyle: ExerciseSurfacePresentationStyle,
+        railLayout: ExerciseNaturalNoteStripRailLayout?
     ) {
-        switch presentationStyle {
-        case .verticalRail:
-            layoutMode = .verticalRail
-        case .standard, .horizontalStrip:
-            layoutMode = .horizontalStrip
+        let nextLayoutMode = resolvedLayoutMode(for: presentationStyle)
+        let nextRailLayout = railLayout ?? defaultNaturalNoteStripRailLayout
+        guard
+            layoutMode != nextLayoutMode
+                || self.railLayout != nextRailLayout
+        else {
+            return
         }
-    }
 
-    func applyRailLayout(_ railLayout: ExerciseNaturalNoteStripRailLayout?) {
-        self.railLayout = railLayout ?? defaultNaturalNoteStripRailLayout
+        layoutMode = nextLayoutMode
+        self.railLayout = nextRailLayout
+        applyCurrentConfiguration()
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        layoutRailCanvasIfNeeded()
+        updateRailCanvasFrameIfNeeded()
     }
 
     private func configureView() {
@@ -126,7 +114,7 @@ final class iOSNaturalNoteStripView: UIView {
             stackView.bottomAnchor.constraint(equalTo: layoutMarginsGuide.bottomAnchor)
         ])
 
-        applyLayoutMode()
+        applyCurrentConfiguration()
     }
 
     private func makeButton(for pitchClass: PitchClass) -> NaturalNoteButton {
@@ -150,7 +138,7 @@ final class iOSNaturalNoteStripView: UIView {
         onPitchClassTap?(pitchClass)
     }
 
-    private func applyLayoutMode() {
+    private func applyCurrentConfiguration() {
         switch layoutMode {
         case .horizontalStrip:
             stackView.axis = .horizontal
@@ -177,6 +165,7 @@ final class iOSNaturalNoteStripView: UIView {
                 resolvedVisibleTitle(for: $0.pitchClass)
             )
         }
+        applyRailContentLayout()
         invalidateIntrinsicContentSize()
         setNeedsLayout()
     }
@@ -188,6 +177,7 @@ final class iOSNaturalNoteStripView: UIView {
             railCanvasView.isHidden = true
             buttons.forEach { button in
                 detachButtonFromCurrentContainer(button)
+                prepareButtonForStackViewLayout(button)
                 stackView.addArrangedSubview(button)
             }
         case .verticalRail:
@@ -195,6 +185,7 @@ final class iOSNaturalNoteStripView: UIView {
             railCanvasView.isHidden = false
             buttons.forEach { button in
                 detachButtonFromCurrentContainer(button)
+                prepareButtonForManualRailLayout(button)
                 railCanvasView.addSubview(button)
             }
         }
@@ -205,6 +196,16 @@ final class iOSNaturalNoteStripView: UIView {
             stackView.removeArrangedSubview(button)
         }
         button.removeFromSuperview()
+    }
+
+    private func prepareButtonForStackViewLayout(_ button: NaturalNoteButton) {
+        button.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    private func prepareButtonForManualRailLayout(_ button: NaturalNoteButton) {
+        // The same buttons are reused between stack-based and frame-based layouts.
+        // Reset them to manual layout before applying shared placement frames.
+        button.translatesAutoresizingMaskIntoConstraints = true
     }
 
     private func resolvedVisibleTitle(for pitchClass: PitchClass?) -> String {
@@ -228,23 +229,11 @@ final class iOSNaturalNoteStripView: UIView {
         activeRailLayout.placements.first { $0.pitchClass == pitchClass }
     }
 
-    private func layoutRailCanvasIfNeeded() {
+    private func applyRailContentLayout() {
         guard layoutMode == .verticalRail else {
             railCanvasView.frame = .zero
             return
         }
-
-        let contentSize = CGSize(
-            width: verticalRailIntrinsicWidth,
-            height: verticalRailIntrinsicHeight
-        )
-        let contentFrame = CGRect(
-            x: max(0, (bounds.width - contentSize.width) / 2),
-            y: max(0, (bounds.height - contentSize.height) / 2),
-            width: min(bounds.width, contentSize.width),
-            height: min(bounds.height, contentSize.height)
-        )
-        railCanvasView.frame = contentFrame
 
         buttons.forEach { button in
             guard
@@ -257,6 +246,40 @@ final class iOSNaturalNoteStripView: UIView {
 
             button.isHidden = false
             button.frame = placement.frame
+        }
+        updateRailCanvasFrameIfNeeded()
+    }
+
+    private func updateRailCanvasFrameIfNeeded() {
+        guard layoutMode == .verticalRail else {
+            railCanvasView.frame = .zero
+            return
+        }
+
+        let contentSize = CGSize(
+            width: verticalRailIntrinsicWidth,
+            height: verticalRailIntrinsicHeight
+        )
+        railCanvasView.frame = resolvedRailCanvasFrame(for: contentSize)
+    }
+
+    private func resolvedRailCanvasFrame(for contentSize: CGSize) -> CGRect {
+        CGRect(
+            x: max(0, (bounds.width - contentSize.width) / 2),
+            y: max(0, (bounds.height - contentSize.height) / 2),
+            width: min(bounds.width, contentSize.width),
+            height: min(bounds.height, contentSize.height)
+        )
+    }
+
+    private func resolvedLayoutMode(
+        for presentationStyle: ExerciseSurfacePresentationStyle
+    ) -> LayoutMode {
+        switch presentationStyle {
+        case .verticalRail:
+            return .verticalRail
+        case .standard, .horizontalStrip:
+            return .horizontalStrip
         }
     }
 }
