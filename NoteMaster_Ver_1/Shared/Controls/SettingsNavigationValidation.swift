@@ -56,6 +56,7 @@ struct SettingsNavigationValidationReport {
     }
 }
 
+@MainActor
 enum SettingsNavigationValidationRunner {
     static func run(
         platform: SettingsNavigationValidationPlatform
@@ -116,7 +117,7 @@ enum SettingsNavigationValidationRunner {
 
 private struct SettingsNavigationValidationFixture {
     var name: String
-    var validate: () -> [SettingsNavigationValidationIssue]
+    var validate: @MainActor () -> [SettingsNavigationValidationIssue]
 }
 
 private extension SettingsNavigationValidationRunner {
@@ -293,15 +294,7 @@ private extension SettingsNavigationValidationRunner {
             return issues
         }
 
-        if panelModel.sections.map(\.id) != [
-            .mode,
-            .exercise,
-            .accessories,
-            .fretboard,
-            .staff,
-            .piano,
-            .debug
-        ] {
+        if panelModel.sections.map(\.id) != expectedRootSectionIDs(for: .exercise) {
             issues.append(
                 issue(
                     fixtureName,
@@ -666,7 +659,7 @@ private extension SettingsNavigationValidationRunner {
             return issues
         }
 
-        if panelModel.sections.map(\.id) != [.mode, .piano] {
+        if panelModel.sections.map(\.id) != expectedRootSectionIDs(for: .play) {
             issues.append(
                 issue(
                     fixtureName,
@@ -694,18 +687,7 @@ private extension SettingsNavigationValidationRunner {
             return issues
         }
 
-        if rootRouteItems != [
-            SettingsRouteItem(
-                title: modeSection.title,
-                subtitle: nil,
-                route: .section(.mode)
-            ),
-            SettingsRouteItem(
-                title: pianoSection.title,
-                subtitle: nil,
-                route: .section(.piano)
-            )
-        ] {
+        if rootRouteItems != expectedRootRouteItems(for: .play, in: panelModel) {
             issues.append(
                 issue(
                     fixtureName,
@@ -830,7 +812,7 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
-        if playPanelModel.sections.map(\.id) != [.mode, .piano] {
+        if playPanelModel.sections.map(\.id) != expectedRootSectionIDs(for: .play) {
             issues.append(
                 issue(
                     fixtureName,
@@ -872,14 +854,7 @@ private extension SettingsNavigationValidationRunner {
             )
         }
 
-        if restoredExercisePanelModel.sections.map(\.id) != [
-            .exercise,
-            .accessories,
-            .fretboard,
-            .staff,
-            .piano,
-            .debug
-        ] {
+        if restoredExercisePanelModel.sections.map(\.id) != expectedRootSectionIDs(for: .exercise) {
             issues.append(
                 issue(
                     fixtureName,
@@ -1882,6 +1857,45 @@ private extension SettingsNavigationValidationRunner {
             title: title,
             rows: sourceSection.rows.filter { allowedRowIDs.contains($0.id) }
         )
+    }
+
+    static func expectedRootSectionIDs(
+        for rootMode: RootMode
+    ) -> [SettingsSectionID] {
+        switch rootMode {
+        case .exercise:
+            return [
+                .mode,
+                .exercise,
+                .accessories,
+                .fretboard,
+                .staff,
+                .piano,
+                .debug
+            ]
+        case .play:
+            return [
+                .mode,
+                .piano
+            ]
+        }
+    }
+
+    static func expectedRootRouteItems(
+        for rootMode: RootMode,
+        in panelModel: SettingsPanelModel
+    ) -> [SettingsRouteItem] {
+        expectedRootSectionIDs(for: rootMode).compactMap { sectionID in
+            guard let section = resolveSection(sectionID, in: panelModel) else {
+                return nil
+            }
+
+            return SettingsRouteItem(
+                title: section.title,
+                subtitle: nil,
+                route: .section(sectionID)
+            )
+        }
     }
 
     static func issue(
