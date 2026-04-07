@@ -309,7 +309,10 @@ extension PianoValidationRunner {
 
     static func validateActiveZoneTracking() -> [PianoValidationIssue] {
         let fixtureName = "active_zone_tracking_respects_locked_mode"
+        let lockedPointer = PianoPointerID(rawValue: 31)
+        let freePointer = PianoPointerID(rawValue: 32)
         let scaleDrag = PianoScaleDragInteraction(
+            pointerID: lockedPointer,
             rowIndex: 0,
             movementScope: .rowOnly,
             beganLocationInView: CGPoint(x: 60, y: 10),
@@ -320,7 +323,10 @@ extension PianoValidationRunner {
             rows: [
                 PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4))
             ],
-            activeInteraction: .scaleDrag(scaleDrag)
+            activePreviews: [:],
+            activeInteractionsByPointer: [
+                lockedPointer: .scaleDrag(scaleDrag)
+            ]
         )
         let geometry = PianoGeometry(
             configuration: PianoConfiguration(
@@ -341,7 +347,8 @@ extension PianoValidationRunner {
 
         let scaleHit = geometry.hitTest(
             CGPoint(x: rowScene.scaleRect.midX, y: rowScene.scaleRect.midY),
-            phase: .moved
+            phase: .moved,
+            pointerID: lockedPointer
         )
         if !scaleHit.isInsideActiveZone {
             issues.append(issue(fixtureName, "scale drag 在原刻度区内移动时应保持 insideActiveZone。"))
@@ -349,10 +356,20 @@ extension PianoValidationRunner {
 
         let keyHit = geometry.hitTest(
             CGPoint(x: rowScene.keysRect.midX, y: rowScene.keysRect.midY),
-            phase: .moved
+            phase: .moved,
+            pointerID: lockedPointer
         )
         if keyHit.isInsideActiveZone {
             issues.append(issue(fixtureName, "scale drag 进入 keys 区后不应继续视为 insideActiveZone。"))
+        }
+
+        let otherPointerKeyHit = geometry.hitTest(
+            CGPoint(x: rowScene.keysRect.midX, y: rowScene.keysRect.midY),
+            phase: .moved,
+            pointerID: freePointer
+        )
+        if !otherPointerKeyHit.isInsideActiveZone {
+            issues.append(issue(fixtureName, "其他 pointer 不应继承已锁定 pointer 的 scale active zone。"))
         }
 
         return issues

@@ -325,7 +325,8 @@ private extension macOSPianoKeyboardView {
         )
         let hitResult = geometry.hitTest(
             rawEvent.locationInView,
-            phase: rawEvent.phase
+            phase: rawEvent.phase,
+            pointerID: rawEvent.pointerID
         )
         let reduction = PianoInteractionReducer.reduce(
             state: componentState,

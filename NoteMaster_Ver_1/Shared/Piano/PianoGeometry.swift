@@ -83,7 +83,8 @@ struct PianoGeometry: Equatable, Sendable {
 
     func hitTest(
         _ point: CGPoint,
-        phase: PianoEventPhase
+        phase: PianoEventPhase,
+        pointerID: PianoPointerID = .legacyPrimary
     ) -> PianoHitResult {
         let normalizedPoint = CGPoint(x: point.x, y: point.y)
 
@@ -95,6 +96,7 @@ struct PianoGeometry: Equatable, Sendable {
                 return makeHitResult(
                     phase: phase,
                     location: normalizedPoint,
+                    pointerID: pointerID,
                     rowIndex: rowScene.rowIndex,
                     zone: .buttonLeft,
                     note: nil
@@ -108,6 +110,7 @@ struct PianoGeometry: Equatable, Sendable {
                 return makeHitResult(
                     phase: phase,
                     location: normalizedPoint,
+                    pointerID: pointerID,
                     rowIndex: rowScene.rowIndex,
                     zone: .buttonRight,
                     note: nil
@@ -121,6 +124,7 @@ struct PianoGeometry: Equatable, Sendable {
                 return makeHitResult(
                     phase: phase,
                     location: normalizedPoint,
+                    pointerID: pointerID,
                     rowIndex: rowScene.rowIndex,
                     zone: .scale,
                     note: nearestScaleMarkerNote(
@@ -137,6 +141,7 @@ struct PianoGeometry: Equatable, Sendable {
                 return makeHitResult(
                     phase: phase,
                     location: normalizedPoint,
+                    pointerID: pointerID,
                     rowIndex: rowScene.rowIndex,
                     zone: .keys,
                     note: noteHit(
@@ -148,6 +153,7 @@ struct PianoGeometry: Equatable, Sendable {
         }
 
         return PianoHitResult(
+            pointerID: pointerID,
             phase: phase,
             locationInView: normalizedPoint,
             rowIndex: nil,
@@ -160,11 +166,13 @@ struct PianoGeometry: Equatable, Sendable {
     private func makeHitResult(
         phase: PianoEventPhase,
         location: CGPoint,
+        pointerID: PianoPointerID,
         rowIndex: Int,
         zone: PianoZone,
         note: NotePitch?
     ) -> PianoHitResult {
         let provisionalHit = PianoHitResult(
+            pointerID: pointerID,
             phase: phase,
             locationInView: location,
             rowIndex: rowIndex,
@@ -174,6 +182,7 @@ struct PianoGeometry: Equatable, Sendable {
         )
 
         return PianoHitResult(
+            pointerID: provisionalHit.pointerID,
             phase: provisionalHit.phase,
             locationInView: provisionalHit.locationInView,
             rowIndex: provisionalHit.rowIndex,
@@ -215,7 +224,7 @@ struct PianoGeometry: Equatable, Sendable {
     private func isInsideActiveZone(
         for hit: PianoHitResult
     ) -> Bool {
-        guard let activeInteraction = state.activeInteraction else {
+        guard let activeInteraction = state.interaction(for: hit.pointerID) else {
             return hit.zone != .outside
         }
 

@@ -270,6 +270,33 @@ enum PianoInteractionState: Equatable, Sendable {
         }
     }
 
+    var currentPreview: PianoPreviewState? {
+        switch self {
+        case .buttonPressed, .scaleDrag:
+            return nil
+        case let .keyGlissando(interaction):
+            return interaction.currentPreview
+        }
+    }
+
+    var isExclusiveControlInteraction: Bool {
+        switch self {
+        case .buttonPressed, .scaleDrag:
+            return true
+        case .keyGlissando:
+            return false
+        }
+    }
+
+    var isKeyPreviewInteraction: Bool {
+        switch self {
+        case .buttonPressed, .scaleDrag:
+            return false
+        case .keyGlissando:
+            return true
+        }
+    }
+
     var rowIndex: Int {
         switch self {
         case let .buttonPressed(interaction):

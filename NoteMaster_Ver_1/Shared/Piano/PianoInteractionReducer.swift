@@ -50,13 +50,15 @@ enum PianoInteractionReducer {
             hitResult: hitResult
         )
 
-        switch state.activeInteraction {
-        case nil:
-            return reduceWithoutActiveInteraction(
+        guard let trackedInteraction = state.interaction(for: rawEvent.pointerID) else {
+            return reduceWithoutTrackedInteraction(
                 state: state,
                 rawEvent: rawEvent,
                 hitResult: hitResult
             )
+        }
+
+        switch trackedInteraction {
         case let .buttonPressed(interaction):
             return reduceButtonPress(
                 interaction,
@@ -98,7 +100,7 @@ private extension PianoInteractionReducer {
         )
     }
 
-    static func reduceWithoutActiveInteraction(
+    static func reduceWithoutTrackedInteraction(
         state: PianoComponentState,
         rawEvent: PianoRawEvent,
         hitResult: PianoHitResult
@@ -114,19 +116,22 @@ private extension PianoInteractionReducer {
 
         switch hitResult.zone {
         case .buttonLeft, .buttonRight:
+            guard !state.hasActiveExclusiveControlInteraction,
+                  !state.hasActiveKeyPreviewInteractions else {
+                return .unchanged(state)
+            }
             guard let direction = hitResult.buttonDirection else {
                 return .unchanged(state)
             }
 
             var nextState = state
-            nextState.activeInteraction = .buttonPressed(
-                PianoButtonPressInteraction(
-                    pointerID: rawEvent.pointerID,
-                    rowIndex: rowIndex,
-                    direction: direction,
-                    movementScope: rowState.movementScope
-                )
+            let interaction = PianoButtonPressInteraction(
+                pointerID: rawEvent.pointerID,
+                rowIndex: rowIndex,
+                direction: direction,
+                movementScope: rowState.movementScope
             )
+            nextState.setInteraction(.buttonPressed(interaction), for: rawEvent.pointerID)
 
             return PianoReduction(
                 previousState: state,
@@ -134,6 +139,10 @@ private extension PianoInteractionReducer {
                 semanticEvents: []
             )
         case .scale:
+            guard !state.hasActiveExclusiveControlInteraction,
+                  !state.hasActiveKeyPreviewInteractions else {
+                return .unchanged(state)
+            }
             let affectedRowIndices = resolvedAffectedRowIndices(
                 rowIndex: rowIndex,
                 movementScope: rowState.movementScope,
@@ -148,16 +157,15 @@ private extension PianoInteractionReducer {
             }
 
             var nextState = state
-            nextState.activeInteraction = .scaleDrag(
-                PianoScaleDragInteraction(
-                    pointerID: rawEvent.pointerID,
-                    rowIndex: rowIndex,
-                    movementScope: rowState.movementScope,
-                    beganLocationInView: rawEvent.locationInView,
-                    affectedRowIndices: affectedRowIndices,
-                    initialOffsetsX: initialOffsetsX
-                )
+            let interaction = PianoScaleDragInteraction(
+                pointerID: rawEvent.pointerID,
+                rowIndex: rowIndex,
+                movementScope: rowState.movementScope,
+                beganLocationInView: rawEvent.locationInView,
+                affectedRowIndices: affectedRowIndices,
+                initialOffsetsX: initialOffsetsX
             )
+            nextState.setInteraction(.scaleDrag(interaction), for: rawEvent.pointerID)
 
             return PianoReduction(
                 previousState: state,
@@ -165,6 +173,9 @@ private extension PianoInteractionReducer {
                 semanticEvents: []
             )
         case .keys:
+            guard !state.hasActiveExclusiveControlInteraction else {
+                return .unchanged(state)
+            }
             guard let note = hitResult.note else {
                 return .unchanged(state)
             }
@@ -176,14 +187,13 @@ private extension PianoInteractionReducer {
             )
 
             var nextState = state
-            nextState.preview = preview
-            nextState.activeInteraction = .keyGlissando(
-                PianoKeyGlissandoInteraction(
-                    pointerID: rawEvent.pointerID,
-                    rowIndex: rowIndex,
-                    currentPreview: preview
-                )
+            nextState.setPreview(preview, for: preview.previewID)
+            let interaction = PianoKeyGlissandoInteraction(
+                pointerID: rawEvent.pointerID,
+                rowIndex: rowIndex,
+                currentPreview: preview
             )
+            nextState.setInteraction(.keyGlissando(interaction), for: rawEvent.pointerID)
 
             return PianoReduction(
                 previousState: state,
@@ -212,15 +222,14 @@ private extension PianoInteractionReducer {
             }
 
             var nextState = state
-            nextState.activeInteraction = .buttonPressed(
-                PianoButtonPressInteraction(
-                    pointerID: interaction.pointerID,
-                    rowIndex: interaction.rowIndex,
-                    direction: interaction.direction,
-                    movementScope: interaction.movementScope,
-                    isTrackingInsideButton: isTrackingInsideButton
-                )
+            let updatedInteraction = PianoButtonPressInteraction(
+                pointerID: interaction.pointerID,
+                rowIndex: interaction.rowIndex,
+                direction: interaction.direction,
+                movementScope: interaction.movementScope,
+                isTrackingInsideButton: isTrackingInsideButton
             )
+            nextState.setInteraction(.buttonPressed(updatedInteraction), for: interaction.pointerID)
 
             return PianoReduction(
                 previousState: state,
@@ -237,7 +246,7 @@ private extension PianoInteractionReducer {
             )
         case .cancelled:
             var nextState = state
-            nextState.activeInteraction = nil
+            nextState.setInteraction(nil, for: interaction.pointerID)
             return PianoReduction(
                 previousState: state,
                 nextState: nextState,
@@ -283,7 +292,7 @@ private extension PianoInteractionReducer {
         }
 
         var nextState = state
-        nextState.activeInteraction = nil
+        nextState.setInteraction(nil, for: interaction.pointerID)
         return PianoReduction(
             previousState: state,
             nextState: nextState,
@@ -381,14 +390,13 @@ private extension PianoInteractionReducer {
                 }
 
                 var nextState = state
-                nextState.preview = nextPreview
-                nextState.activeInteraction = .keyGlissando(
-                    PianoKeyGlissandoInteraction(
-                        pointerID: interaction.pointerID,
-                        rowIndex: interaction.rowIndex,
-                        currentPreview: nextPreview
-                    )
+                nextState.setPreview(nextPreview, for: nextPreview.previewID)
+                let nextInteraction = PianoKeyGlissandoInteraction(
+                    pointerID: interaction.pointerID,
+                    rowIndex: interaction.rowIndex,
+                    currentPreview: nextPreview
                 )
+                nextState.setInteraction(.keyGlissando(nextInteraction), for: interaction.pointerID)
 
                 return PianoReduction(
                     previousState: state,
@@ -399,7 +407,8 @@ private extension PianoInteractionReducer {
 
             return endPreview(
                 state: state,
-                preview: interaction.currentPreview
+                preview: interaction.currentPreview,
+                pointerID: interaction.pointerID
             )
         case .ended:
             if hitResult.rowIndex == interaction.rowIndex,
@@ -412,14 +421,11 @@ private extension PianoInteractionReducer {
                     note: note
                 )
 
-                var nextState = state
-                nextState.preview = nil
-                nextState.activeInteraction = nil
-
-                return PianoReduction(
-                    previousState: state,
-                    nextState: nextState,
-                    semanticEvents: [
+                return endPreview(
+                    state: state,
+                    preview: finalPreview,
+                    pointerID: interaction.pointerID,
+                    leadingSemanticEvents: [
                         .previewChanged(finalPreview),
                         .previewEnded(finalPreview)
                     ]
@@ -428,28 +434,34 @@ private extension PianoInteractionReducer {
 
             return endPreview(
                 state: state,
-                preview: interaction.currentPreview
+                preview: interaction.currentPreview,
+                pointerID: interaction.pointerID
             )
         case .cancelled:
             return endPreview(
                 state: state,
-                preview: interaction.currentPreview
+                preview: interaction.currentPreview,
+                pointerID: interaction.pointerID
             )
         }
     }
 
     static func endPreview(
         state: PianoComponentState,
-        preview: PianoPreviewState
+        preview: PianoPreviewState,
+        pointerID: PianoPointerID,
+        leadingSemanticEvents: [PianoSemanticEvent] = []
     ) -> PianoReduction {
         var nextState = state
-        nextState.preview = nil
-        nextState.activeInteraction = nil
+        nextState.setPreview(nil, for: preview.previewID)
+        nextState.setInteraction(nil, for: pointerID)
 
         return PianoReduction(
             previousState: state,
             nextState: nextState,
-            semanticEvents: [.previewEnded(preview)]
+            semanticEvents: leadingSemanticEvents.isEmpty
+                ? [.previewEnded(preview)]
+                : leadingSemanticEvents
         )
     }
 
@@ -486,7 +498,7 @@ private extension PianoInteractionReducer {
 
         var nextState = state
         nextState.rows = resolvedRows
-        nextState.activeInteraction = nil
+        nextState.setInteraction(nil, for: interaction.pointerID)
 
         var semanticEvents: [PianoSemanticEvent] = []
         if resolvedRows != state.rows {

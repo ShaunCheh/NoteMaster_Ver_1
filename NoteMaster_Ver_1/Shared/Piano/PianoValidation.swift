@@ -211,6 +211,14 @@ private extension PianoValidationRunner {
                 validate: validateKeyGlissandoLifecycle
             ),
             PianoValidationFixture(
+                name: "multi_pointer_key_previews_coexist_and_end_independently",
+                validate: validateMultiPointerKeyPreviews
+            ),
+            PianoValidationFixture(
+                name: "control_interactions_remain_exclusive_against_key_previews",
+                validate: validateControlInteractionExclusivity
+            ),
+            PianoValidationFixture(
                 name: "keyboard_layer_uses_one_row_layer_per_row",
                 validate: validateKeyboardLayerUsesOneRowLayerPerRow
             ),

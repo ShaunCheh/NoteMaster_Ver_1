@@ -130,6 +130,10 @@ struct PianoComponentState: Equatable, Sendable {
                 return interaction
             }
 
+            if let interaction = activeExclusiveControlInteraction {
+                return interaction
+            }
+
             return activeInteractionsByPointer
                 .sorted { lhs, rhs in lhs.key.rawValue < rhs.key.rawValue }
                 .first?
@@ -153,6 +157,70 @@ struct PianoComponentState: Equatable, Sendable {
 
     var isPreviewing: Bool {
         !activePreviews.isEmpty
+    }
+
+    var activeExclusiveControlInteraction: PianoInteractionState? {
+        activeInteractionsByPointer.values
+            .filter { $0.isExclusiveControlInteraction }
+            .sorted { lhs, rhs in lhs.pointerID.rawValue < rhs.pointerID.rawValue }
+            .first
+    }
+
+    var hasActiveExclusiveControlInteraction: Bool {
+        activeExclusiveControlInteraction != nil
+    }
+
+    var hasActiveKeyPreviewInteractions: Bool {
+        activeInteractionsByPointer.values.contains { $0.isKeyPreviewInteraction }
+    }
+
+    func interaction(for pointerID: PianoPointerID) -> PianoInteractionState? {
+        activeInteractionsByPointer[pointerID]
+    }
+
+    func preview(for previewID: PianoPreviewID) -> PianoPreviewState? {
+        activePreviews[previewID]
+    }
+
+    func preview(for pointerID: PianoPointerID) -> PianoPreviewState? {
+        preview(for: pointerID.previewID)
+    }
+
+    func hasExclusiveControlInteraction(ownedBy pointerID: PianoPointerID) -> Bool {
+        activeInteractionsByPointer.contains { entry in
+            entry.key != pointerID && entry.value.isExclusiveControlInteraction
+        }
+    }
+
+    mutating func setPreview(
+        _ preview: PianoPreviewState?,
+        for previewID: PianoPreviewID
+    ) {
+        guard let preview else {
+            activePreviews.removeValue(forKey: previewID)
+            return
+        }
+
+        activePreviews[previewID] = preview
+    }
+
+    mutating func setPreview(
+        _ preview: PianoPreviewState?,
+        for pointerID: PianoPointerID
+    ) {
+        setPreview(preview, for: pointerID.previewID)
+    }
+
+    mutating func setInteraction(
+        _ interaction: PianoInteractionState?,
+        for pointerID: PianoPointerID
+    ) {
+        guard let interaction else {
+            activeInteractionsByPointer.removeValue(forKey: pointerID)
+            return
+        }
+
+        activeInteractionsByPointer[pointerID] = interaction
     }
 
     func rowState(at rowIndex: Int) -> PianoRowState? {

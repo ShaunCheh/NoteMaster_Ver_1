@@ -791,4 +791,246 @@ extension PianoValidationRunner {
 
         return issues
     }
+
+    static func validateMultiPointerKeyPreviews() -> [PianoValidationIssue] {
+        let fixtureName = "multi_pointer_key_previews_coexist_and_end_independently"
+        let pointerA = PianoPointerID(rawValue: 1)
+        let pointerB = PianoPointerID(rawValue: 2)
+        let previewA = PianoPreviewState(
+            previewID: pointerA.previewID,
+            rowIndex: 0,
+            note: NotePitch(pitchClass: .c, octave: 4)
+        )
+        let previewB = PianoPreviewState(
+            previewID: pointerB.previewID,
+            rowIndex: 0,
+            note: NotePitch(pitchClass: .e, octave: 4)
+        )
+        let initialState = PianoComponentState(
+            rows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4))
+            ]
+        )
+        var issues: [PianoValidationIssue] = []
+
+        let beganA = PianoInteractionReducer.reduce(
+            state: initialState,
+            rawEvent: PianoRawEvent(
+                pointerID: pointerA,
+                phase: .began,
+                locationInView: CGPoint(x: 30, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: pointerA,
+                phase: .began,
+                locationInView: CGPoint(x: 30, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: previewA.note,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if beganA.semanticEvents != [.previewStarted(previewA)] {
+            issues.append(issue(fixtureName, "第一个 pointer began 后应发出带 pointerA previewID 的 previewStarted。"))
+        }
+
+        let beganB = PianoInteractionReducer.reduce(
+            state: beganA.nextState,
+            rawEvent: PianoRawEvent(
+                pointerID: pointerB,
+                phase: .began,
+                locationInView: CGPoint(x: 90, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: pointerB,
+                phase: .began,
+                locationInView: CGPoint(x: 90, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: previewB.note,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if beganB.semanticEvents != [.previewStarted(previewB)] {
+            issues.append(issue(fixtureName, "第二个 pointer began 后也应独立发出自己的 previewStarted。"))
+        }
+        if beganB.nextState.activePreviews.count != 2 {
+            issues.append(issue(fixtureName, "两个 key pointer 并发时，activePreviews 应同时保留两条活动 preview。"))
+        }
+        if beganB.nextState.preview(for: pointerA) != previewA {
+            issues.append(issue(fixtureName, "pointerA 的 preview 不应被 pointerB 的 began 覆盖。"))
+        }
+        if beganB.nextState.preview(for: pointerB) != previewB {
+            issues.append(issue(fixtureName, "pointerB 的 preview 应按自己的 previewID 单独记录。"))
+        }
+        if beganB.nextState.interaction(for: pointerA) == nil
+            || beganB.nextState.interaction(for: pointerB) == nil {
+            issues.append(issue(fixtureName, "两个 pointer 并发时，activeInteractionsByPointer 应同时保留两条 keyGlissando。"))
+        }
+
+        let endedA = PianoInteractionReducer.reduce(
+            state: beganB.nextState,
+            rawEvent: PianoRawEvent(
+                pointerID: pointerA,
+                phase: .ended,
+                locationInView: CGPoint(x: 260, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: pointerA,
+                phase: .ended,
+                locationInView: CGPoint(x: 260, y: 10),
+                rowIndex: nil,
+                zone: .outside,
+                note: nil,
+                isInsideActiveZone: false
+            ),
+            configuration: PianoConfiguration()
+        )
+        if endedA.semanticEvents != [.previewEnded(previewA)] {
+            issues.append(issue(fixtureName, "pointerA 结束时应只发出自己的 previewEnded。"))
+        }
+        if endedA.nextState.preview(for: pointerA) != nil {
+            issues.append(issue(fixtureName, "pointerA ended 后应只清理自己的活动 preview。"))
+        }
+        if endedA.nextState.preview(for: pointerB) != previewB {
+            issues.append(issue(fixtureName, "pointerA ended 不应误清理 pointerB 的活动 preview。"))
+        }
+        if endedA.nextState.interaction(for: pointerA) != nil {
+            issues.append(issue(fixtureName, "pointerA ended 后应只清理自己的 keyGlissando 交互。"))
+        }
+        if endedA.nextState.interaction(for: pointerB) == nil {
+            issues.append(issue(fixtureName, "旧 pointer 的 ended 不应把新 pointer 的 keyGlissando 一起清掉。"))
+        }
+        if endedA.nextState.activePreviews.count != 1 || !endedA.nextState.isPreviewing {
+            issues.append(issue(fixtureName, "一个 pointer 结束后，只要仍有其他活动 preview，就应继续保持 previewing 状态。"))
+        }
+
+        return issues
+    }
+
+    static func validateControlInteractionExclusivity() -> [PianoValidationIssue] {
+        let fixtureName = "control_interactions_remain_exclusive_against_key_previews"
+        let keyPointer = PianoPointerID(rawValue: 11)
+        let controlPointer = PianoPointerID(rawValue: 22)
+        let initialState = PianoComponentState(
+            rows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4))
+            ]
+        )
+        var issues: [PianoValidationIssue] = []
+
+        let keyBegan = PianoInteractionReducer.reduce(
+            state: initialState,
+            rawEvent: PianoRawEvent(
+                pointerID: keyPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 40, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: keyPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 40, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: NotePitch(pitchClass: .c, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+
+        let blockedButton = PianoInteractionReducer.reduce(
+            state: keyBegan.nextState,
+            rawEvent: PianoRawEvent(
+                pointerID: controlPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 12, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: controlPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 12, y: 10),
+                rowIndex: 0,
+                zone: .buttonRight,
+                note: nil,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if blockedButton.nextState != keyBegan.nextState
+            || !blockedButton.semanticEvents.isEmpty
+            || blockedButton.presentationCommand != nil {
+            issues.append(issue(fixtureName, "存在活动 key preview 时，新的 button began 应被阻断而不是混入 keys 会话。"))
+        }
+
+        let keyEnded = PianoInteractionReducer.reduce(
+            state: keyBegan.nextState,
+            rawEvent: PianoRawEvent(
+                pointerID: keyPointer,
+                phase: .ended,
+                locationInView: CGPoint(x: 260, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: keyPointer,
+                phase: .ended,
+                locationInView: CGPoint(x: 260, y: 10),
+                rowIndex: nil,
+                zone: .outside,
+                note: nil,
+                isInsideActiveZone: false
+            ),
+            configuration: PianoConfiguration()
+        )
+
+        let buttonBegan = PianoInteractionReducer.reduce(
+            state: keyEnded.nextState,
+            rawEvent: PianoRawEvent(
+                pointerID: controlPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 12, y: 10)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: controlPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 12, y: 10),
+                rowIndex: 0,
+                zone: .buttonRight,
+                note: nil,
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        guard case let .buttonPressed(interaction)? = buttonBegan.nextState.interaction(for: controlPointer) else {
+            issues.append(issue(fixtureName, "没有活动 key preview 后，button began 应恢复建立 buttonPressed 单 owner 交互。"))
+            return issues
+        }
+        if interaction.direction != .right {
+            issues.append(issue(fixtureName, "buttonPressed 单 owner 交互应保留正确的按钮方向。"))
+        }
+
+        let blockedKey = PianoInteractionReducer.reduce(
+            state: buttonBegan.nextState,
+            rawEvent: PianoRawEvent(
+                pointerID: keyPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 80, y: 60)
+            ),
+            hitResult: PianoHitResult(
+                pointerID: keyPointer,
+                phase: .began,
+                locationInView: CGPoint(x: 80, y: 60),
+                rowIndex: 0,
+                zone: .keys,
+                note: NotePitch(pitchClass: .d, octave: 4),
+                isInsideActiveZone: true
+            ),
+            configuration: PianoConfiguration()
+        )
+        if blockedKey.nextState != buttonBegan.nextState || !blockedKey.semanticEvents.isEmpty {
+            issues.append(issue(fixtureName, "button/scale 处于单 owner 控制期时，新的 key began 也应被阻断。"))
+        }
+
+        return issues
+    }
 }
