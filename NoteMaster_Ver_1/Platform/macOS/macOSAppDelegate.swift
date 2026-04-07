@@ -32,6 +32,8 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         SettingsNavigationValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run piano validation")
         PianoValidationRunner.runAndReportIfNeeded(platform: .macOS)
+        print("[Startup][macOSApp] run play composition validation")
+        PlayCompositionValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run exercise composition validation")
         ExerciseCompositionValidationRunner.runAndReportIfNeeded(platform: .macOS)
         // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。

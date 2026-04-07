@@ -11,56 +11,33 @@ enum ExerciseRole: String, CaseIterable, Equatable, Hashable, Sendable {
     case auxiliary
 }
 
-enum ExerciseSurfaceID: String, CaseIterable, Equatable, Hashable, Sendable {
-    case fretboard
-    case staff
-    case targetPrompt
-    case naturalNoteStrip
-    case piano
-}
+typealias ExerciseSurfaceID = AppSurfaceID
+typealias ExerciseSurfaceKind = AppSurfaceKind
+typealias ExerciseSurfacePresentationStyle = AppSurfacePresentationStyle
+typealias ExerciseSceneAxis = SceneAxis
+typealias ExerciseSceneSplitChildMainAxisSizing = SceneSplitChildMainAxisSizing
+typealias ExerciseSceneSplitChild = SceneSplitChild<ExerciseSurfaceNode>
+typealias ExerciseSceneNode = SceneNode<ExerciseSurfaceNode>
+typealias ExerciseScene = Scene<ExerciseSurfaceNode>
 
-enum ExerciseSurfaceKind: String, CaseIterable, Equatable, Hashable, Sendable {
-    case fretboard
-    case staff
-    case targetPrompt
-    case naturalNoteStrip
-    case piano
-}
-
-enum ExerciseSurfacePresentationStyle: String, CaseIterable, Equatable, Hashable, Sendable {
-    case standard
-    case horizontalStrip
-    case verticalRail
-}
-
-enum ExerciseSceneAxis: String, Equatable, Hashable, Sendable {
-    case vertical
-    case horizontal
-}
-
-enum ExerciseSceneSplitChildMainAxisSizing: Equatable, Hashable, Sendable {
-    case weighted(Double)
-    case fitContent
-    case fixed(Double)
-
-    var weightedValue: Double? {
-        guard case let .weighted(weight) = self else {
-            return nil
-        }
-
-        return weight
-    }
-
-    var isWeighted: Bool {
-        weightedValue != nil
-    }
-}
-
-struct ExerciseSurfaceNode: Equatable, Sendable {
-    var id: ExerciseSurfaceID
-    var kind: ExerciseSurfaceKind
+nonisolated struct ExerciseSurfaceNode: SceneSurfaceProtocol, Equatable, Sendable {
+    private var baseSurface: AppSurfaceNode
     private(set) var roles: Set<ExerciseRole>
-    var presentationStyle: ExerciseSurfacePresentationStyle
+
+    var id: ExerciseSurfaceID {
+        get { baseSurface.id }
+        set { baseSurface.id = newValue }
+    }
+
+    var kind: ExerciseSurfaceKind {
+        get { baseSurface.kind }
+        set { baseSurface.kind = newValue }
+    }
+
+    var presentationStyle: ExerciseSurfacePresentationStyle {
+        get { baseSurface.presentationStyle }
+        set { baseSurface.presentationStyle = newValue }
+    }
 
     init(
         id: ExerciseSurfaceID,
@@ -72,10 +49,12 @@ struct ExerciseSurfaceNode: Equatable, Sendable {
             !roles.isEmpty,
             "Exercise surface must expose at least one role."
         )
-        self.id = id
-        self.kind = kind
+        self.baseSurface = AppSurfaceNode(
+            id: id,
+            kind: kind,
+            presentationStyle: presentationStyle
+        )
         self.roles = roles
-        self.presentationStyle = presentationStyle
     }
 
     var isPromptSurface: Bool {
@@ -106,125 +85,7 @@ struct ExerciseSurfaceNode: Equatable, Sendable {
     }
 }
 
-struct ExerciseSceneSplitChild: Equatable, Sendable {
-    var node: ExerciseSceneNode
-    var mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing
-
-    init(
-        node: ExerciseSceneNode,
-        mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing = .weighted(1)
-    ) {
-        switch mainAxisSizing {
-        case let .weighted(weight):
-            precondition(
-                weight > 0,
-                "Exercise scene split child weight must be greater than zero."
-            )
-        case let .fixed(size):
-            precondition(
-                size > 0,
-                "Exercise scene split child fixed size must be greater than zero."
-            )
-        case .fitContent:
-            break
-        }
-        self.node = node
-        self.mainAxisSizing = mainAxisSizing
-    }
-}
-
-indirect enum ExerciseSceneNode: Equatable, Sendable {
-    case surface(ExerciseSurfaceNode)
-    case split(axis: ExerciseSceneAxis, children: [ExerciseSceneSplitChild])
-    case overlay(base: ExerciseSceneNode, floating: [ExerciseSceneNode])
-    case collapsible(
-        main: ExerciseSceneNode,
-        accessory: ExerciseSceneNode,
-        isExpanded: Bool
-    )
-
-    static func makeSplit(
-        axis: ExerciseSceneAxis,
-        children: [ExerciseSceneSplitChild]
-    ) -> ExerciseSceneNode {
-        precondition(
-            children.count >= 2,
-            "Exercise split scene must contain at least two children."
-        )
-        return .split(axis: axis, children: children)
-    }
-
-    static func makeOverlay(
-        base: ExerciseSceneNode,
-        floating: [ExerciseSceneNode]
-    ) -> ExerciseSceneNode {
-        precondition(
-            !floating.isEmpty,
-            "Exercise overlay scene must contain at least one floating node."
-        )
-        return .overlay(base: base, floating: floating)
-    }
-
-    static func makeCollapsible(
-        main: ExerciseSceneNode,
-        accessory: ExerciseSceneNode,
-        isExpanded: Bool
-    ) -> ExerciseSceneNode {
-        .collapsible(
-            main: main,
-            accessory: accessory,
-            isExpanded: isExpanded
-        )
-    }
-
-    var surfaceNodes: [ExerciseSurfaceNode] {
-        switch self {
-        case let .surface(surface):
-            return [surface]
-        case let .split(_, children):
-            return children.flatMap { $0.node.surfaceNodes }
-        case let .overlay(base, floating):
-            return base.surfaceNodes + floating.flatMap { $0.surfaceNodes }
-        case let .collapsible(main, accessory, _):
-            return main.surfaceNodes + accessory.surfaceNodes
-        }
-    }
-
-    func surfaceNode(for surfaceID: ExerciseSurfaceID) -> ExerciseSurfaceNode? {
-        switch self {
-        case let .surface(surface):
-            return surface.id == surfaceID ? surface : nil
-        case let .split(_, children):
-            return children.compactMap {
-                $0.node.surfaceNode(for: surfaceID)
-            }.first
-        case let .overlay(base, floating):
-            if let match = base.surfaceNode(for: surfaceID) {
-                return match
-            }
-            return floating.compactMap {
-                $0.surfaceNode(for: surfaceID)
-            }.first
-        case let .collapsible(main, accessory, _):
-            if let match = main.surfaceNode(for: surfaceID) {
-                return match
-            }
-            return accessory.surfaceNode(for: surfaceID)
-        }
-    }
-
-    func containsSurface(_ surfaceID: ExerciseSurfaceID) -> Bool {
-        surfaceNode(for: surfaceID) != nil
-    }
-}
-
-struct ExerciseScene: Equatable, Sendable {
-    var root: ExerciseSceneNode
-
-    init(root: ExerciseSceneNode) {
-        self.root = root
-    }
-
+extension Scene where Surface == ExerciseSurfaceNode {
     static func stacked(
         top: ExerciseSurfaceNode,
         bottom: ExerciseSurfaceNode
@@ -259,22 +120,6 @@ struct ExerciseScene: Equatable, Sendable {
                 ]
             )
         )
-    }
-
-    static func singleSurface(_ surface: ExerciseSurfaceNode) -> ExerciseScene {
-        ExerciseScene(root: .surface(surface))
-    }
-
-    var surfaceNodes: [ExerciseSurfaceNode] {
-        root.surfaceNodes
-    }
-
-    func surfaceNode(for surfaceID: ExerciseSurfaceID) -> ExerciseSurfaceNode? {
-        root.surfaceNode(for: surfaceID)
-    }
-
-    func containsSurface(_ surfaceID: ExerciseSurfaceID) -> Bool {
-        root.containsSurface(surfaceID)
     }
 }
 
@@ -334,7 +179,7 @@ extension ExerciseSurfaceNode {
     )
 }
 
-extension ExerciseSceneNode {
+extension SceneNode where Surface == ExerciseSurfaceNode {
     var containsNaturalNoteStripAnswerRailInSideBySideLayout: Bool {
         switch self {
         case .surface:
@@ -450,7 +295,7 @@ extension ExerciseSceneNode {
     }
 }
 
-extension ExerciseScene {
+extension Scene where Surface == ExerciseSurfaceNode {
     var containsNaturalNoteStripAnswerRailInSideBySideLayout: Bool {
         root.containsNaturalNoteStripAnswerRailInSideBySideLayout
     }

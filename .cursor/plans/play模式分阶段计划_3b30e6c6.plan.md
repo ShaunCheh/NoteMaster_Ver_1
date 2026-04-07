@@ -7,7 +7,7 @@ todos:
     status: pending
   - id: phase2-scene-core
     content: 把当前 Exercise 场景与表现核心上提为通用 SceneCore，并保留 exercise policy 与 legacy adapter 作为兼容桥。
-    status: pending
+    status: completed
   - id: phase3-mode-state-settings
     content: 拆分根模式状态与 settings 上下文，明确公共项、exercise 专属项、play 专属项，并补双模式导航验证。
     status: pending

@@ -17,28 +17,16 @@ enum ExerciseSceneValidator {
         _ scene: ExerciseScene
     ) -> [ExerciseSceneValidationIssue] {
         let surfaceNodes = scene.surfaceNodes
-        var issues: [ExerciseSceneValidationIssue] = []
-
-        for surfaceID in ExerciseSurfaceID.allCases {
-            let duplicateCount = surfaceNodes.filter { $0.id == surfaceID }.count
-            if duplicateCount > 1 {
-                issues.append(.duplicateSurfaceID(surfaceID))
-            }
+        var issues: [ExerciseSceneValidationIssue] = SceneValidator.validate(scene).map {
+            mapSceneValidationIssue($0)
         }
 
-        if !surfaceNodes.contains(where: \.isPromptSurface) {
-            issues.append(.missingPromptSurface)
+        if !surfaceNodes.contains(where: { $0.isPromptSurface }) {
+            issues.append(ExerciseSceneValidationIssue.missingPromptSurface)
         }
-        if !surfaceNodes.contains(where: \.isAnswerSurface) {
-            issues.append(.missingAnswerSurface)
+        if !surfaceNodes.contains(where: { $0.isAnswerSurface }) {
+            issues.append(ExerciseSceneValidationIssue.missingAnswerSurface)
         }
-
-        issues.append(
-            contentsOf: validatePresentationStyles(
-                in: scene.root,
-                withinHorizontalSplit: false
-            )
-        )
 
         return issues
     }
@@ -125,46 +113,14 @@ enum ExerciseSceneValidator {
         }
     }
 
-    private static func validatePresentationStyles(
-        in node: ExerciseSceneNode,
-        withinHorizontalSplit: Bool
-    ) -> [ExerciseSceneValidationIssue] {
-        switch node {
-        case let .surface(surface):
-            guard
-                surface.presentationStyle == .verticalRail,
-                !withinHorizontalSplit
-            else {
-                return []
-            }
-            return [.verticalRailRequiresHorizontalSplit(surface.id)]
-        case let .split(axis, children):
-            let nextWithinHorizontalSplit = withinHorizontalSplit
-                || axis == .horizontal
-            return children.flatMap {
-                validatePresentationStyles(
-                    in: $0.node,
-                    withinHorizontalSplit: nextWithinHorizontalSplit
-                )
-            }
-        case let .overlay(base, floating):
-            return validatePresentationStyles(
-                in: base,
-                withinHorizontalSplit: withinHorizontalSplit
-            ) + floating.flatMap {
-                validatePresentationStyles(
-                    in: $0,
-                    withinHorizontalSplit: withinHorizontalSplit
-                )
-            }
-        case let .collapsible(main, accessory, _):
-            return validatePresentationStyles(
-                in: main,
-                withinHorizontalSplit: withinHorizontalSplit
-            ) + validatePresentationStyles(
-                in: accessory,
-                withinHorizontalSplit: withinHorizontalSplit
-            )
+    private static func mapSceneValidationIssue(
+        _ issue: SceneValidationIssue
+    ) -> ExerciseSceneValidationIssue {
+        switch issue {
+        case let .duplicateSurfaceID(surfaceID):
+            return .duplicateSurfaceID(surfaceID)
+        case let .verticalRailRequiresHorizontalSplit(surfaceID):
+            return .verticalRailRequiresHorizontalSplit(surfaceID)
         }
     }
 }
