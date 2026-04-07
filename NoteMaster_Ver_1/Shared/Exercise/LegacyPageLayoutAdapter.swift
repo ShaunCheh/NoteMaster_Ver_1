@@ -43,7 +43,7 @@ enum LegacyPageLayoutAdapter {
         _ preferences: ExerciseLayoutPreferences,
         trainerDisplayState: TrainerDisplayState
     ) -> ExerciseLayoutPreferences {
-        ExerciseSceneValidator.normalizedPreferences(
+        ExerciseCompositionPolicy.normalizedPreferences(
             preferences,
             trainerDisplayState: trainerDisplayState
         )
@@ -78,7 +78,7 @@ enum LegacyPageLayoutAdapter {
         _ preset: ExerciseCompositionPreset,
         for exerciseMode: TrainerExerciseMode
     ) -> Bool {
-        ExerciseSceneValidator.isCompositionPresetSemanticallySupported(
+        ExerciseCompositionPolicy.isCompositionPresetSupported(
             preset,
             for: exerciseMode
         )
@@ -101,7 +101,7 @@ enum LegacyPageLayoutAdapter {
     static func isAccessoryPresentationSupported(
         _ presentation: ExerciseAccessoryPresentation
     ) -> Bool {
-        ExerciseSceneValidator.isAccessoryPresentationSemanticallySupported(
+        ExerciseCompositionPolicy.isAccessoryPresentationSupported(
             presentation
         )
     }

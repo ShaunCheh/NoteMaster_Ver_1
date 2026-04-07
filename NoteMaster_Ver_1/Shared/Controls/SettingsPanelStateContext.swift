@@ -84,7 +84,7 @@ struct SettingsPanelStateContext: Equatable, Sendable {
     }
 
     var fretboardLayoutContract: ExerciseFretboardLayoutContract {
-        let resolvedPreferences = ExerciseSceneValidator.normalizedPreferences(
+        let resolvedPreferences = ExerciseCompositionPolicy.normalizedPreferences(
             exerciseLayoutPreferences,
             trainerDisplayState: trainerDisplayState
         )

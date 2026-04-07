@@ -52,7 +52,7 @@ final class iOSViewController: UIViewController {
         configuration: initialPianoDemoConfiguration,
         rows: initialPianoDemoRows
     )
-    private static let initialExerciseLayoutPreferences = ExerciseSceneValidator
+    private static let initialExerciseLayoutPreferences = ExerciseCompositionPolicy
         .normalizedPreferences(
             .legacyPositionPrompt,
             trainerDisplayState: .default

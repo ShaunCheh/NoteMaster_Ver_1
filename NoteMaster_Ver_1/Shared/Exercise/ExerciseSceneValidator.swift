@@ -43,62 +43,6 @@ enum ExerciseSceneValidator {
         return issues
     }
 
-    static func normalizedPreferences(
-        _ preferences: ExerciseLayoutPreferences,
-        trainerDisplayState: TrainerDisplayState
-    ) -> ExerciseLayoutPreferences {
-        var normalized = preferences
-
-        switch trainerDisplayState.exerciseMode {
-        case .single, .sequence:
-            if !isCompositionPresetSemanticallySupported(
-                normalized.compositionPreset,
-                for: trainerDisplayState.exerciseMode
-            ) {
-                normalized.compositionPreset = .staffToFretboard
-            }
-        case .positionPrompt:
-            if !isCompositionPresetSemanticallySupported(
-                normalized.compositionPreset,
-                for: trainerDisplayState.exerciseMode
-            ) {
-                normalized.compositionPreset = .fretboardToNaturalNoteStrip
-            }
-        }
-
-        switch normalized.compositionPreset {
-        case .staffToFretboard,
-             .targetPromptToFretboard,
-             .fretboardToNaturalNoteStrip:
-            if !isMultiSurfaceLayoutSemanticallySupported(
-                normalized.layoutPreset
-            ) {
-                normalized.layoutPreset = .stacked
-            }
-        case .fretboardSelfAnswer:
-            if !isSelfAnswerLayoutSemanticallySupported(
-                normalized.layoutPreset
-            ) {
-                normalized.layoutPreset = .singleSurface
-            }
-        }
-
-        if !isAccessoryPresentationSemanticallySupported(
-            normalized.accessoryPresentation
-        ) {
-            normalized.accessoryPresentation = .docked
-        }
-        if normalized.accessoryPresentation != .collapsible {
-            normalized.isAccessoryExpanded = true
-        }
-
-        if normalized.compositionPreset == .fretboardToNaturalNoteStrip {
-            normalized.isNaturalNoteStripVisible = true
-        }
-
-        return normalized
-    }
-
     static func normalizedLegacyPageDisplayState(
         from pageDisplayState: PageDisplayState,
         prioritizingTopContent: Bool
@@ -178,66 +122,6 @@ enum ExerciseSceneValidator {
             return .positionPrompt
         default:
             return nil
-        }
-    }
-
-    static func isCompositionPresetSemanticallySupported(
-        _ preset: ExerciseCompositionPreset,
-        for exerciseMode: TrainerExerciseMode
-    ) -> Bool {
-        switch exerciseMode {
-        case .single, .sequence:
-            switch preset {
-            case .staffToFretboard, .targetPromptToFretboard:
-                return true
-            case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
-                return false
-            }
-        case .positionPrompt:
-            switch preset {
-            case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
-                return true
-            case .staffToFretboard, .targetPromptToFretboard:
-                return false
-            }
-        }
-    }
-
-    static func isMultiSurfaceLayoutSemanticallySupported(
-        _ preset: ExerciseLayoutPreset
-    ) -> Bool {
-        switch preset {
-        case .stacked,
-             .sideBySide,
-             .threePane,
-             .overlay,
-             .collapsibleAccessory:
-            return true
-        case .singleSurface:
-            return false
-        }
-    }
-
-    static func isSelfAnswerLayoutSemanticallySupported(
-        _ preset: ExerciseLayoutPreset
-    ) -> Bool {
-        switch preset {
-        case .singleSurface,
-             .threePane,
-             .overlay,
-             .collapsibleAccessory:
-            return true
-        case .stacked, .sideBySide:
-            return false
-        }
-    }
-
-    static func isAccessoryPresentationSemanticallySupported(
-        _ presentation: ExerciseAccessoryPresentation
-    ) -> Bool {
-        switch presentation {
-        case .docked, .floating, .collapsible:
-            return true
         }
     }
 

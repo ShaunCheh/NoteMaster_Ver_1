@@ -35,7 +35,7 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。
         window.overrideUserInterfaceStyle = .light
         print("[Startup][iOSApp] create root view controller")
-        window.rootViewController = iOSViewController()
+        window.rootViewController = iOSRootViewController()
         window.backgroundColor = .systemBackground
         print("[Startup][iOSApp] make window key and visible")
         window.makeKeyAndVisible()
@@ -48,8 +48,9 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
                 guard
                     let self,
                     let window = self.window,
-                    let viewController = window.rootViewController
-                    as? iOSViewController
+                    let rootViewController = window.rootViewController
+                    as? iOSRootViewController,
+                    let viewController = rootViewController.activeExerciseViewController
                 else {
                     let summary =
                         "[RuntimeSmoke][iOS] FAIL scenario=layout_preset_regression reason=missing_window_or_view_controller"

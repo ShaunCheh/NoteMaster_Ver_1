@@ -18,7 +18,7 @@ enum ExerciseCompositionPolicy {
     static func makePresentation(
         from input: ExerciseCompositionPolicyInput
     ) -> ExercisePresentationState {
-        var resolvedLayoutPreferences = ExerciseSceneValidator
+        var resolvedLayoutPreferences = ExerciseCompositionPolicy
             .normalizedPreferences(
                 input.layoutPreferences,
                 trainerDisplayState: input.trainerDisplayState
@@ -54,7 +54,7 @@ enum ExerciseCompositionPolicy {
     static func legacyCompatiblePreferences(
         from input: ExerciseCompositionPolicyInput
     ) -> ExerciseLayoutPreferences {
-        let resolvedPreferences = ExerciseSceneValidator.normalizedPreferences(
+        let resolvedPreferences = ExerciseCompositionPolicy.normalizedPreferences(
             input.layoutPreferences,
             trainerDisplayState: input.trainerDisplayState
         )
@@ -81,7 +81,7 @@ enum ExerciseCompositionPolicy {
             }
         }
 
-        legacyCompatiblePreferences = ExerciseSceneValidator
+        legacyCompatiblePreferences = ExerciseCompositionPolicy
             .normalizedPreferences(
                 legacyCompatiblePreferences,
                 trainerDisplayState: input.trainerDisplayState

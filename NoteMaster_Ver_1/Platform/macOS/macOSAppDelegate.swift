@@ -39,7 +39,7 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.appearance = NSAppearance(named: .aqua)
 
         print("[Startup][macOSApp] create root view controller")
-        let viewController = macOSViewController()
+        let viewController = macOSRootViewController()
         print("[Startup][macOSApp] create window")
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
@@ -68,8 +68,9 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
                 guard
                     let self,
                     let window = self.window,
-                    let viewController = window.contentViewController
-                    as? macOSViewController
+                    let rootViewController = window.contentViewController
+                    as? macOSRootViewController,
+                    let viewController = rootViewController.activeExerciseViewController
                 else {
                     let summary =
                         "[RuntimeSmoke][macOS] FAIL scenario=layout_preset_regression reason=missing_window_or_view_controller"
