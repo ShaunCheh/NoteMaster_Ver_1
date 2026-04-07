@@ -25,7 +25,7 @@ final class iOSExerciseSceneRenderer {
 
     private let sceneContentView = UIView()
     private let fretboardHostView = UIView()
-    private let fretboardViewportScrollView = UIScrollView()
+    private let fretboardViewportScrollView = iOSInteractiveSurfaceScrollView()
     private let fretboardScrollContentView = UIView()
 
     private let safeAreaHeightAnchor: NSLayoutDimension
@@ -122,9 +122,6 @@ final class iOSExerciseSceneRenderer {
         fretboardViewportScrollView.showsVerticalScrollIndicator = false
         fretboardViewportScrollView.showsHorizontalScrollIndicator = false
         fretboardViewportScrollView.isDirectionalLockEnabled = true
-        fretboardViewportScrollView.delaysContentTouches = false
-        fretboardViewportScrollView.canCancelContentTouches = true
-        fretboardViewportScrollView.panGestureRecognizer.cancelsTouchesInView = true
         fretboardViewportScrollView.contentInsetAdjustmentBehavior = .never
 
         sceneContainerView.addSubview(sceneContentView)

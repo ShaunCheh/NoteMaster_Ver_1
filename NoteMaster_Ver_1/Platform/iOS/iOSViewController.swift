@@ -640,7 +640,7 @@ final class iOSViewController: UIViewController {
         return button
     }()
 
-    private let scrollView = UIScrollView()
+    private let scrollView = iOSInteractiveSurfaceScrollView()
     private let contentView = UIView()
     private var sceneViewportHeightConstraint: NSLayoutConstraint?
 
@@ -783,10 +783,7 @@ final class iOSViewController: UIViewController {
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.isDirectionalLockEnabled = true
-        // 点击直接透传给指板；一旦用户开始纵向拖动，scroll view 可以取消当前触摸序列并接管滚动。
-        scrollView.delaysContentTouches = false
-        scrollView.canCancelContentTouches = true
-        scrollView.panGestureRecognizer.cancelsTouchesInView = true
+        // 点击直接透传给交互 surface；一旦用户开始纵向拖动，共用 scroll host 会取消当前触摸序列并接管滚动。
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
         contentView.addSubview(exerciseSceneRenderer.sceneContainerView)

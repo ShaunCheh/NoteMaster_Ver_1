@@ -26,7 +26,7 @@ final class iOSPlayViewController: UIViewController {
 
     var onRootModeChangeRequest: ((RootMode) -> Void)?
 
-    private let scrollView = UIScrollView()
+    private let scrollView = iOSInteractiveSurfaceScrollView()
     private let contentView = UIView()
 
     private lazy var settingsButton: UIButton = {
@@ -163,6 +163,8 @@ private extension iOSPlayViewController {
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.isDirectionalLockEnabled = true
+        // Piano surface needs the initial tap immediately; once the gesture
+        // turns into a pan, the shared interactive scroll host will cancel it.
 
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
