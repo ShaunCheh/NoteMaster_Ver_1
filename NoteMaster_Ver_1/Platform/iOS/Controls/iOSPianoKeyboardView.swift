@@ -87,6 +87,10 @@ final class iOSPianoKeyboardView: UIView {
         configureView()
     }
 
+    func interruptActiveInteraction() {
+        resetActiveInteraction(emitsPreviewEnded: true)
+    }
+
     override func didMoveToWindow() {
         super.didMoveToWindow()
         updateContentsScale()
@@ -190,6 +194,7 @@ private extension iOSPianoKeyboardView {
         guard componentState.rows != newRows else {
             return
         }
+        let previousPreview = componentState.preview
         let hadActiveInteraction = componentState.activeInteraction != nil
         componentState = sanitizedState(
             byReplacingRowsWith: newRows,
@@ -202,6 +207,11 @@ private extension iOSPianoKeyboardView {
         }
 
         applyBackingState()
+
+        if let previousPreview,
+           componentState.preview != previousPreview {
+            emitSemanticEvents([.previewEnded(previousPreview)])
+        }
     }
 
     func sanitizedState(
@@ -345,6 +355,28 @@ private extension iOSPianoKeyboardView {
             configuration: configuration
         )
         applyReduction(reduction)
+    }
+
+    func resetActiveInteraction(
+        emitsPreviewEnded: Bool
+    ) {
+        cancelRowsTransitionAnimationForExternalStateChange()
+        let interruptedPreview = componentState.preview
+        let hadActiveInteraction = componentState.activeInteraction != nil
+        guard interruptedPreview != nil || hadActiveInteraction else {
+            return
+        }
+
+        componentState.preview = nil
+        componentState.activeInteraction = nil
+        activeTouch = nil
+        lastTrackedLocationInView = nil
+        applyBackingState()
+
+        if emitsPreviewEnded,
+           let interruptedPreview {
+            emitSemanticEvents([.previewEnded(interruptedPreview)])
+        }
     }
 
     func applyReduction(_ reduction: PianoReduction) {

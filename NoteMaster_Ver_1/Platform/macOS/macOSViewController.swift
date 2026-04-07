@@ -139,6 +139,7 @@ final class macOSViewController: NSViewController {
             invalidatePianoPanelPresentation()
         }
     }
+    private var playbackCoordinator: PlaybackCoordinator?
     var onRootModeChangeRequest: ((RootMode) -> Void)?
     private var presentationTransactionDepth = 0
     private var isCommittingPresentationTransaction = false
@@ -951,10 +952,22 @@ final class macOSViewController: NSViewController {
         fretboardView: fretboardView
     )
 
-    private lazy var pianoAccessorySurfaceView = macOSPianoSurfaceView(
-        chromeStyle: .card,
-        panelState: pianoPanelState
-    )
+    private lazy var pianoAccessorySurfaceView: macOSPianoSurfaceView = {
+        let pianoAccessorySurfaceView = macOSPianoSurfaceView(
+            chromeStyle: .card,
+            panelState: pianoPanelState
+        )
+        pianoAccessorySurfaceView.onPreviewStarted = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewStarted(preview))
+        }
+        pianoAccessorySurfaceView.onPreviewChanged = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewChanged(preview))
+        }
+        pianoAccessorySurfaceView.onPreviewEnded = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewEnded(preview))
+        }
+        return pianoAccessorySurfaceView
+    }()
 
     override func loadView() {
         print("[Startup][macOSVC] loadView begin")
@@ -975,6 +988,11 @@ final class macOSViewController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         requestSceneLayoutSettlement()
+    }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        interruptActivePianoPlayback(reason: .viewWillDisappear)
     }
 
     override func viewDidLayout() {
@@ -998,6 +1016,10 @@ final class macOSViewController: NSViewController {
         pianoPanelState.settingsSlice
     }
 
+    func setPlaybackCoordinator(_ playbackCoordinator: PlaybackCoordinator?) {
+        self.playbackCoordinator = playbackCoordinator
+    }
+
     func applySharedPianoSettings(_ settingsSlice: PianoPanelSettingsSlice) {
         let nextPianoPanelState = pianoPanelState.applyingSettingsSlice(
             settingsSlice
@@ -1006,6 +1028,9 @@ final class macOSViewController: NSViewController {
             return
         }
 
+        if isViewLoaded {
+            interruptActivePianoPlayback(reason: .sharedSettingsChanged)
+        }
         pianoPanelState = nextPianoPanelState
         if isViewLoaded {
             applySettingsPanelState()
@@ -1013,6 +1038,16 @@ final class macOSViewController: NSViewController {
                 reason: "sharedPianoSettingsChanged"
             )
         }
+    }
+
+    func interruptActivePianoPlayback(reason: PlaybackStopReason) {
+        guard isViewLoaded else {
+            playbackCoordinator?.forceStop(reason: reason)
+            return
+        }
+
+        pianoAccessorySurfaceView.interruptActiveInteraction()
+        playbackCoordinator?.forceStop(reason: reason)
     }
 
     private func configureLayout() {
@@ -1879,6 +1914,10 @@ final class macOSViewController: NSViewController {
         pianoAccessorySurfaceView.showsComponentBoundsOverlay = false
     }
 
+    private func handlePianoSemanticEvent(_ event: PianoSemanticEvent) {
+        playbackCoordinator?.handle(event)
+    }
+
     @objc
     private func handleSettingsButtonTap() {
         setSettingsPresented(!isSettingsPresented)
@@ -1930,6 +1969,7 @@ final class macOSViewController: NSViewController {
 
         if nextStateContext.rootMode != .exercise {
             setSettingsPresented(false)
+            interruptActivePianoPlayback(reason: .rootModeChanged)
             onRootModeChangeRequest?(nextStateContext.rootMode)
             return
         }
@@ -2000,6 +2040,7 @@ final class macOSViewController: NSViewController {
             }
 
             if didChangePianoPanel {
+                interruptActivePianoPlayback(reason: .panelStateChanged)
                 pianoPanelState = nextPianoPanelState
             }
 

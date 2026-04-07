@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase5-audio-coordinator
     content: 建立共享 PlaybackCoordinator 与 iOS/macOS 平台音频后端，统一消费 previewStarted/Changed/Ended，并补强制静音入口。
-    status: pending
+    status: completed
   - id: phase6-cleanup-validation
     content: 完成命名清理、过渡层收缩与 validation 拆分，确保双模式架构稳定可扩展。
     status: pending

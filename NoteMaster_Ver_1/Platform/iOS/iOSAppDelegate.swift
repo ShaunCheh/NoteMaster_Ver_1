@@ -27,6 +27,8 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         SettingsNavigationValidationRunner.runAndReportIfNeeded(platform: .iOS)
         print("[Startup][iOSApp] run piano validation")
         PianoValidationRunner.runAndReportIfNeeded(platform: .iOS)
+        print("[Startup][iOSApp] run playback validation")
+        PlaybackValidationRunner.runAndReportIfNeeded(platform: .iOS)
         print("[Startup][iOSApp] run play composition validation")
         PlayCompositionValidationRunner.runAndReportIfNeeded(platform: .iOS)
         print("[Startup][iOSApp] run exercise composition validation")

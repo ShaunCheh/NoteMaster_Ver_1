@@ -5,6 +5,9 @@ final class macOSRootViewController: NSViewController {
     private let exerciseViewController = macOSViewController()
     private let playViewController = macOSPlayViewController()
     private var sharedPianoSettings = PianoSurfaceDefaults.sharedSettings
+    private lazy var playbackCoordinator = PlaybackCoordinator(
+        backend: macOSPlaybackAudioBackend()
+    )
 
     private(set) var rootMode: RootMode
     private var currentViewController: NSViewController?
@@ -41,6 +44,7 @@ final class macOSRootViewController: NSViewController {
             return
         }
 
+        interruptActivePianoPlaybackForCurrentMode(reason: .rootModeChanged)
         syncSharedPianoSettingsFromCurrentMode()
         applySharedPianoSettingsToChildren()
         self.rootMode = rootMode
@@ -60,6 +64,8 @@ private extension macOSRootViewController {
         playViewController.onRootModeChangeRequest = { [weak self] rootMode in
             self?.setRootMode(rootMode)
         }
+        exerciseViewController.setPlaybackCoordinator(playbackCoordinator)
+        playViewController.setPlaybackCoordinator(playbackCoordinator)
         applySharedPianoSettingsToChildren()
     }
 
@@ -107,6 +113,15 @@ private extension macOSRootViewController {
     func applySharedPianoSettingsToChildren() {
         exerciseViewController.applySharedPianoSettings(sharedPianoSettings)
         playViewController.applySharedPianoSettings(sharedPianoSettings)
+    }
+
+    func interruptActivePianoPlaybackForCurrentMode(reason: PlaybackStopReason) {
+        switch rootMode {
+        case .exercise:
+            exerciseViewController.interruptActivePianoPlayback(reason: reason)
+        case .play:
+            playViewController.interruptActivePianoPlayback(reason: reason)
+        }
     }
 }
 #endif

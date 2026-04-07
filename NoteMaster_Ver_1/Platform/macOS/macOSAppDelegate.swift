@@ -32,6 +32,8 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         SettingsNavigationValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run piano validation")
         PianoValidationRunner.runAndReportIfNeeded(platform: .macOS)
+        print("[Startup][macOSApp] run playback validation")
+        PlaybackValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run play composition validation")
         PlayCompositionValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run exercise composition validation")

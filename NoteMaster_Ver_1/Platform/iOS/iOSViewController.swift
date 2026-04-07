@@ -121,6 +121,7 @@ final class iOSViewController: UIViewController {
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
     private var hasLoggedInitialLayoutPass = false
     private var pianoPanelState = iOSViewController.initialPianoPanelState
+    private var playbackCoordinator: PlaybackCoordinator?
     var onRootModeChangeRequest: ((RootMode) -> Void)?
 
     private func logLifecycle(_ message: String) {
@@ -691,10 +692,22 @@ final class iOSViewController: UIViewController {
         fretboardView: fretboardView
     )
 
-    private lazy var pianoAccessorySurfaceView = iOSPianoSurfaceView(
-        chromeStyle: .card,
-        panelState: pianoPanelState
-    )
+    private lazy var pianoAccessorySurfaceView: iOSPianoSurfaceView = {
+        let pianoAccessorySurfaceView = iOSPianoSurfaceView(
+            chromeStyle: .card,
+            panelState: pianoPanelState
+        )
+        pianoAccessorySurfaceView.onPreviewStarted = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewStarted(preview))
+        }
+        pianoAccessorySurfaceView.onPreviewChanged = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewChanged(preview))
+        }
+        pianoAccessorySurfaceView.onPreviewEnded = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewEnded(preview))
+        }
+        return pianoAccessorySurfaceView
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -715,8 +728,17 @@ final class iOSViewController: UIViewController {
         }
     }
 
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        interruptActivePianoPlayback(reason: .viewWillDisappear)
+    }
+
     var currentPianoSettingsSlice: PianoPanelSettingsSlice {
         pianoPanelState.settingsSlice
+    }
+
+    func setPlaybackCoordinator(_ playbackCoordinator: PlaybackCoordinator?) {
+        self.playbackCoordinator = playbackCoordinator
     }
 
     func applySharedPianoSettings(_ settingsSlice: PianoPanelSettingsSlice) {
@@ -727,6 +749,9 @@ final class iOSViewController: UIViewController {
             return
         }
 
+        if isViewLoaded {
+            interruptActivePianoPlayback(reason: .sharedSettingsChanged)
+        }
         pianoPanelState = nextPianoPanelState
         if isViewLoaded {
             applyPianoAccessoryState()
@@ -735,6 +760,16 @@ final class iOSViewController: UIViewController {
                 reason: "sharedPianoSettingsChanged"
             )
         }
+    }
+
+    func interruptActivePianoPlayback(reason: PlaybackStopReason) {
+        guard isViewLoaded else {
+            playbackCoordinator?.forceStop(reason: reason)
+            return
+        }
+
+        pianoAccessorySurfaceView.interruptActiveInteraction()
+        playbackCoordinator?.forceStop(reason: reason)
     }
 
     private func configureLayout() {
@@ -1516,6 +1551,10 @@ final class iOSViewController: UIViewController {
         exerciseSceneRenderer.handleLayoutPass()
     }
 
+    private func handlePianoSemanticEvent(_ event: PianoSemanticEvent) {
+        playbackCoordinator?.handle(event)
+    }
+
     @objc
     private func handleSettingsButtonTap() {
         setSettingsPresented(!isSettingsPresented)
@@ -1539,6 +1578,7 @@ final class iOSViewController: UIViewController {
 
         if nextStateContext.rootMode != .exercise {
             setSettingsPresented(false)
+            interruptActivePianoPlayback(reason: .rootModeChanged)
             onRootModeChangeRequest?(nextStateContext.rootMode)
             return
         }
@@ -1598,6 +1638,7 @@ final class iOSViewController: UIViewController {
         }
 
         if didChangePianoPanel {
+            interruptActivePianoPlayback(reason: .panelStateChanged)
             pianoPanelState = nextPianoPanelState
             applyPianoAccessoryState()
             applySettingsPanelState()

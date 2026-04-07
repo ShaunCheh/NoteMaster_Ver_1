@@ -82,6 +82,10 @@ final class macOSPianoKeyboardView: NSView {
         configureView()
     }
 
+    func interruptActiveInteraction() {
+        resetActiveInteraction(emitsPreviewEnded: true)
+    }
+
     override func makeBackingLayer() -> CALayer {
         PianoKeyboardLayer()
     }
@@ -209,6 +213,7 @@ private extension macOSPianoKeyboardView {
         guard componentState.rows != newRows else {
             return
         }
+        let previousPreview = componentState.preview
         let hadActiveInteraction = componentState.activeInteraction != nil
         componentState = sanitizedState(
             byReplacingRowsWith: newRows,
@@ -220,6 +225,11 @@ private extension macOSPianoKeyboardView {
         }
 
         applyBackingState()
+
+        if let previousPreview,
+           componentState.preview != previousPreview {
+            emitSemanticEvents([.previewEnded(previousPreview)])
+        }
     }
 
     func sanitizedState(
@@ -324,6 +334,27 @@ private extension macOSPianoKeyboardView {
             configuration: configuration
         )
         applyReduction(reduction)
+    }
+
+    func resetActiveInteraction(
+        emitsPreviewEnded: Bool
+    ) {
+        cancelRowsTransitionAnimationForExternalStateChange()
+        let interruptedPreview = componentState.preview
+        let hadActiveInteraction = componentState.activeInteraction != nil
+        guard interruptedPreview != nil || hadActiveInteraction else {
+            return
+        }
+
+        componentState.preview = nil
+        componentState.activeInteraction = nil
+        isMouseSequenceActive = false
+        applyBackingState()
+
+        if emitsPreviewEnded,
+           let interruptedPreview {
+            emitSemanticEvents([.previewEnded(interruptedPreview)])
+        }
     }
 
     func applyReduction(_ reduction: PianoReduction) {

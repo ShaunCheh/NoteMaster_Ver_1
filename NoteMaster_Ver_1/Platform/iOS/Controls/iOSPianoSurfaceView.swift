@@ -53,6 +53,9 @@ final class iOSPianoSurfaceView: UIView {
                 return
             }
 
+            if !isPianoInteractionEnabled {
+                pianoKeyboardView.interruptActiveInteraction()
+            }
             pianoKeyboardView.isUserInteractionEnabled = isPianoInteractionEnabled
         }
     }
@@ -95,6 +98,10 @@ final class iOSPianoSurfaceView: UIView {
 
     func applySharedSettings(_ settingsSlice: PianoPanelSettingsSlice) {
         panelState = panelState.applyingSettingsSlice(settingsSlice)
+    }
+
+    func interruptActiveInteraction() {
+        pianoKeyboardView.interruptActiveInteraction()
     }
 }
 
@@ -155,6 +162,7 @@ private extension iOSPianoSurfaceView {
     }
 
     func applyPanelState() {
+        pianoKeyboardView.interruptActiveInteraction()
         pianoKeyboardView.configuration = resolvedConfiguration
         pianoKeyboardView.rows = resolvedRows
         pianoKeyboardView.showsComponentBoundsOverlay = showsComponentBoundsOverlay

@@ -3,6 +3,7 @@ import AppKit
 
 final class macOSPlayViewController: NSViewController {
     private var isSettingsPresented = false
+    private var playbackCoordinator: PlaybackCoordinator?
     private var pianoPanelState = PianoSurfaceDefaults.panelState {
         didSet {
             guard isViewLoaded else {
@@ -68,10 +69,22 @@ final class macOSPlayViewController: NSViewController {
         return settingsContainerView
     }()
 
-    private lazy var pianoSurfaceView = macOSPianoSurfaceView(
-        chromeStyle: .plain,
-        panelState: pianoPanelState
-    )
+    private lazy var pianoSurfaceView: macOSPianoSurfaceView = {
+        let pianoSurfaceView = macOSPianoSurfaceView(
+            chromeStyle: .plain,
+            panelState: pianoPanelState
+        )
+        pianoSurfaceView.onPreviewStarted = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewStarted(preview))
+        }
+        pianoSurfaceView.onPreviewChanged = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewChanged(preview))
+        }
+        pianoSurfaceView.onPreviewEnded = { [weak self] preview in
+            self?.handlePianoSemanticEvent(.previewEnded(preview))
+        }
+        return pianoSurfaceView
+    }()
 
     override func loadView() {
         view = NSView()
@@ -87,8 +100,17 @@ final class macOSPlayViewController: NSViewController {
         applySettingsPresentationState()
     }
 
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        interruptActivePianoPlayback(reason: .viewWillDisappear)
+    }
+
     var currentPianoSettingsSlice: PianoPanelSettingsSlice {
         pianoPanelState.settingsSlice
+    }
+
+    func setPlaybackCoordinator(_ playbackCoordinator: PlaybackCoordinator?) {
+        self.playbackCoordinator = playbackCoordinator
     }
 
     func applySharedPianoSettings(_ settingsSlice: PianoPanelSettingsSlice) {
@@ -99,11 +121,28 @@ final class macOSPlayViewController: NSViewController {
             return
         }
 
+        if isViewLoaded {
+            interruptActivePianoPlayback(reason: .sharedSettingsChanged)
+        }
         pianoPanelState = nextPanelState
+    }
+
+    func interruptActivePianoPlayback(reason: PlaybackStopReason) {
+        guard isViewLoaded else {
+            playbackCoordinator?.forceStop(reason: reason)
+            return
+        }
+
+        pianoSurfaceView.interruptActiveInteraction()
+        playbackCoordinator?.forceStop(reason: reason)
     }
 }
 
 private extension macOSPlayViewController {
+    func handlePianoSemanticEvent(_ event: PianoSemanticEvent) {
+        playbackCoordinator?.handle(event)
+    }
+
     var settingsPanelStateContext: SettingsPanelStateContext {
         SettingsPanelStateContext(
             rootMode: .play,
@@ -240,6 +279,7 @@ private extension macOSPlayViewController {
 
         if nextStateContext.rootMode != .play {
             setSettingsPresented(false)
+            interruptActivePianoPlayback(reason: .rootModeChanged)
             onRootModeChangeRequest?(nextStateContext.rootMode)
             return
         }
@@ -252,6 +292,9 @@ private extension macOSPlayViewController {
             return
         }
 
+        if nextPianoPanelState != pianoPanelState {
+            interruptActivePianoPlayback(reason: .panelStateChanged)
+        }
         pianoPanelState = nextPianoPanelState
         playModeState = nextPlayModeState
     }
