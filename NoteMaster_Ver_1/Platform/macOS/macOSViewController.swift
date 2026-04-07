@@ -804,6 +804,7 @@ final class macOSViewController: NSViewController {
 
     private var settingsPanelStateContext: SettingsPanelStateContext {
         SettingsPanelStateContext(
+            rootMode: .exercise,
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState,
             exerciseLayoutPreferences: exerciseLayoutPreferences,

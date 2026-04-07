@@ -13,10 +13,12 @@ enum SettingsPanelSnapshotBuilder {
         from stateContext: SettingsPanelStateContext
     ) -> SettingsPanelModel {
         var normalizedStateContext = stateContext
-        LegacyPageLayoutAdapter.reconcile(&normalizedStateContext)
+        normalizedStateContext.reconcileForCurrentMode()
 
         return SettingsPanelModel(
-            sections: SettingsSectionID.allCases.compactMap {
+            sections: SettingsSectionID.orderedVisibleSections(
+                for: normalizedStateContext.rootMode
+            ).compactMap {
                 makeSection(
                     id: $0,
                     stateContext: normalizedStateContext

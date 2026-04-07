@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: phase3-mode-state-settings
     content: 拆分根模式状态与 settings 上下文，明确公共项、exercise 专属项、play 专属项，并补双模式导航验证。
-    status: pending
+    status: completed
   - id: phase4-play-ui-shell
     content: 落地 piano-only 的 play 页面壳层，复用现有钢琴组件，但彻底脱离 exercise accessory 语义。
     status: pending

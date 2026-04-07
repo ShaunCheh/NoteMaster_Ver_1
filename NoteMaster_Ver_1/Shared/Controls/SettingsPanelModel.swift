@@ -47,6 +47,25 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
         ]
     }
 
+    static func orderedVisibleSections(
+        for rootMode: RootMode
+    ) -> [SettingsSectionID] {
+        switch rootMode {
+        case .exercise:
+            return allCases
+        case .play:
+            return [
+                .piano
+            ]
+        }
+    }
+
+    func isVisible(
+        in rootMode: RootMode
+    ) -> Bool {
+        Self.orderedVisibleSections(for: rootMode).contains(self)
+    }
+
     var title: String {
         switch self {
         case .exercise:
@@ -1098,7 +1117,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         apply(to: &stateContext.exerciseLayoutPreferences)
         apply(to: &stateContext.trainerDisplayState)
         apply(to: &stateContext.pianoPanelState)
-        LegacyPageLayoutAdapter.reconcile(&stateContext)
+        stateContext.reconcileForCurrentMode()
     }
 }
 
@@ -1269,13 +1288,13 @@ enum SettingsToggleID: CaseIterable, Equatable, Hashable, Sendable {
             stateContext.debugState.showsSideBySideContainerOutlines = value
         case .naturalStripVisible:
             stateContext.exerciseLayoutPreferences.isNaturalNoteStripVisible = value
-            LegacyPageLayoutAdapter.reconcile(&stateContext)
+            stateContext.reconcileForCurrentMode()
         case .pianoAccessoryVisible:
             stateContext.exerciseLayoutPreferences.isPianoAccessoryVisible = value
-            LegacyPageLayoutAdapter.reconcile(&stateContext)
+            stateContext.reconcileForCurrentMode()
         case .accessoryExpanded:
             stateContext.exerciseLayoutPreferences.isAccessoryExpanded = value
-            LegacyPageLayoutAdapter.reconcile(&stateContext)
+            stateContext.reconcileForCurrentMode()
         case .pianoSnapEnabled:
             stateContext.pianoPanelState.snapEnabled = value
         }

@@ -137,6 +137,14 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateSplitSectionsProduceExpectedPageTree
             ),
             SettingsNavigationValidationFixture(
+                name: "play_root_tree_keeps_only_piano_pages",
+                validate: validatePlayRootTreeKeepsOnlyPianoPages
+            ),
+            SettingsNavigationValidationFixture(
+                name: "root_mode_switch_preserves_exercise_tree_and_state",
+                validate: validateRootModeSwitchPreservesExerciseTreeAndState
+            ),
+            SettingsNavigationValidationFixture(
                 name: "position_prompt_section_visibility_tracks_exercise_mode",
                 validate: validatePositionPromptSectionVisibilityTracksExerciseMode
             ),
@@ -191,6 +199,8 @@ private extension SettingsNavigationValidationRunner {
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
             "确认 `Debug` 分区包含 `Component Bounds` 与 `Side Container Borders` 两个开关；切换 `Side Container Borders` 时 side 布局的红/蓝容器边框会立即显示或隐藏。",
             "停留在 `Exercise > Layout` 子页时直接切换 `Stacked / Side / Single`，确认当前页不会闪跳、不会被重建回上一层，且选中态立即更新。",
+            "确认切到 `play` mode 的 settings 后，root 只保留 `Piano` 分区，不再暴露 `Exercise / Accessories / Fretboard / Staff / Debug`。",
+            "确认从 `exercise` 切到 `play` 再切回后，原来的 exercise mode、layout preset 和 piano rows / snap 之类的设置不会丢失。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
     }
@@ -619,6 +629,246 @@ private extension SettingsNavigationValidationRunner {
             pageDescription: "Debug section",
             issues: &issues
         )
+
+        return issues
+    }
+
+    static func validatePlayRootTreeKeepsOnlyPianoPages()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "play_root_tree_keeps_only_piano_pages"
+        let stateContext = SettingsPanelStateContext.playDefault
+        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
+        let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: stateContext
+        )
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        guard let pianoSection = resolveSection(.piano, in: panelModel) else {
+            issues.append(issue(fixtureName, "play mode 下应保留 Piano section。"))
+            return issues
+        }
+
+        if panelModel.sections.map(\.id) != [.piano] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "play mode 的 root sections 应只保留 Piano。"
+                )
+            )
+        }
+
+        if resolveSection(.exercise, in: panelModel) != nil
+            || resolveSection(.accessories, in: panelModel) != nil
+            || resolveSection(.fretboard, in: panelModel) != nil
+            || resolveSection(.staff, in: panelModel) != nil
+            || resolveSection(.debug, in: panelModel) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "play mode 不应继续暴露 exercise 专属 section。"
+                )
+            )
+        }
+
+        guard let rootPage = navigationModel.rootPage,
+              let rootRouteItems = rootPage.content.routeItems else {
+            issues.append(issue(fixtureName, "play mode navigation model 缺少 root route items。"))
+            return issues
+        }
+
+        if rootRouteItems != [
+            SettingsRouteItem(
+                title: pianoSection.title,
+                subtitle: nil,
+                route: .section(.piano)
+            )
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "play mode root route 应只包含 Piano 入口。"
+                )
+            )
+        }
+
+        assertIndexPage(
+            route: .section(.piano),
+            expectedTitle: pianoSection.title,
+            expectedRouteItems: [
+                SettingsRouteItem(
+                    title: SettingsRouteID.pianoBehavior.fallbackTitle,
+                    subtitle: "Rows and movement",
+                    route: .pianoBehavior
+                ),
+                SettingsRouteItem(
+                    title: SettingsRouteID.pianoAppearance.fallbackTitle,
+                    subtitle: "Key styling",
+                    route: .pianoAppearance
+                )
+            ],
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Play Piano section",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .pianoBehavior,
+            expectedTitle: SettingsRouteID.pianoBehavior.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.pianoBehavior.fallbackTitle,
+                from: pianoSection,
+                keepingRowIDs: [
+                    .slider(.pianoRowCount),
+                    .choice(.pianoMovementScope),
+                    .toggle(.pianoSnapEnabled)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Play Piano Behavior",
+            issues: &issues
+        )
+        assertFormPage(
+            route: .pianoAppearance,
+            expectedTitle: SettingsRouteID.pianoAppearance.fallbackTitle,
+            expectedSection: makeExpectedChildSection(
+                title: SettingsRouteID.pianoAppearance.fallbackTitle,
+                from: pianoSection,
+                keepingRowIDs: [
+                    .choice(.pianoWhiteKeyStyle)
+                ]
+            ),
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Play Piano Appearance",
+            issues: &issues
+        )
+
+        if navigationModel.page(for: .section(.exercise)) != nil
+            || navigationModel.page(for: .section(.accessories)) != nil
+            || navigationModel.page(for: .section(.fretboard)) != nil
+            || navigationModel.page(for: .section(.staff)) != nil
+            || navigationModel.page(for: .section(.debug)) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "play mode navigation tree 不应继续生成 exercise 专属 section page。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateRootModeSwitchPreservesExerciseTreeAndState()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "root_mode_switch_preserves_exercise_tree_and_state"
+        var exerciseStateContext = SettingsPanelStateContext.default
+        SettingsPanelEvent.triggerAction(.setExerciseModeSequence).apply(
+            to: &exerciseStateContext
+        )
+        SettingsPanelEvent.triggerAction(.setLayoutPresetSideBySide).apply(
+            to: &exerciseStateContext
+        )
+        SettingsPanelEvent.setSliderValue(.pianoRowCount, 5).apply(
+            to: &exerciseStateContext
+        )
+        SettingsPanelEvent.setToggleValue(.pianoSnapEnabled, false).apply(
+            to: &exerciseStateContext
+        )
+
+        var playStateContext = exerciseStateContext
+        playStateContext.rootMode = .play
+        playStateContext.reconcileForCurrentMode()
+        let playPanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: playStateContext
+        )
+
+        var restoredExerciseStateContext = playStateContext
+        restoredExerciseStateContext.rootMode = .exercise
+        restoredExerciseStateContext.reconcileForCurrentMode()
+        let restoredExercisePanelModel = SettingsPanelSnapshotBuilder.makeModel(
+            from: restoredExerciseStateContext
+        )
+        let restoredNavigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: restoredExerciseStateContext
+        )
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        if playPanelModel.sections.map(\.id) != [.piano] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "切到 play 后，settings root 应只保留 Piano section。"
+                )
+            )
+        }
+
+        if restoredExerciseStateContext.trainerDisplayState.exerciseMode != .sequence {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "从 play 切回 exercise 后，exerciseMode 应保留为 sequence。"
+                )
+            )
+        }
+        if restoredExerciseStateContext.exerciseLayoutPreferences.layoutPreset != .sideBySide {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "从 play 切回 exercise 后，layoutPreset 应保留为 sideBySide。"
+                )
+            )
+        }
+        if restoredExerciseStateContext.pianoPanelState.resolvedRowCount != 5 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "从 play 切回 exercise 后，piano rows 设置应保持为 5。"
+                )
+            )
+        }
+        if restoredExerciseStateContext.pianoPanelState.snapEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "从 play 切回 exercise 后，piano snap 设置应保持为 false。"
+                )
+            )
+        }
+
+        if restoredExercisePanelModel.sections.map(\.id) != [
+            .exercise,
+            .accessories,
+            .fretboard,
+            .staff,
+            .piano,
+            .debug
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "从 play 切回 exercise 后，旧的 exercise root tree 应完整恢复。"
+                )
+            )
+        }
+
+        if restoredNavigationModel.reconciledPath([
+            .root,
+            .section(.exercise),
+            .exerciseLayout
+        ]) != [
+            .root,
+            .section(.exercise),
+            .exerciseLayout
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "从 play 切回 exercise 后，Exercise > Layout 深层 route 应重新可达。"
+                )
+            )
+        }
 
         return issues
     }

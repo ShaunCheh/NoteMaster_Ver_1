@@ -540,6 +540,7 @@ final class iOSViewController: UIViewController {
 
     private var settingsPanelStateContext: SettingsPanelStateContext {
         SettingsPanelStateContext(
+            rootMode: .exercise,
             fretboardDisplayState: displayState,
             staffDisplayState: staffDisplayState,
             exerciseLayoutPreferences: exerciseLayoutPreferences,
