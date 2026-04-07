@@ -22,36 +22,7 @@ final class iOSViewController: UIViewController {
         score: StaffScoreFixtures.namedKeySignatureDemo(clef: .treble)
     )
 
-    private static let initialPianoDemoConfiguration = PianoConfiguration(
-        whiteKeyWidth: 30,
-        rowHeight: 216,
-        rowSpacing: 10,
-        scaleAreaHeight: 28,
-        buttonAreaWidth: 30,
-        blackKeyWidthRatio: 0.62,
-        blackKeyHeightRatio: 0.6,
-        whiteKeyStyle: .borderlessSeparatedByGaps,
-        snapEnabled: true
-    )
-
-    private static let initialPianoDemoRows: [PianoRowState] = [
-        PianoRowState(
-            startNote: NotePitch(pitchClass: .c, octave: 5),
-            movementScope: .cascade
-        ),
-        PianoRowState(
-            startNote: NotePitch(pitchClass: .c, octave: 4),
-            movementScope: .cascade
-        ),
-        PianoRowState(
-            startNote: NotePitch(pitchClass: .fSharp, octave: 3),
-            movementScope: .rowOnly
-        )
-    ]
-    private static let initialPianoPanelState = PianoPanelState.inferred(
-        configuration: initialPianoDemoConfiguration,
-        rows: initialPianoDemoRows
-    )
+    private static let initialPianoPanelState = PianoSurfaceDefaults.panelState
     private static let initialExerciseLayoutPreferences = ExerciseCompositionPolicy
         .normalizedPreferences(
             .legacyPositionPrompt,
@@ -149,11 +120,8 @@ final class iOSViewController: UIViewController {
     private var quarterNoteSequenceSession: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
     private var quarterNoteSequenceLastEvaluation: FretboardNaturalNoteTrainerState.QuarterNoteSequenceEvaluation?
     private var hasLoggedInitialLayoutPass = false
-    private let pianoBaseConfiguration = iOSViewController.initialPianoDemoConfiguration
-    private var pianoBaseRows = iOSViewController.initialPianoDemoRows
     private var pianoPanelState = iOSViewController.initialPianoPanelState
-    private var pianoDemoPreview: PianoPreviewState?
-    private var pianoDemoLastEventText = "ready"
+    var onRootModeChangeRequest: ((RootMode) -> Void)?
 
     private func logLifecycle(_ message: String) {
         print("[Startup][iOSVC] \(message) \(debugStateSnapshot())")
@@ -574,20 +542,6 @@ final class iOSViewController: UIViewController {
         }
     }
 
-    private var resolvedPianoDemoConfiguration: PianoConfiguration {
-        PianoPanelProjection.resolvedConfiguration(
-            from: pianoBaseConfiguration,
-            panelState: pianoPanelState
-        )
-    }
-
-    private var resolvedPianoDemoRows: [PianoRowState] {
-        PianoPanelProjection.resolvedRows(
-            from: pianoBaseRows,
-            panelState: pianoPanelState
-        )
-    }
-
     private lazy var settingsButton: UIButton = {
         let button = UIButton(type: .system)
         var configuration = UIButton.Configuration.filled()
@@ -687,7 +641,6 @@ final class iOSViewController: UIViewController {
 
     private let scrollView = UIScrollView()
     private let contentView = UIView()
-    private let pianoDemoContainerView = UIView()
     private var sceneViewportHeightConstraint: NSLayoutConstraint?
 
     private lazy var fretboardView: iOSFretboardView = {
@@ -734,46 +687,14 @@ final class iOSViewController: UIViewController {
         staffView: staffView,
         targetNotePromptView: targetNotePromptView,
         naturalNoteStripView: naturalNoteStripView,
-        pianoAccessoryView: pianoDemoContainerView,
+        pianoAccessoryView: pianoAccessorySurfaceView,
         fretboardView: fretboardView
     )
 
-    private lazy var pianoDemoTitleLabel: UILabel = {
-        let label = UILabel()
-        label.font = .preferredFont(forTextStyle: .headline)
-        label.textColor = .label
-        label.text = "Piano Keyboard Demo"
-        return label
-    }()
-
-    private lazy var pianoDemoStatusLabel: UILabel = {
-        let label = UILabel()
-        label.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        label.textColor = .secondaryLabel
-        label.numberOfLines = 0
-        label.text = ""
-        return label
-    }()
-
-    private lazy var pianoKeyboardView: iOSPianoKeyboardView = {
-        let pianoKeyboardView = iOSPianoKeyboardView(
-            configuration: resolvedPianoDemoConfiguration,
-            rows: resolvedPianoDemoRows
-        )
-        pianoKeyboardView.onRowsChanged = { [weak self] rows in
-            self?.handlePianoDemoRowsChanged(rows)
-        }
-        pianoKeyboardView.onPreviewStarted = { [weak self] preview in
-            self?.handlePianoDemoPreviewStarted(preview)
-        }
-        pianoKeyboardView.onPreviewChanged = { [weak self] preview in
-            self?.handlePianoDemoPreviewChanged(preview)
-        }
-        pianoKeyboardView.onPreviewEnded = { [weak self] preview in
-            self?.handlePianoDemoPreviewEnded(preview)
-        }
-        return pianoKeyboardView
-    }()
+    private lazy var pianoAccessorySurfaceView = iOSPianoSurfaceView(
+        chromeStyle: .card,
+        panelState: pianoPanelState
+    )
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -781,7 +702,7 @@ final class iOSViewController: UIViewController {
         view.backgroundColor = .systemBackground
         configureLayout()
         applyDisplayState()
-        applyPianoDemoState()
+        applyPianoAccessoryState()
         logLifecycle("viewDidLoad end")
     }
 
@@ -794,6 +715,28 @@ final class iOSViewController: UIViewController {
         }
     }
 
+    var currentPianoSettingsSlice: PianoPanelSettingsSlice {
+        pianoPanelState.settingsSlice
+    }
+
+    func applySharedPianoSettings(_ settingsSlice: PianoPanelSettingsSlice) {
+        let nextPianoPanelState = pianoPanelState.applyingSettingsSlice(
+            settingsSlice
+        )
+        guard nextPianoPanelState != pianoPanelState else {
+            return
+        }
+
+        pianoPanelState = nextPianoPanelState
+        if isViewLoaded {
+            applyPianoAccessoryState()
+            applySettingsPanelState()
+            synchronizeExerciseCompositionState(
+                reason: "sharedPianoSettingsChanged"
+            )
+        }
+    }
+
     private func configureLayout() {
         logLifecycle("configureLayout begin")
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -801,13 +744,6 @@ final class iOSViewController: UIViewController {
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         labelVisibilityButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
-        pianoDemoContainerView.translatesAutoresizingMaskIntoConstraints = false
-        pianoDemoTitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        pianoDemoStatusLabel.translatesAutoresizingMaskIntoConstraints = false
-        pianoKeyboardView.translatesAutoresizingMaskIntoConstraints = false
-        pianoDemoContainerView.backgroundColor = .secondarySystemBackground
-        pianoDemoContainerView.layer.cornerRadius = Layout.pianoDemoCornerRadius
-        pianoDemoContainerView.layer.cornerCurve = .continuous
         scrollView.alwaysBounceVertical = true
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
@@ -819,9 +755,6 @@ final class iOSViewController: UIViewController {
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
         contentView.addSubview(exerciseSceneRenderer.sceneContainerView)
-        pianoDemoContainerView.addSubview(pianoDemoTitleLabel)
-        pianoDemoContainerView.addSubview(pianoDemoStatusLabel)
-        pianoDemoContainerView.addSubview(pianoKeyboardView)
         view.addSubview(settingsButton)
         view.addSubview(labelVisibilityButton)
         view.addSubview(settingsContainerView)
@@ -855,42 +788,6 @@ final class iOSViewController: UIViewController {
             exerciseSceneRenderer.sceneContainerView.bottomAnchor.constraint(
                 equalTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
-            ),
-            pianoDemoTitleLabel.leadingAnchor.constraint(
-                equalTo: pianoDemoContainerView.leadingAnchor,
-                constant: Layout.pianoDemoInnerInset
-            ),
-            pianoDemoTitleLabel.trailingAnchor.constraint(
-                equalTo: pianoDemoContainerView.trailingAnchor,
-                constant: -Layout.pianoDemoInnerInset
-            ),
-            pianoDemoTitleLabel.topAnchor.constraint(
-                equalTo: pianoDemoContainerView.topAnchor,
-                constant: Layout.pianoDemoInnerInset
-            ),
-            pianoDemoStatusLabel.leadingAnchor.constraint(
-                equalTo: pianoDemoTitleLabel.leadingAnchor
-            ),
-            pianoDemoStatusLabel.trailingAnchor.constraint(
-                equalTo: pianoDemoTitleLabel.trailingAnchor
-            ),
-            pianoDemoStatusLabel.topAnchor.constraint(
-                equalTo: pianoDemoTitleLabel.bottomAnchor,
-                constant: Layout.pianoDemoStatusTopSpacing
-            ),
-            pianoKeyboardView.leadingAnchor.constraint(
-                equalTo: pianoDemoTitleLabel.leadingAnchor
-            ),
-            pianoKeyboardView.trailingAnchor.constraint(
-                equalTo: pianoDemoTitleLabel.trailingAnchor
-            ),
-            pianoKeyboardView.topAnchor.constraint(
-                equalTo: pianoDemoStatusLabel.bottomAnchor,
-                constant: Layout.pianoDemoKeyboardTopSpacing
-            ),
-            pianoKeyboardView.bottomAnchor.constraint(
-                equalTo: pianoDemoContainerView.bottomAnchor,
-                constant: -Layout.pianoDemoInnerInset
             ),
             settingsButton.leadingAnchor.constraint(
                 equalTo: safeArea.leadingAnchor,
@@ -1610,67 +1507,13 @@ final class iOSViewController: UIViewController {
             : "Show settings"
     }
 
-    private func applyPianoDemoState() {
-        pianoKeyboardView.configuration = resolvedPianoDemoConfiguration
-        pianoKeyboardView.rows = resolvedPianoDemoRows
-        pianoKeyboardView.showsComponentBoundsOverlay = false
-        updatePianoDemoStatusLabel()
+    private func applyPianoAccessoryState() {
+        pianoAccessorySurfaceView.applySharedSettings(
+            pianoPanelState.settingsSlice
+        )
+        pianoAccessorySurfaceView.showsComponentBoundsOverlay = false
         updateLayoutIfNeeded()
         exerciseSceneRenderer.handleLayoutPass()
-    }
-
-    private func updatePianoDemoStatusLabel() {
-        pianoDemoStatusLabel.text = pianoDemoStatusText()
-    }
-
-    private func pianoDemoStatusText() -> String {
-        let previewText: String
-        if let pianoDemoPreview {
-            previewText = "row\(pianoDemoPreview.rowIndex) \(pianoDemoPreview.note.displayText())"
-        } else {
-            previewText = "nil"
-        }
-
-        return [
-            "event: \(pianoDemoLastEventText)",
-            "preview: \(previewText)",
-            "panel: visible=\(pianoPanelState.isVisible) rows=\(resolvedPianoDemoRows.count) scope=\(pianoPanelState.movementScope.debugName) style=\(resolvedPianoDemoConfiguration.whiteKeyStyle.debugName) snap=\(resolvedPianoDemoConfiguration.snapEnabled)",
-            "rows: \(pianoDemoRowsSummaryText(resolvedPianoDemoRows))"
-        ].joined(separator: "\n")
-    }
-
-    private func pianoDemoRowsSummaryText(_ rows: [PianoRowState]) -> String {
-        rows.enumerated().map { index, row in
-            "r\(index)=\(row.startNote.displayText())[\(row.movementScope.debugName)]"
-        }.joined(separator: " | ")
-    }
-
-    private func handlePianoDemoRowsChanged(_ rows: [PianoRowState]) {
-        pianoBaseRows = rows
-        pianoDemoLastEventText = "rowsChanged"
-        print("[PianoDemo][iOS] rowsChanged \(pianoDemoRowsSummaryText(rows))")
-        applyPianoDemoState()
-    }
-
-    private func handlePianoDemoPreviewStarted(_ preview: PianoPreviewState) {
-        pianoDemoPreview = preview
-        pianoDemoLastEventText = "previewStarted"
-        print("[PianoDemo][iOS] previewStarted row=\(preview.rowIndex) note=\(preview.note.displayText())")
-        updatePianoDemoStatusLabel()
-    }
-
-    private func handlePianoDemoPreviewChanged(_ preview: PianoPreviewState) {
-        pianoDemoPreview = preview
-        pianoDemoLastEventText = "previewChanged"
-        print("[PianoDemo][iOS] previewChanged row=\(preview.rowIndex) note=\(preview.note.displayText())")
-        updatePianoDemoStatusLabel()
-    }
-
-    private func handlePianoDemoPreviewEnded(_ preview: PianoPreviewState) {
-        pianoDemoPreview = nil
-        pianoDemoLastEventText = "previewEnded row=\(preview.rowIndex) note=\(preview.note.displayText())"
-        print("[PianoDemo][iOS] previewEnded row=\(preview.rowIndex) note=\(preview.note.displayText())")
-        updatePianoDemoStatusLabel()
     }
 
     @objc
@@ -1693,6 +1536,13 @@ final class iOSViewController: UIViewController {
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
         var nextStateContext = settingsPanelStateContext
         event.apply(to: &nextStateContext)
+
+        if nextStateContext.rootMode != .exercise {
+            setSettingsPresented(false)
+            onRootModeChangeRequest?(nextStateContext.rootMode)
+            return
+        }
+
         let nextRequestedStaffDisplayState = nextStateContext.staffDisplayState
 
         let nextDisplayState = nextStateContext.fretboardDisplayState
@@ -1749,7 +1599,7 @@ final class iOSViewController: UIViewController {
 
         if didChangePianoPanel {
             pianoPanelState = nextPianoPanelState
-            applyPianoDemoState()
+            applyPianoAccessoryState()
             applySettingsPanelState()
         }
 
@@ -1915,10 +1765,6 @@ private enum Layout {
     static let topContentFloatingButtonInset: CGFloat = 12
     static let verticalSpacing: CGFloat = 20
     static let bottomInset: CGFloat = 16
-    static let pianoDemoInnerInset: CGFloat = 16
-    static let pianoDemoStatusTopSpacing: CGFloat = 8
-    static let pianoDemoKeyboardTopSpacing: CGFloat = 12
-    static let pianoDemoCornerRadius: CGFloat = 16
     static let settingsButtonSize: CGFloat = 40
     static let sequenceRegenerateButtonSize: CGFloat = 36
     static let contentSizeTolerance: CGFloat = 0.5

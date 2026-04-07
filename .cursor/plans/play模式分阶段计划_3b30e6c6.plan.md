@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase4-play-ui-shell
     content: 落地 piano-only 的 play 页面壳层，复用现有钢琴组件，但彻底脱离 exercise accessory 语义。
-    status: pending
+    status: completed
   - id: phase5-audio-coordinator
     content: 建立共享 PlaybackCoordinator 与 iOS/macOS 平台音频后端，统一消费 previewStarted/Changed/Ended，并补强制静音入口。
     status: pending

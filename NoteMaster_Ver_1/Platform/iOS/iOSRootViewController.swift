@@ -3,9 +3,8 @@ import UIKit
 
 final class iOSRootViewController: UIViewController {
     private let exerciseViewController = iOSViewController()
-    private let playPlaceholderViewController = iOSModePlaceholderViewController(
-        titleText: "Play mode is not available yet."
-    )
+    private let playViewController = iOSPlayViewController()
+    private var sharedPianoSettings = PianoSurfaceDefaults.sharedSettings
 
     private(set) var rootMode: RootMode
     private var currentViewController: UIViewController?
@@ -17,11 +16,13 @@ final class iOSRootViewController: UIViewController {
     init(rootMode: RootMode = .defaultMode) {
         self.rootMode = rootMode
         super.init(nibName: nil, bundle: nil)
+        configureChildControllers()
     }
 
     required init?(coder: NSCoder) {
         rootMode = .defaultMode
         super.init(coder: coder)
+        configureChildControllers()
     }
 
     override func viewDidLoad() {
@@ -35,6 +36,8 @@ final class iOSRootViewController: UIViewController {
             return
         }
 
+        syncSharedPianoSettingsFromCurrentMode()
+        applySharedPianoSettingsToChildren()
         self.rootMode = rootMode
         guard isViewLoaded else {
             return
@@ -45,6 +48,16 @@ final class iOSRootViewController: UIViewController {
 }
 
 private extension iOSRootViewController {
+    func configureChildControllers() {
+        exerciseViewController.onRootModeChangeRequest = { [weak self] rootMode in
+            self?.setRootMode(rootMode)
+        }
+        playViewController.onRootModeChangeRequest = { [weak self] rootMode in
+            self?.setRootMode(rootMode)
+        }
+        applySharedPianoSettingsToChildren()
+    }
+
     func applyRootMode(_ rootMode: RootMode) {
         let nextViewController = viewController(for: rootMode)
         guard currentViewController !== nextViewController else {
@@ -75,48 +88,22 @@ private extension iOSRootViewController {
         case .exercise:
             return exerciseViewController
         case .play:
-            return playPlaceholderViewController
+            return playViewController
         }
     }
-}
 
-private final class iOSModePlaceholderViewController: UIViewController {
-    private let titleText: String
-
-    init(titleText: String) {
-        self.titleText = titleText
-        super.init(nibName: nil, bundle: nil)
+    func syncSharedPianoSettingsFromCurrentMode() {
+        switch rootMode {
+        case .exercise:
+            sharedPianoSettings = exerciseViewController.currentPianoSettingsSlice
+        case .play:
+            sharedPianoSettings = playViewController.currentPianoSettingsSlice
+        }
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .systemBackground
-
-        let label = UILabel()
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = .preferredFont(forTextStyle: .headline)
-        label.textColor = .secondaryLabel
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.text = titleText
-        view.addSubview(label)
-
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(
-                greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor,
-                constant: 24
-            ),
-            label.trailingAnchor.constraint(
-                lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor,
-                constant: -24
-            ),
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor)
-        ])
+    func applySharedPianoSettingsToChildren() {
+        exerciseViewController.applySharedPianoSettings(sharedPianoSettings)
+        playViewController.applySharedPianoSettings(sharedPianoSettings)
     }
 }
 #endif

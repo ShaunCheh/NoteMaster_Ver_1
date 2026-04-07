@@ -52,6 +52,56 @@ struct PianoPanelState: Equatable, Sendable {
             snapEnabled: configuration.snapEnabled
         )
     }
+
+    var settingsSlice: PianoPanelSettingsSlice {
+        PianoPanelSettingsSlice(
+            rowCount: rowCount,
+            movementScope: movementScope,
+            whiteKeyStyle: whiteKeyStyle,
+            snapEnabled: snapEnabled
+        )
+    }
+
+    func applyingSettingsSlice(
+        _ settingsSlice: PianoPanelSettingsSlice
+    ) -> PianoPanelState {
+        var nextState = self
+        nextState.rowCount = settingsSlice.rowCount
+        nextState.movementScope = settingsSlice.movementScope
+        nextState.whiteKeyStyle = settingsSlice.whiteKeyStyle
+        nextState.snapEnabled = settingsSlice.snapEnabled
+        return nextState
+    }
+}
+
+struct PianoPanelSettingsSlice: Equatable, Sendable {
+    var rowCount: Int
+    var movementScope: PianoMovementScope
+    var whiteKeyStyle: PianoWhiteKeyStyle
+    var snapEnabled: Bool
+
+    init(
+        rowCount: Int = 3,
+        movementScope: PianoMovementScope = .cascade,
+        whiteKeyStyle: PianoWhiteKeyStyle = .outlined,
+        snapEnabled: Bool = true
+    ) {
+        self.rowCount = rowCount
+        self.movementScope = movementScope
+        self.whiteKeyStyle = whiteKeyStyle
+        self.snapEnabled = snapEnabled
+    }
+
+    init(
+        panelState: PianoPanelState
+    ) {
+        self.init(
+            rowCount: panelState.rowCount,
+            movementScope: panelState.movementScope,
+            whiteKeyStyle: panelState.whiteKeyStyle,
+            snapEnabled: panelState.snapEnabled
+        )
+    }
 }
 
 enum PianoPanelProjection {

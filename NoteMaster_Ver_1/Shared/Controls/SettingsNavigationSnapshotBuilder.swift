@@ -152,6 +152,8 @@ enum SettingsNavigationSnapshotBuilder {
         for sectionID: SettingsSectionID
     ) -> [ChildPageSpec]? {
         switch sectionID {
+        case .mode:
+            return nil
         case .exercise:
             return [
                 ChildPageSpec(

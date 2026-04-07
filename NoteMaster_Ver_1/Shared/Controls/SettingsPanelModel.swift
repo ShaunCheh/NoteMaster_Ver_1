@@ -26,6 +26,7 @@ enum SettingsRowID: Equatable, Hashable, Sendable {
 }
 
 enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
+    case mode
     case exercise
     case positionPrompt
     case accessories
@@ -52,9 +53,10 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
     ) -> [SettingsSectionID] {
         switch rootMode {
         case .exercise:
-            return allCases
+            return [.mode] + allCases
         case .play:
             return [
+                .mode,
                 .piano
             ]
         }
@@ -68,6 +70,8 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var title: String {
         switch self {
+        case .mode:
+            return "Mode"
         case .exercise:
             return "Exercise"
         case .positionPrompt:
@@ -91,6 +95,10 @@ enum SettingsSectionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var rowIDs: [SettingsRowID] {
         switch self {
+        case .mode:
+            return [
+                .choice(.rootMode)
+            ]
         case .exercise:
             return [
                 .choice(.exerciseMode),
@@ -200,6 +208,7 @@ enum SettingsPositionFilterOptionID: Equatable, Hashable, Sendable {
 }
 
 enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
+    case rootMode
     case exerciseMode
     case compositionPreset
     case layoutPreset
@@ -217,6 +226,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var sectionID: SettingsSectionID {
         switch self {
+        case .rootMode:
+            return .mode
         case .exerciseMode, .compositionPreset, .layoutPreset:
             return .exercise
         case .positionPromptFilterMode:
@@ -236,6 +247,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var title: String {
         switch self {
+        case .rootMode:
+            return "App Mode"
         case .exerciseMode:
             return "Exercise Mode"
         case .compositionPreset:
@@ -269,6 +282,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var accessibilityLabel: String {
         switch self {
+        case .rootMode:
+            return "Select whether the app shows the exercise page or the play page"
         case .exerciseMode:
             return "Select exercise mode"
         case .compositionPreset:
@@ -302,7 +317,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var selectionStyle: SettingsSelectionStyle {
         switch self {
-        case .exerciseMode,
+        case .rootMode,
+             .exerciseMode,
              .compositionPreset,
              .layoutPreset,
              .positionPromptFilterMode,
@@ -323,7 +339,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var presentationStyle: SettingsPresentationStyle {
         switch self {
-        case .exerciseMode,
+        case .rootMode,
+             .exerciseMode,
              .positionPromptFilterMode,
              .stringThickness,
              .clef,
@@ -344,6 +361,11 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 
     var actionIDs: [SettingsActionID] {
         switch self {
+        case .rootMode:
+            return [
+                .setRootModeExercise,
+                .setRootModePlay
+            ]
         case .exerciseMode:
             return [
                 .setExerciseModeSingle,
@@ -428,6 +450,8 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
 }
 
 enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
+    case setRootModeExercise
+    case setRootModePlay
     case setExerciseModeSingle
     case setExerciseModeSequence
     case setExerciseModePositionPrompt
@@ -468,6 +492,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var rowID: SettingsChoiceRowID {
         switch self {
+        case .setRootModeExercise,
+             .setRootModePlay:
+            return .rootMode
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt:
@@ -524,6 +551,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var title: String {
         switch self {
+        case .setRootModeExercise:
+            return "Exercise"
+        case .setRootModePlay:
+            return "Play"
         case .setExerciseModeSingle:
             return "Single"
         case .setExerciseModeSequence:
@@ -603,6 +634,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     var accessibilityLabel: String {
         switch self {
+        case .setRootModeExercise:
+            return "Show the exercise page"
+        case .setRootModePlay:
+            return "Show the play page"
         case .setExerciseModeSingle:
             return "Train a single target note"
         case .setExerciseModeSequence:
@@ -684,6 +719,10 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
+        case .setRootModeExercise:
+            return stateContext.rootMode == .exercise
+        case .setRootModePlay:
+            return stateContext.rootMode == .play
         case .setExerciseModeSingle:
             return stateContext.trainerDisplayState.exerciseMode == .single
         case .setExerciseModeSequence:
@@ -775,6 +814,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         in stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch self {
+        case .setRootModeExercise,
+             .setRootModePlay:
+            return true
         case .setCompositionPresetStaffToFretboard:
             return LegacyPageLayoutAdapter.isCompositionPresetSupported(
                 .staffToFretboard,
@@ -855,7 +897,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     func apply(to displayState: inout FretboardDisplayState) {
         switch self {
-        case .setExerciseModeSingle,
+        case .setRootModeExercise,
+             .setRootModePlay,
+             .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setCompositionPresetStaffToFretboard,
@@ -918,7 +962,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.configuration.clef = .treble
         case .setClefBass:
             displayState.configuration.clef = .bass
-        case .setExerciseModeSingle,
+        case .setRootModeExercise,
+             .setRootModePlay,
+             .setExerciseModeSingle,
              .setExerciseModeSequence,
              .setExerciseModePositionPrompt,
              .setCompositionPresetStaffToFretboard,
@@ -959,6 +1005,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     func apply(to displayState: inout TrainerDisplayState) {
         switch self {
+        case .setRootModeExercise,
+             .setRootModePlay:
+            return
         case .setExerciseModeSingle:
             displayState.setExerciseMode(.single)
         case .setExerciseModeSequence:
@@ -1009,6 +1058,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
 
     func apply(to pianoPanelState: inout PianoPanelState) {
         switch self {
+        case .setRootModeExercise,
+             .setRootModePlay:
+            return
         case .setPianoMovementScopeCascade:
             pianoPanelState.movementScope = .cascade
         case .setPianoMovementScopeRowOnly:
@@ -1060,6 +1112,9 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
         to exerciseLayoutPreferences: inout ExerciseLayoutPreferences
     ) {
         switch self {
+        case .setRootModeExercise,
+             .setRootModePlay:
+            return
         case .setCompositionPresetStaffToFretboard:
             exerciseLayoutPreferences.compositionPreset = .staffToFretboard
         case .setCompositionPresetTargetPromptToFretboard:
@@ -1112,6 +1167,14 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     }
 
     func apply(to stateContext: inout SettingsPanelStateContext) {
+        switch self {
+        case .setRootModeExercise:
+            stateContext.rootMode = .exercise
+        case .setRootModePlay:
+            stateContext.rootMode = .play
+        default:
+            break
+        }
         apply(to: &stateContext.fretboardDisplayState)
         apply(to: &stateContext.staffDisplayState)
         apply(to: &stateContext.exerciseLayoutPreferences)

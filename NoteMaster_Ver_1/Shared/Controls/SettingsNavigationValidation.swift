@@ -199,7 +199,7 @@ private extension SettingsNavigationValidationRunner {
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
             "确认 `Debug` 分区包含 `Component Bounds` 与 `Side Container Borders` 两个开关；切换 `Side Container Borders` 时 side 布局的红/蓝容器边框会立即显示或隐藏。",
             "停留在 `Exercise > Layout` 子页时直接切换 `Stacked / Side / Single`，确认当前页不会闪跳、不会被重建回上一层，且选中态立即更新。",
-            "确认切到 `play` mode 的 settings 后，root 只保留 `Piano` 分区，不再暴露 `Exercise / Accessories / Fretboard / Staff / Debug`。",
+            "确认切到 `play` mode 的 settings 后，root 只保留 `Mode / Piano` 分区，不再暴露 `Exercise / Accessories / Fretboard / Staff / Debug`。",
             "确认从 `exercise` 切到 `play` 再切回后，原来的 exercise mode、layout preset 和 piano rows / snap 之类的设置不会丢失。",
             "确认 iOS / macOS 上的标题、返回、关闭按钮布局与转场方向一致，没有双层导航条或页面闪跳。"
         ]
@@ -264,6 +264,10 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
+        guard let modeSection = resolveSection(.mode, in: panelModel) else {
+            issues.append(issue(fixtureName, "default state 应保留 Mode section。"))
+            return issues
+        }
         guard let exerciseSection = resolveSection(.exercise, in: panelModel) else {
             issues.append(issue(fixtureName, "default state 应保留 Exercise section。"))
             return issues
@@ -290,6 +294,7 @@ private extension SettingsNavigationValidationRunner {
         }
 
         if panelModel.sections.map(\.id) != [
+            .mode,
             .exercise,
             .accessories,
             .fretboard,
@@ -300,7 +305,7 @@ private extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "default state 的 section 顺序应保持 Exercise -> Accessories -> Fretboard -> Staff -> Piano -> Debug。"
+                    "default state 的 section 顺序应保持 Mode -> Exercise -> Accessories -> Fretboard -> Staff -> Piano -> Debug。"
                 )
             )
         }
@@ -326,6 +331,15 @@ private extension SettingsNavigationValidationRunner {
                 )
             )
         }
+        assertFormPage(
+            route: .section(.mode),
+            expectedTitle: modeSection.title,
+            expectedSection: modeSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Mode section",
+            issues: &issues
+        )
         if panelModel.toggleRow(for: .showsSideBySideContainerOutlines)?.isOn ?? true {
             issues.append(
                 issue(
@@ -643,16 +657,20 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
+        guard let modeSection = resolveSection(.mode, in: panelModel) else {
+            issues.append(issue(fixtureName, "play mode 下应保留 Mode section。"))
+            return issues
+        }
         guard let pianoSection = resolveSection(.piano, in: panelModel) else {
             issues.append(issue(fixtureName, "play mode 下应保留 Piano section。"))
             return issues
         }
 
-        if panelModel.sections.map(\.id) != [.piano] {
+        if panelModel.sections.map(\.id) != [.mode, .piano] {
             issues.append(
                 issue(
                     fixtureName,
-                    "play mode 的 root sections 应只保留 Piano。"
+                    "play mode 的 root sections 应只保留 Mode 与 Piano。"
                 )
             )
         }
@@ -678,6 +696,11 @@ private extension SettingsNavigationValidationRunner {
 
         if rootRouteItems != [
             SettingsRouteItem(
+                title: modeSection.title,
+                subtitle: nil,
+                route: .section(.mode)
+            ),
+            SettingsRouteItem(
                 title: pianoSection.title,
                 subtitle: nil,
                 route: .section(.piano)
@@ -686,10 +709,20 @@ private extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "play mode root route 应只包含 Piano 入口。"
+                    "play mode root route 应只包含 Mode 与 Piano 入口。"
                 )
             )
         }
+
+        assertFormPage(
+            route: .section(.mode),
+            expectedTitle: modeSection.title,
+            expectedSection: modeSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "Play Mode section",
+            issues: &issues
+        )
 
         assertIndexPage(
             route: .section(.piano),
@@ -778,15 +811,17 @@ private extension SettingsNavigationValidationRunner {
         )
 
         var playStateContext = exerciseStateContext
-        playStateContext.rootMode = .play
-        playStateContext.reconcileForCurrentMode()
+        SettingsPanelEvent.triggerAction(.setRootModePlay).apply(
+            to: &playStateContext
+        )
         let playPanelModel = SettingsPanelSnapshotBuilder.makeModel(
             from: playStateContext
         )
 
         var restoredExerciseStateContext = playStateContext
-        restoredExerciseStateContext.rootMode = .exercise
-        restoredExerciseStateContext.reconcileForCurrentMode()
+        SettingsPanelEvent.triggerAction(.setRootModeExercise).apply(
+            to: &restoredExerciseStateContext
+        )
         let restoredExercisePanelModel = SettingsPanelSnapshotBuilder.makeModel(
             from: restoredExerciseStateContext
         )
@@ -795,11 +830,11 @@ private extension SettingsNavigationValidationRunner {
         )
         var issues: [SettingsNavigationValidationIssue] = []
 
-        if playPanelModel.sections.map(\.id) != [.piano] {
+        if playPanelModel.sections.map(\.id) != [.mode, .piano] {
             issues.append(
                 issue(
                     fixtureName,
-                    "切到 play 后，settings root 应只保留 Piano section。"
+                    "切到 play 后，settings root 应只保留 Mode 与 Piano section。"
                 )
             )
         }
