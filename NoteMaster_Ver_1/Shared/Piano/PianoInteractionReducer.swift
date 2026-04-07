@@ -88,6 +88,7 @@ private extension PianoInteractionReducer {
         hitResult: PianoHitResult
     ) -> PianoHitResult {
         PianoHitResult(
+            pointerID: rawEvent.pointerID,
             phase: rawEvent.phase,
             locationInView: rawEvent.locationInView,
             rowIndex: hitResult.rowIndex,
@@ -120,6 +121,7 @@ private extension PianoInteractionReducer {
             var nextState = state
             nextState.activeInteraction = .buttonPressed(
                 PianoButtonPressInteraction(
+                    pointerID: rawEvent.pointerID,
                     rowIndex: rowIndex,
                     direction: direction,
                     movementScope: rowState.movementScope
@@ -148,6 +150,7 @@ private extension PianoInteractionReducer {
             var nextState = state
             nextState.activeInteraction = .scaleDrag(
                 PianoScaleDragInteraction(
+                    pointerID: rawEvent.pointerID,
                     rowIndex: rowIndex,
                     movementScope: rowState.movementScope,
                     beganLocationInView: rawEvent.locationInView,
@@ -167,6 +170,7 @@ private extension PianoInteractionReducer {
             }
 
             let preview = PianoPreviewState(
+                previewID: rawEvent.pointerID.previewID,
                 rowIndex: rowIndex,
                 note: note
             )
@@ -175,6 +179,7 @@ private extension PianoInteractionReducer {
             nextState.preview = preview
             nextState.activeInteraction = .keyGlissando(
                 PianoKeyGlissandoInteraction(
+                    pointerID: rawEvent.pointerID,
                     rowIndex: rowIndex,
                     currentPreview: preview
                 )
@@ -209,6 +214,7 @@ private extension PianoInteractionReducer {
             var nextState = state
             nextState.activeInteraction = .buttonPressed(
                 PianoButtonPressInteraction(
+                    pointerID: interaction.pointerID,
                     rowIndex: interaction.rowIndex,
                     direction: interaction.direction,
                     movementScope: interaction.movementScope,
@@ -366,6 +372,7 @@ private extension PianoInteractionReducer {
                hitResult.zone == .keys,
                let note = hitResult.note {
                 let nextPreview = PianoPreviewState(
+                    previewID: interaction.currentPreview.previewID,
                     rowIndex: interaction.rowIndex,
                     note: note
                 )
@@ -377,6 +384,7 @@ private extension PianoInteractionReducer {
                 nextState.preview = nextPreview
                 nextState.activeInteraction = .keyGlissando(
                     PianoKeyGlissandoInteraction(
+                        pointerID: interaction.pointerID,
                         rowIndex: interaction.rowIndex,
                         currentPreview: nextPreview
                     )
@@ -399,6 +407,7 @@ private extension PianoInteractionReducer {
                let note = hitResult.note,
                note != interaction.currentPreview.note {
                 let finalPreview = PianoPreviewState(
+                    previewID: interaction.currentPreview.previewID,
                     rowIndex: interaction.rowIndex,
                     note: note
                 )

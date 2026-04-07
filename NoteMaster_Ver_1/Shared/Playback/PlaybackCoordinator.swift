@@ -17,6 +17,8 @@ enum PlaybackStopReason: String, Sendable {
     }
 }
 
+typealias PlaybackVoiceID = PianoVoiceID
+
 protocol PlaybackAudioBackend: AnyObject {
     func startPreview(note: NotePitch)
     func replacePreview(note: NotePitch)
@@ -26,7 +28,13 @@ protocol PlaybackAudioBackend: AnyObject {
 final class PlaybackCoordinator {
     private let backend: PlaybackAudioBackend
 
-    private(set) var currentPreview: PianoPreviewState?
+    private(set) var activeVoices: [PlaybackVoiceID: PianoPreviewState] = [:]
+
+    var currentPreview: PianoPreviewState? {
+        activeVoices.values.min { lhs, rhs in
+            lhs.previewID.rawValue < rhs.previewID.rawValue
+        }
+    }
 
     init(backend: PlaybackAudioBackend) {
         self.backend = backend
@@ -41,17 +49,17 @@ final class PlaybackCoordinator {
         case let .previewChanged(preview):
             transitionToPreview(preview)
         case let .previewEnded(preview):
-            guard currentPreview == preview else {
+            guard activeVoices[preview.voiceID] == preview else {
                 return
             }
 
-            currentPreview = nil
+            activeVoices.removeValue(forKey: preview.voiceID)
             backend.stopPreview()
         }
     }
 
     func forceStop(reason _: PlaybackStopReason) {
-        currentPreview = nil
+        activeVoices.removeAll()
         backend.stopPreview()
     }
 }
@@ -67,11 +75,14 @@ private extension PlaybackCoordinator {
                 backend.replacePreview(note: preview.note)
             }
 
-            self.currentPreview = preview
+            // Phase 1 only freezes the shared identity contract. Until the
+            // backend becomes polyphonic in phase 5, keep the legacy runtime
+            // behavior of collapsing playback to the latest active voice.
+            activeVoices = [preview.voiceID: preview]
             return
         }
 
-        currentPreview = preview
+        activeVoices = [preview.voiceID: preview]
         backend.startPreview(note: preview.note)
     }
 }

@@ -54,16 +54,31 @@ struct PianoRowState: Equatable, Sendable {
 }
 
 struct PianoPreviewState: Equatable, Sendable {
+    var previewID: PianoPreviewID
     var rowIndex: Int
     var note: NotePitch
+
+    init(
+        previewID: PianoPreviewID = .legacyPrimary,
+        rowIndex: Int,
+        note: NotePitch
+    ) {
+        self.previewID = previewID
+        self.rowIndex = rowIndex
+        self.note = note
+    }
+
+    var voiceID: PianoVoiceID {
+        previewID
+    }
 }
 
 struct PianoComponentState: Equatable, Sendable {
     static let empty = PianoComponentState(rows: [])
 
     var rows: [PianoRowState]
-    var preview: PianoPreviewState?
-    var activeInteraction: PianoInteractionState?
+    var activePreviews: [PianoPreviewID: PianoPreviewState]
+    var activeInteractionsByPointer: [PianoPointerID: PianoInteractionState]
 
     init(
         rows: [PianoRowState],
@@ -71,8 +86,65 @@ struct PianoComponentState: Equatable, Sendable {
         activeInteraction: PianoInteractionState? = nil
     ) {
         self.rows = rows
+        activePreviews = [:]
+        activeInteractionsByPointer = [:]
         self.preview = preview
         self.activeInteraction = activeInteraction
+    }
+
+    init(
+        rows: [PianoRowState],
+        activePreviews: [PianoPreviewID: PianoPreviewState],
+        activeInteractionsByPointer: [PianoPointerID: PianoInteractionState] = [:]
+    ) {
+        self.rows = rows
+        self.activePreviews = activePreviews
+        self.activeInteractionsByPointer = activeInteractionsByPointer
+    }
+
+    var preview: PianoPreviewState? {
+        get {
+            if let preview = activePreviews[.legacyPrimary] {
+                return preview
+            }
+
+            return activePreviews.values.min { lhs, rhs in
+                lhs.previewID.rawValue < rhs.previewID.rawValue
+            }
+        }
+        set {
+            guard let newValue else {
+                activePreviews.removeAll()
+                return
+            }
+
+            // Legacy compatibility accessor: old call sites still assign a
+            // single preview, so keep that write path collapsing to one entry.
+            activePreviews = [newValue.previewID: newValue]
+        }
+    }
+
+    var activeInteraction: PianoInteractionState? {
+        get {
+            if let interaction = activeInteractionsByPointer[.legacyPrimary] {
+                return interaction
+            }
+
+            return activeInteractionsByPointer
+                .sorted { lhs, rhs in lhs.key.rawValue < rhs.key.rawValue }
+                .first?
+                .value
+        }
+        set {
+            guard let newValue else {
+                activeInteractionsByPointer.removeAll()
+                return
+            }
+
+            // Legacy compatibility accessor: phase 2 will switch callers to the
+            // pointer-indexed map directly.
+            activeInteractionsByPointer = [newValue.pointerID: newValue]
+        }
     }
 
     var rowCount: Int {
@@ -80,7 +152,7 @@ struct PianoComponentState: Equatable, Sendable {
     }
 
     var isPreviewing: Bool {
-        preview != nil
+        !activePreviews.isEmpty
     }
 
     func rowState(at rowIndex: Int) -> PianoRowState? {
