@@ -227,6 +227,10 @@ private extension PianoValidationRunner {
                 validate: validateKeyboardLayerRoutesVisualStateToRows
             ),
             PianoValidationFixture(
+                name: "keyboard_layer_preserves_multi_preview_during_rows_transition",
+                validate: validateKeyboardLayerPreservesMultiPreviewDuringRowsTransition
+            ),
+            PianoValidationFixture(
                 name: "keyboard_layer_flip_normalization_preserves_top_left_layout",
                 validate: validateKeyboardLayerFlipNormalization
             )
@@ -241,6 +245,7 @@ private extension PianoValidationRunner {
             "确认按钮动画播放期间切换设置、改行数或外部覆盖 rows 时，不会残留 presentation override 或出现视觉错位。",
             "确认 B 区连续拖动离开区域后会立即停止；开启吸附时应先保留连续位置，再以短动画收口到最近锚点。",
             "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
+            "确认同一行两个音、跨行两个音可同时高亮；快速交替两音时不会只剩一个稳定高亮。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后才出现钢琴区域，关闭后会恢复主内容底边约束而不是改变 prompt/answer 主组合。",
             "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。",

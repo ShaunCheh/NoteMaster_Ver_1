@@ -13,14 +13,14 @@ import QuartzCore
 struct PianoRowRenderState: Equatable, Sendable {
     static let empty = PianoRowRenderState(
         referenceNote: nil,
-        previewedNote: nil,
+        previewedNotes: [],
         activeButtonDirection: nil,
         isButtonTrackingInside: false,
         isScaleActive: false
     )
 
     var referenceNote: NotePitch?
-    var previewedNote: NotePitch?
+    var previewedNotes: Set<NotePitch>
     var activeButtonDirection: PianoStepDirection?
     var isButtonTrackingInside: Bool
     var isScaleActive: Bool
@@ -401,7 +401,7 @@ private extension PianoRowLayer {
                 index: index,
                 totalCount: scene.whiteKeys.count
             )
-            let isPreviewed = renderState.previewedNote == whiteKey.note
+            let isPreviewed = renderState.previewedNotes.contains(whiteKey.note)
 
             switch configuration.whiteKeyStyle {
             case .outlined, .borderlessSeparatedByGaps:
@@ -587,10 +587,11 @@ private extension PianoRowLayer {
         context.saveGState()
 
         for blackKey in scene.blackKeys {
-            let fillColor = renderState.previewedNote == blackKey.note
+            let isPreviewed = renderState.previewedNotes.contains(blackKey.note)
+            let fillColor = isPreviewed
                 ? PianoLayerPalette.previewBlackKeyFill
                 : PianoLayerPalette.blackKeyFill
-            let strokeColor = renderState.previewedNote == blackKey.note
+            let strokeColor = isPreviewed
                 ? PianoLayerPalette.previewBlackKeyStroke
                 : PianoLayerPalette.blackKeyStroke
             context.setFillColor(fillColor)

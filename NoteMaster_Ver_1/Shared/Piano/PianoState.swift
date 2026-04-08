@@ -186,6 +186,16 @@ struct PianoComponentState: Equatable, Sendable {
         preview(for: pointerID.previewID)
     }
 
+    func previews(forRowIndex rowIndex: Int) -> [PianoPreviewState] {
+        activePreviews.values
+            .filter { $0.rowIndex == rowIndex }
+            .sorted { lhs, rhs in lhs.previewID.rawValue < rhs.previewID.rawValue }
+    }
+
+    func previewedNotes(forRowIndex rowIndex: Int) -> Set<NotePitch> {
+        Set(previews(forRowIndex: rowIndex).map(\.note))
+    }
+
     func hasExclusiveControlInteraction(ownedBy pointerID: PianoPointerID) -> Bool {
         activeInteractionsByPointer.contains { entry in
             entry.key != pointerID && entry.value.isExclusiveControlInteraction

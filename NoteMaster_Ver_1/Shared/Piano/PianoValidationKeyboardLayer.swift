@@ -87,25 +87,33 @@ extension PianoValidationRunner {
         layer.frame = CGRect(x: 0, y: 0, width: 340, height: 188)
         layer.configuration = configuration
 
-        let buttonPreviewState = PianoComponentState(
+        let previewRow0 = NotePitch(pitchClass: .c, octave: 4)
+        let previewRow1A = NotePitch(pitchClass: .g, octave: 3)
+        let previewRow1B = NotePitch(pitchClass: .a, octave: 3)
+        let previewState = PianoComponentState(
             rows: [
                 PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4)),
                 PianoRowState(startNote: NotePitch(pitchClass: .f, octave: 3))
             ],
-            preview: PianoPreviewState(
-                rowIndex: 1,
-                note: NotePitch(pitchClass: .g, octave: 3)
-            ),
-            activeInteraction: .buttonPressed(
-                PianoButtonPressInteraction(
+            activePreviews: [
+                PianoPreviewID(rawValue: 101): PianoPreviewState(
+                    previewID: PianoPreviewID(rawValue: 101),
                     rowIndex: 0,
-                    direction: .right,
-                    movementScope: .rowOnly,
-                    isTrackingInsideButton: true
+                    note: previewRow0
+                ),
+                PianoPreviewID(rawValue: 102): PianoPreviewState(
+                    previewID: PianoPreviewID(rawValue: 102),
+                    rowIndex: 1,
+                    note: previewRow1A
+                ),
+                PianoPreviewID(rawValue: 103): PianoPreviewState(
+                    previewID: PianoPreviewID(rawValue: 103),
+                    rowIndex: 1,
+                    note: previewRow1B
                 )
-            )
+            ]
         )
-        layer.state = buttonPreviewState
+        layer.state = previewState
         layer.refreshForCurrentBounds()
 
         var issues: [PianoValidationIssue] = []
@@ -119,31 +127,71 @@ extension PianoValidationRunner {
         if rowLayers[0].renderState.referenceNote != NotePitch(pitchClass: .c, octave: 4) {
             issues.append(issue(fixtureName, "第 0 行 renderState 应携带本行 startNote 作为参考线音。"))
         }
+        if rowLayers[0].renderState.previewedNotes != Set([previewRow0]) {
+            issues.append(issue(fixtureName, "第 0 行应只投影自身的 preview 音集合。"))
+        }
+        if rowLayers[0].renderState.activeButtonDirection != nil {
+            issues.append(issue(fixtureName, "仅有 key preview 时，第 0 行不应伪造按钮高亮。"))
+        }
+        if rowLayers[1].renderState.previewedNotes != Set([previewRow1A, previewRow1B]) {
+            issues.append(issue(fixtureName, "第 1 行应同时保留同一行的多个 preview 音。"))
+        }
+        if rowLayers[1].renderState.activeButtonDirection != nil {
+            issues.append(issue(fixtureName, "第 1 行不应错误继承其他行的按钮高亮。"))
+        }
+
+        let buttonState = PianoComponentState(
+            rows: previewState.rows,
+            activePreviews: [:],
+            activeInteractionsByPointer: [
+                PianoPointerID(rawValue: 201): .buttonPressed(
+                    PianoButtonPressInteraction(
+                        pointerID: PianoPointerID(rawValue: 201),
+                        rowIndex: 0,
+                        direction: .right,
+                        movementScope: .rowOnly,
+                        isTrackingInsideButton: true
+                    )
+                )
+            ]
+        )
+        layer.state = buttonState
+        layer.refreshForCurrentBounds()
+        rowLayers = (layer.sublayers ?? []).compactMap { $0 as? PianoRowLayer }
+
+        if rowLayers.count != 2 {
+            issues.append(issue(fixtureName, "buttonPressed 状态下应继续保留双行 row layer。"))
+            return issues
+        }
         if rowLayers[0].renderState.activeButtonDirection != .right
             || !rowLayers[0].renderState.isButtonTrackingInside {
             issues.append(issue(fixtureName, "第 0 行应接收到按钮按下高亮状态。"))
         }
-        if rowLayers[0].renderState.previewedNote != nil {
-            issues.append(issue(fixtureName, "第 0 行不应错误继承其他行的 preview。"))
-        }
-        if rowLayers[1].renderState.previewedNote != NotePitch(pitchClass: .g, octave: 3) {
-            issues.append(issue(fixtureName, "第 1 行应接收到自身的 preview 音。"))
+        if !rowLayers[0].renderState.previewedNotes.isEmpty {
+            issues.append(issue(fixtureName, "按钮交互状态下，第 0 行不应残留旧的 preview 音。"))
         }
         if rowLayers[1].renderState.activeButtonDirection != nil {
             issues.append(issue(fixtureName, "第 1 行不应错误继承第 0 行的按钮高亮。"))
         }
+        if !rowLayers[1].renderState.previewedNotes.isEmpty {
+            issues.append(issue(fixtureName, "清空 preview 后，第 1 行不应残留其他 pointer 的旧高亮。"))
+        }
 
         let scaleDragState = PianoComponentState(
-            rows: buttonPreviewState.rows,
-            activeInteraction: .scaleDrag(
-                PianoScaleDragInteraction(
-                    rowIndex: 0,
-                    movementScope: .cascade,
-                    beganLocationInView: CGPoint(x: 18, y: 10),
-                    affectedRowIndices: [0, 1],
-                    initialOffsetsX: [0, 0]
+            rows: previewState.rows,
+            activePreviews: [:],
+            activeInteractionsByPointer: [
+                PianoPointerID(rawValue: 202): .scaleDrag(
+                    PianoScaleDragInteraction(
+                        pointerID: PianoPointerID(rawValue: 202),
+                        rowIndex: 0,
+                        movementScope: .cascade,
+                        beganLocationInView: CGPoint(x: 18, y: 10),
+                        affectedRowIndices: [0, 1],
+                        initialOffsetsX: [0, 0]
+                    )
                 )
-            )
+            ]
         )
         layer.state = scaleDragState
         layer.refreshForCurrentBounds()
@@ -172,6 +220,78 @@ extension PianoValidationRunner {
             issues.append(issue(fixtureName, "缩减到单行后，剩余 row layer 的参考音应同步刷新。"))
         }
 
+        return issues
+    }
+
+    static func validateKeyboardLayerPreservesMultiPreviewDuringRowsTransition() -> [PianoValidationIssue] {
+        let fixtureName = "keyboard_layer_preserves_multi_preview_during_rows_transition"
+        let configuration = PianoConfiguration(
+            whiteKeyWidth: 42,
+            rowHeight: 90,
+            rowSpacing: 8,
+            scaleAreaHeight: 24,
+            buttonAreaWidth: 30
+        )
+        let rows = [
+            PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4), offsetX: 0),
+            PianoRowState(startNote: NotePitch(pitchClass: .f, octave: 3), offsetX: 0)
+        ]
+        let row0Preview = NotePitch(pitchClass: .e, octave: 4)
+        let row1PreviewA = NotePitch(pitchClass: .a, octave: 3)
+        let row1PreviewB = NotePitch(pitchClass: .b, octave: 3)
+        let state = PianoComponentState(
+            rows: rows,
+            activePreviews: [
+                PianoPreviewID(rawValue: 301): PianoPreviewState(
+                    previewID: PianoPreviewID(rawValue: 301),
+                    rowIndex: 0,
+                    note: row0Preview
+                ),
+                PianoPreviewID(rawValue: 302): PianoPreviewState(
+                    previewID: PianoPreviewID(rawValue: 302),
+                    rowIndex: 1,
+                    note: row1PreviewA
+                ),
+                PianoPreviewID(rawValue: 303): PianoPreviewState(
+                    previewID: PianoPreviewID(rawValue: 303),
+                    rowIndex: 1,
+                    note: row1PreviewB
+                )
+            ]
+        )
+        let layer = PianoKeyboardLayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 340, height: 188)
+        layer.configuration = configuration
+        layer.state = state
+        layer.refreshForCurrentBounds()
+
+        let transitionPlan = PianoRowsTransitionPlan(
+            fromRows: rows,
+            toRows: [
+                PianoRowState(startNote: NotePitch(pitchClass: .c, octave: 4), offsetX: 24),
+                PianoRowState(startNote: NotePitch(pitchClass: .f, octave: 3), offsetX: -18)
+            ],
+            affectedRowIndices: [0, 1],
+            duration: 0.2
+        )
+
+        var issues: [PianoValidationIssue] = []
+        layer.startRowsTransitionAnimation(transitionPlan) { _ in }
+        let rowLayers = (layer.sublayers ?? []).compactMap { $0 as? PianoRowLayer }
+
+        if rowLayers.count != 2 {
+            issues.append(issue(fixtureName, "rows transition 开始后仍应保持与 rows 数一致的 row layer 数量。"))
+        }
+        if rowLayers.indices.contains(0),
+            rowLayers[0].renderState.previewedNotes != Set([row0Preview]) {
+            issues.append(issue(fixtureName, "rows transition presentation override 生效时，第 0 行 preview 集合不应被压回单值。"))
+        }
+        if rowLayers.indices.contains(1),
+            rowLayers[1].renderState.previewedNotes != Set([row1PreviewA, row1PreviewB]) {
+            issues.append(issue(fixtureName, "rows transition presentation override 生效时，第 1 行多 preview 高亮不应丢失。"))
+        }
+
+        _ = layer.cancelRowsTransitionAnimation(materializeCurrentFrame: false)
         return issues
     }
 

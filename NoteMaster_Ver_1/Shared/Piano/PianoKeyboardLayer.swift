@@ -262,8 +262,8 @@ private extension PianoKeyboardLayer {
 
         return PianoComponentState(
             rows: presentationRowsOverride,
-            preview: state.preview,
-            activeInteraction: state.activeInteraction
+            activePreviews: state.activePreviews,
+            activeInteractionsByPointer: state.activeInteractionsByPointer
         )
     }
 
@@ -271,16 +271,14 @@ private extension PianoKeyboardLayer {
         for rowIndex: Int,
         state renderState: PianoComponentState
     ) -> PianoRowRenderState {
-        let previewedNote = renderState.preview?.rowIndex == rowIndex
-            ? renderState.preview?.note
-            : nil
+        let previewedNotes = renderState.previewedNotes(forRowIndex: rowIndex)
         let referenceNote = renderState.rowState(at: rowIndex)?.startNote
 
         let activeButtonDirection: PianoStepDirection?
         let isButtonTrackingInside: Bool
         let isScaleActive: Bool
 
-        switch renderState.activeInteraction {
+        switch renderState.activeExclusiveControlInteraction {
         case let .buttonPressed(interaction):
             activeButtonDirection = interaction.rowIndex == rowIndex
                 ? interaction.direction
@@ -301,7 +299,7 @@ private extension PianoKeyboardLayer {
 
         return PianoRowRenderState(
             referenceNote: referenceNote,
-            previewedNote: previewedNote,
+            previewedNotes: previewedNotes,
             activeButtonDirection: activeButtonDirection,
             isButtonTrackingInside: isButtonTrackingInside,
             isScaleActive: isScaleActive
