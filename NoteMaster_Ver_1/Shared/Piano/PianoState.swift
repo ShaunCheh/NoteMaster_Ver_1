@@ -159,6 +159,12 @@ struct PianoComponentState: Equatable, Sendable {
         !activePreviews.isEmpty
     }
 
+    var orderedActivePreviews: [PianoPreviewState] {
+        activePreviews.values.sorted { lhs, rhs in
+            lhs.previewID.rawValue < rhs.previewID.rawValue
+        }
+    }
+
     var activeExclusiveControlInteraction: PianoInteractionState? {
         activeInteractionsByPointer.values
             .filter { $0.isExclusiveControlInteraction }
@@ -196,10 +202,52 @@ struct PianoComponentState: Equatable, Sendable {
         Set(previews(forRowIndex: rowIndex).map(\.note))
     }
 
+    func replacingRowsBySanitizingInputSessions(
+        with rows: [PianoRowState]
+    ) -> PianoComponentState {
+        var nextState = self
+        nextState.rows = rows
+
+        let interactionOwnedPreviewIDs = Set(
+            activeInteractionsByPointer.values.compactMap { $0.currentPreview?.previewID }
+        )
+        let sanitizedInteractions = activeInteractionsByPointer.compactMapValues {
+            sanitizedInteraction($0, rowCount: rows.count)
+        }
+        let validInteractionPreviewIDs = Set(
+            sanitizedInteractions.values.compactMap { $0.currentPreview?.previewID }
+        )
+        var sanitizedPreviews = activePreviews.filter { entry in
+            (0..<rows.count).contains(entry.value.rowIndex)
+                && (
+                    !interactionOwnedPreviewIDs.contains(entry.key)
+                        || validInteractionPreviewIDs.contains(entry.key)
+                )
+        }
+
+        for interaction in sanitizedInteractions.values {
+            guard let preview = interaction.currentPreview else {
+                continue
+            }
+            sanitizedPreviews[preview.previewID] = preview
+        }
+
+        nextState.activePreviews = sanitizedPreviews
+        nextState.activeInteractionsByPointer = sanitizedInteractions
+        return nextState
+    }
+
     func hasExclusiveControlInteraction(ownedBy pointerID: PianoPointerID) -> Bool {
         activeInteractionsByPointer.contains { entry in
             entry.key != pointerID && entry.value.isExclusiveControlInteraction
         }
+    }
+
+    mutating func clearInputSessions() -> [PianoPreviewState] {
+        let interruptedPreviews = orderedActivePreviews
+        activePreviews.removeAll()
+        activeInteractionsByPointer.removeAll()
+        return interruptedPreviews
     }
 
     mutating func setPreview(
@@ -239,5 +287,36 @@ struct PianoComponentState: Equatable, Sendable {
         }
 
         return rows[rowIndex]
+    }
+}
+
+private extension PianoComponentState {
+    func sanitizedInteraction(
+        _ interaction: PianoInteractionState,
+        rowCount: Int
+    ) -> PianoInteractionState? {
+        switch interaction {
+        case let .buttonPressed(interaction):
+            guard (0..<rowCount).contains(interaction.rowIndex) else {
+                return nil
+            }
+            return .buttonPressed(interaction)
+        case let .scaleDrag(interaction):
+            guard (0..<rowCount).contains(interaction.rowIndex),
+                  interaction.hasConsistentAffectedRows,
+                  interaction.affectedRowIndices.allSatisfy({ rowIndex in
+                      (0..<rowCount).contains(rowIndex)
+                  }) else {
+                return nil
+            }
+            return .scaleDrag(interaction)
+        case let .keyGlissando(interaction):
+            guard (0..<rowCount).contains(interaction.rowIndex),
+                  (0..<rowCount).contains(interaction.currentPreview.rowIndex),
+                  interaction.currentPreview.rowIndex == interaction.rowIndex else {
+                return nil
+            }
+            return .keyGlissando(interaction)
+        }
     }
 }

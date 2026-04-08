@@ -8,9 +8,14 @@
 #if os(macOS)
 import AppKit
 
+private enum macOSPianoPointerSource: Hashable {
+    case mouse(buttonNumber: Int)
+    case touch(ObjectIdentifier)
+}
+
 final class macOSPianoKeyboardView: NSView {
     private var componentState: PianoComponentState
-    private var isMouseSequenceActive = false
+    private var pointerSessionTracker = PianoPointerSessionTracker<macOSPianoPointerSource>()
 
     var configuration: PianoConfiguration {
         didSet {
@@ -112,25 +117,59 @@ final class macOSPianoKeyboardView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        isMouseSequenceActive = true
         handleRawMouseEvent(event, phase: .began)
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard isMouseSequenceActive else {
-            return
-        }
-
         handleRawMouseEvent(event, phase: .moved)
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard isMouseSequenceActive else {
-            return
-        }
-
         handleRawMouseEvent(event, phase: .ended)
-        isMouseSequenceActive = false
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .began)
+    }
+
+    override func rightMouseDragged(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .moved)
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .ended)
+    }
+
+    override func otherMouseDown(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .began)
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .moved)
+    }
+
+    override func otherMouseUp(with event: NSEvent) {
+        handleRawMouseEvent(event, phase: .ended)
+    }
+
+    override func touchesBegan(with event: NSEvent) {
+        handleRawTouchEvent(event, phase: .began)
+        super.touchesBegan(with: event)
+    }
+
+    override func touchesMoved(with event: NSEvent) {
+        handleRawTouchEvent(event, phase: .moved)
+        super.touchesMoved(with: event)
+    }
+
+    override func touchesEnded(with event: NSEvent) {
+        handleRawTouchEvent(event, phase: .ended)
+        super.touchesEnded(with: event)
+    }
+
+    override func touchesCancelled(with event: NSEvent) {
+        handleRawTouchEvent(event, phase: .cancelled)
+        super.touchesCancelled(with: event)
     }
 }
 
@@ -156,6 +195,7 @@ private extension macOSPianoKeyboardView {
 
     func configureView() {
         wantsLayer = true
+        acceptsTouchEvents = true
         layerContentsRedrawPolicy = .duringViewResize
         setContentHuggingPriority(.defaultLow, for: .horizontal)
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -213,100 +253,44 @@ private extension macOSPianoKeyboardView {
         guard componentState.rows != newRows else {
             return
         }
-        let previousPreview = componentState.preview
-        let hadActiveInteraction = componentState.activeInteraction != nil
-        componentState = sanitizedState(
-            byReplacingRowsWith: newRows,
-            from: componentState
+        let previousPreviews = componentState.orderedActivePreviews
+        componentState = componentState.replacingRowsBySanitizingInputSessions(
+            with: newRows
         )
-
-        if hadActiveInteraction, componentState.activeInteraction == nil {
-            isMouseSequenceActive = false
-        }
+        pointerSessionTracker.retainSessions(
+            withPointerIDs: Set(componentState.activeInteractionsByPointer.keys)
+        )
 
         applyBackingState()
-
-        if let previousPreview,
-           componentState.preview != previousPreview {
-            emitSemanticEvents([.previewEnded(previousPreview)])
-        }
-    }
-
-    func sanitizedState(
-        byReplacingRowsWith rows: [PianoRowState],
-        from currentState: PianoComponentState
-    ) -> PianoComponentState {
-        var nextState = currentState
-        nextState.rows = rows
-        nextState.preview = sanitizedPreview(
-            currentState.preview,
-            rowCount: rows.count
+        emitPreviewEndedEvents(
+            removedFrom: previousPreviews,
+            nextState: componentState
         )
-        nextState.activeInteraction = sanitizedInteraction(
-            currentState.activeInteraction,
-            rowCount: rows.count
-        )
-        return nextState
-    }
-
-    func sanitizedPreview(
-        _ preview: PianoPreviewState?,
-        rowCount: Int
-    ) -> PianoPreviewState? {
-        guard let preview, (0..<rowCount).contains(preview.rowIndex) else {
-            return nil
-        }
-
-        return preview
-    }
-
-    func sanitizedInteraction(
-        _ interaction: PianoInteractionState?,
-        rowCount: Int
-    ) -> PianoInteractionState? {
-        guard let interaction else {
-            return nil
-        }
-
-        switch interaction {
-        case let .buttonPressed(interaction):
-            guard (0..<rowCount).contains(interaction.rowIndex) else {
-                return nil
-            }
-            return .buttonPressed(interaction)
-        case let .scaleDrag(interaction):
-            guard (0..<rowCount).contains(interaction.rowIndex),
-                  interaction.hasConsistentAffectedRows,
-                  interaction.affectedRowIndices.allSatisfy({ rowIndex in
-                      (0..<rowCount).contains(rowIndex)
-                  }) else {
-                return nil
-            }
-            return .scaleDrag(interaction)
-        case let .keyGlissando(interaction):
-            guard (0..<rowCount).contains(interaction.rowIndex),
-                  interaction.currentPreview.rowIndex == interaction.rowIndex else {
-                return nil
-            }
-            return .keyGlissando(interaction)
-        }
     }
 
     func handleRawMouseEvent(
         _ event: NSEvent,
         phase: PianoEventPhase
     ) {
-        let location = convert(event.locationInWindow, from: nil)
-        let normalizedLocation = resolvedContextNormalizationMode.normalizedPoint(
-            location,
-            in: bounds
-        )
-        handleRawEvent(
-            PianoRawEvent(
-                phase: phase,
-                locationInView: normalizedLocation
-            )
-        )
+        guard let rawEvent = rawEvent(forMouseEvent: event, phase: phase) else {
+            return
+        }
+        handleRawEvent(rawEvent)
+    }
+
+    func handleRawTouchEvent(
+        _ event: NSEvent,
+        phase: PianoEventPhase
+    ) {
+        for touch in orderedTouches(
+            from: event,
+            matching: touchPhase(for: phase)
+        ) {
+            guard let rawEvent = rawEvent(forTouch: touch, phase: phase) else {
+                continue
+            }
+            handleRawEvent(rawEvent)
+        }
     }
 
     func handleRawEvent(_ rawEvent: PianoRawEvent) {
@@ -341,20 +325,21 @@ private extension macOSPianoKeyboardView {
         emitsPreviewEnded: Bool
     ) {
         cancelRowsTransitionAnimationForExternalStateChange()
-        let interruptedPreview = componentState.preview
-        let hadActiveInteraction = componentState.activeInteraction != nil
-        guard interruptedPreview != nil || hadActiveInteraction else {
+        let interruptedPreviews = componentState.orderedActivePreviews
+        let hadActiveInteraction = !componentState.activeInteractionsByPointer.isEmpty
+        let hadTrackedPointers = pointerSessionTracker.hasActiveSessions
+        guard !interruptedPreviews.isEmpty || hadActiveInteraction || hadTrackedPointers else {
             return
         }
 
-        componentState.preview = nil
-        componentState.activeInteraction = nil
-        isMouseSequenceActive = false
+        _ = componentState.clearInputSessions()
+        pointerSessionTracker.removeAllSessions()
         applyBackingState()
 
-        if emitsPreviewEnded,
-           let interruptedPreview {
-            emitSemanticEvents([.previewEnded(interruptedPreview)])
+        if emitsPreviewEnded {
+            emitSemanticEvents(
+                interruptedPreviews.map(PianoSemanticEvent.previewEnded)
+            )
         }
     }
 
@@ -366,6 +351,9 @@ private extension macOSPianoKeyboardView {
         }
 
         componentState = reduction.nextState
+        pointerSessionTracker.retainSessions(
+            withPointerIDs: Set(componentState.activeInteractionsByPointer.keys)
+        )
         applyBackingState()
         applyPresentationCommand(reduction.presentationCommand)
         emitSemanticEvents(reduction.semanticEvents)
@@ -410,6 +398,131 @@ private extension macOSPianoKeyboardView {
         applyBackingState()
         pianoKeyboardLayer.clearRowsTransitionPresentationOverride()
         emitSemanticEvents([.rowsChanged(materializedRows)])
+    }
+
+    func rawEvent(
+        forMouseEvent event: NSEvent,
+        phase: PianoEventPhase
+    ) -> PianoRawEvent? {
+        let location = convert(event.locationInWindow, from: nil)
+        let normalizedLocation = resolvedContextNormalizationMode.normalizedPoint(
+            location,
+            in: bounds
+        )
+        let source = macOSPianoPointerSource.mouse(
+            buttonNumber: Int(event.buttonNumber)
+        )
+
+        switch phase {
+        case .began:
+            return pointerSessionTracker.begin(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        case .moved:
+            return pointerSessionTracker.move(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        case .ended:
+            return pointerSessionTracker.end(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        case .cancelled:
+            return pointerSessionTracker.cancel(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        }
+    }
+
+    func rawEvent(
+        forTouch touch: NSTouch,
+        phase: PianoEventPhase
+    ) -> PianoRawEvent? {
+        guard !bounds.isEmpty else {
+            return nil
+        }
+
+        let source = macOSPianoPointerSource.touch(
+            ObjectIdentifier(touchIdentityObject(for: touch))
+        )
+        let normalizedPosition = touch.normalizedPosition
+        let clampedX = min(max(normalizedPosition.x, 0), 1)
+        let clampedY = min(max(normalizedPosition.y, 0), 1)
+        let location = CGPoint(
+            x: bounds.minX + (bounds.width * clampedX),
+            y: bounds.minY + (bounds.height * clampedY)
+        )
+        let normalizedLocation = resolvedContextNormalizationMode.normalizedPoint(
+            location,
+            in: bounds
+        )
+
+        switch phase {
+        case .began:
+            return pointerSessionTracker.begin(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        case .moved:
+            return pointerSessionTracker.move(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        case .ended:
+            return pointerSessionTracker.end(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        case .cancelled:
+            return pointerSessionTracker.cancel(
+                source: source,
+                locationInView: normalizedLocation
+            )
+        }
+    }
+
+    func touchPhase(for phase: PianoEventPhase) -> NSTouch.Phase {
+        switch phase {
+        case .began:
+            return .began
+        case .moved:
+            return .moved
+        case .ended:
+            return .ended
+        case .cancelled:
+            return .cancelled
+        }
+    }
+
+    func orderedTouches(
+        from event: NSEvent,
+        matching phase: NSTouch.Phase
+    ) -> [NSTouch] {
+        event.touches(matching: phase, in: self).sorted { lhs, rhs in
+            ObjectIdentifier(touchIdentityObject(for: lhs)).hashValue
+                < ObjectIdentifier(touchIdentityObject(for: rhs)).hashValue
+        }
+    }
+
+    func touchIdentityObject(for touch: NSTouch) -> AnyObject {
+        touch.identity as AnyObject
+    }
+
+    func emitPreviewEndedEvents(
+        removedFrom previousPreviews: [PianoPreviewState],
+        nextState: PianoComponentState
+    ) {
+        let removedPreviews = previousPreviews.filter { preview in
+            nextState.preview(for: preview.previewID) == nil
+        }
+        guard !removedPreviews.isEmpty else {
+            return
+        }
+
+        emitSemanticEvents(removedPreviews.map(PianoSemanticEvent.previewEnded))
     }
 
     func emitSemanticEvents(_ semanticEvents: [PianoSemanticEvent]) {

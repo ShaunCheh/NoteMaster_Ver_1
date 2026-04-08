@@ -219,6 +219,14 @@ private extension PianoValidationRunner {
                 validate: validateControlInteractionExclusivity
             ),
             PianoValidationFixture(
+                name: "pointer_session_tracker_keeps_ids_stable_and_monotonic",
+                validate: validatePointerSessionTrackerKeepsIDsStableAndMonotonic
+            ),
+            PianoValidationFixture(
+                name: "row_replacement_and_reset_clear_all_pointer_sessions",
+                validate: validateRowReplacementAndResetClearAllPointerSessions
+            ),
+            PianoValidationFixture(
                 name: "keyboard_layer_uses_one_row_layer_per_row",
                 validate: validateKeyboardLayerUsesOneRowLayerPerRow
             ),
@@ -246,6 +254,8 @@ private extension PianoValidationRunner {
             "确认 B 区连续拖动离开区域后会立即停止；开启吸附时应先保留连续位置，再以短动画收口到最近锚点。",
             "确认 C 区滑音过程中只更新预览音，不导致 rows 的 startNote 或 offsetX 变化。",
             "确认同一行两个音、跨行两个音可同时高亮；快速交替两音时不会只剩一个稳定高亮。",
+            "确认 iOS 上两根手指可并发触发两路 pointer，抬起其中一根时另一根不会被误 ended。",
+            "确认 macOS 上 mouse / touch pointer 中断、切换 mode、切 settings 或 view disappear 时，不会残留未清理 pointer 或重复 ended。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后才出现钢琴区域，关闭后会恢复主内容底边约束而不是改变 prompt/answer 主组合。",
             "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。",
