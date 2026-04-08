@@ -38,6 +38,15 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         PlayCompositionValidationRunner.runAndReportIfNeeded(platform: .macOS)
         print("[Startup][macOSApp] run exercise composition validation")
         ExerciseCompositionValidationRunner.runAndReportIfNeeded(platform: .macOS)
+
+        #if DEBUG
+        if RuntimeSmokeScenario.shouldRunStartupValidationOnly {
+            print("[RuntimeSmoke][macOS] PASS scenario=startup_validation")
+            NSApp.terminate(nil)
+            return
+        }
+        #endif
+
         // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。
         print("[Startup][macOSApp] apply aqua appearance")
         NSApp.appearance = NSAppearance(named: .aqua)
@@ -108,10 +117,16 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
 private enum RuntimeSmokeScenario {
     static let environmentKey = "NOTE_MASTER_RUNTIME_SMOKE_TEST"
     static let layoutPresetRegressionValue = "layout-preset-regression"
+    static let startupValidationValue = "startup-validation"
 
     static var shouldRunLayoutPresetRegression: Bool {
         ProcessInfo.processInfo.environment[environmentKey]
             == layoutPresetRegressionValue
+    }
+
+    static var shouldRunStartupValidationOnly: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == startupValidationValue
     }
 }
 #endif

@@ -3,24 +3,33 @@ import AVFoundation
 
 final class iOSPlaybackAudioBackend: PlaybackAudioBackend {
     private let toneEngine = AVFoundationTonePlaybackEngine()
+    private var isAudioSessionPrepared = false
 
-    func startPreview(note: NotePitch) {
-        prepareAudioSession()
-        toneEngine.startPreview(note: note)
+    func startVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
+        prepareAudioSessionIfNeeded()
+        toneEngine.startVoice(voiceID, note: note)
     }
 
-    func replacePreview(note: NotePitch) {
-        prepareAudioSession()
-        toneEngine.replacePreview(note: note)
+    func updateVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
+        prepareAudioSessionIfNeeded()
+        toneEngine.updateVoice(voiceID, note: note)
     }
 
-    func stopPreview() {
-        toneEngine.stopPreview()
+    func stopVoice(_ voiceID: PlaybackVoiceID) {
+        toneEngine.stopVoice(voiceID)
+    }
+
+    func stopAllVoices() {
+        toneEngine.stopAllVoices()
     }
 }
 
 private extension iOSPlaybackAudioBackend {
-    func prepareAudioSession() {
+    func prepareAudioSessionIfNeeded() {
+        guard !isAudioSessionPrepared else {
+            return
+        }
+
         do {
             let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setCategory(
@@ -29,6 +38,7 @@ private extension iOSPlaybackAudioBackend {
                 options: [.mixWithOthers]
             )
             try audioSession.setActive(true)
+            isAudioSessionPrepared = true
         } catch {
             print("[Playback][iOSBackend] audioSessionSetupFailed error=\(error)")
         }

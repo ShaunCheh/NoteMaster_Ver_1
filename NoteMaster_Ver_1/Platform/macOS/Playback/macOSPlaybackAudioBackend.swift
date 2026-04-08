@@ -4,16 +4,20 @@ import AVFoundation
 final class macOSPlaybackAudioBackend: PlaybackAudioBackend {
     private let toneEngine = AVFoundationTonePlaybackEngine()
 
-    func startPreview(note: NotePitch) {
-        toneEngine.startPreview(note: note)
+    func startVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
+        toneEngine.startVoice(voiceID, note: note)
     }
 
-    func replacePreview(note: NotePitch) {
-        toneEngine.replacePreview(note: note)
+    func updateVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
+        toneEngine.updateVoice(voiceID, note: note)
     }
 
-    func stopPreview() {
-        toneEngine.stopPreview()
+    func stopVoice(_ voiceID: PlaybackVoiceID) {
+        toneEngine.stopVoice(voiceID)
+    }
+
+    func stopAllVoices() {
+        toneEngine.stopAllVoices()
     }
 }
 #endif

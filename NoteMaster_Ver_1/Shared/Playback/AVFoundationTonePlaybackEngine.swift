@@ -13,7 +13,7 @@ final class AVFoundationTonePlaybackEngine {
     private static let smoothingFactor = 0.004
     private static let amplitudeEpsilon = 0.0001
 
-    private struct RenderState {
+    private struct VoiceRenderState {
         let sampleRate: Double
         var phase = 0.0
         var currentFrequencyHz = 0.0
@@ -40,11 +40,17 @@ final class AVFoundationTonePlaybackEngine {
 
             return Float(sample)
         }
+
+        var canBePruned: Bool {
+            targetAmplitude == 0
+                && abs(currentAmplitude) < AVFoundationTonePlaybackEngine.amplitudeEpsilon
+        }
     }
 
     private let engine = AVAudioEngine()
     private let sourceFormat: AVAudioFormat
-    private var renderState: RenderState
+    private let renderStateLock = NSLock()
+    private var voiceStates: [PlaybackVoiceID: VoiceRenderState] = [:]
 
     private lazy var sourceNode = AVAudioSourceNode { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
         guard let self else {
@@ -64,7 +70,6 @@ final class AVFoundationTonePlaybackEngine {
             standardFormatWithSampleRate: sampleRate,
             channels: 1
         )!
-        self.renderState = RenderState(sampleRate: sampleRate)
         engine.attach(sourceNode)
         engine.connect(
             sourceNode,
@@ -74,32 +79,59 @@ final class AVFoundationTonePlaybackEngine {
         engine.prepare()
     }
 
-    func startPreview(note: NotePitch) {
+    func startVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
         ensureEngineRunning()
-        let frequencyHz = note.playbackFrequencyHz
-        renderState.targetFrequencyHz = frequencyHz
-        if abs(renderState.currentAmplitude) < Self.amplitudeEpsilon {
-            renderState.currentFrequencyHz = frequencyHz
-        }
-        renderState.targetAmplitude = Self.previewAmplitude
+        updateVoiceState(
+            voiceID,
+            note: note
+        )
     }
 
-    func replacePreview(note: NotePitch) {
+    func updateVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
         ensureEngineRunning()
-        let frequencyHz = note.playbackFrequencyHz
-        renderState.targetFrequencyHz = frequencyHz
-        if abs(renderState.currentAmplitude) < Self.amplitudeEpsilon {
-            renderState.currentFrequencyHz = frequencyHz
-        }
-        renderState.targetAmplitude = Self.previewAmplitude
+        updateVoiceState(
+            voiceID,
+            note: note
+        )
     }
 
-    func stopPreview() {
-        renderState.targetAmplitude = 0
+    func stopVoice(_ voiceID: PlaybackVoiceID) {
+        renderStateLock.lock()
+        defer { renderStateLock.unlock() }
+
+        guard var voiceState = voiceStates[voiceID] else {
+            return
+        }
+        voiceState.targetAmplitude = 0
+        voiceStates[voiceID] = voiceState
+    }
+
+    func stopAllVoices() {
+        renderStateLock.lock()
+        voiceStates.removeAll()
+        renderStateLock.unlock()
     }
 }
 
 private extension AVFoundationTonePlaybackEngine {
+    func updateVoiceState(
+        _ voiceID: PlaybackVoiceID,
+        note: NotePitch
+    ) {
+        renderStateLock.lock()
+        defer { renderStateLock.unlock() }
+
+        let frequencyHz = note.playbackFrequencyHz
+        var voiceState = voiceStates[voiceID]
+            ?? VoiceRenderState(sampleRate: sourceFormat.sampleRate)
+        voiceState.targetFrequencyHz = frequencyHz
+        if abs(voiceState.currentAmplitude) < Self.amplitudeEpsilon {
+            voiceState.currentFrequencyHz = frequencyHz
+        }
+        voiceState.targetAmplitude = Self.previewAmplitude
+        voiceStates[voiceID] = voiceState
+    }
+
     func ensureEngineRunning() {
         guard !engine.isRunning else {
             return
@@ -116,9 +148,31 @@ private extension AVFoundationTonePlaybackEngine {
         frameCount: AVAudioFrameCount,
         audioBufferList: UnsafeMutablePointer<AudioBufferList>
     ) -> OSStatus {
+        renderStateLock.lock()
+        defer { renderStateLock.unlock() }
+
         let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
         for frameIndex in 0..<Int(frameCount) {
-            let sample = renderState.nextSample()
+            let voiceIDs = Array(voiceStates.keys)
+            let normalizationFactor = max(1.0, sqrt(Double(voiceIDs.count)))
+            var mixedSample = 0.0
+
+            for voiceID in voiceIDs {
+                guard var voiceState = voiceStates[voiceID] else {
+                    continue
+                }
+
+                mixedSample += Double(voiceState.nextSample())
+                if voiceState.canBePruned {
+                    voiceStates.removeValue(forKey: voiceID)
+                } else {
+                    voiceStates[voiceID] = voiceState
+                }
+            }
+
+            let sample = Float(
+                max(min(mixedSample / normalizationFactor, 1.0), -1.0)
+            )
             for buffer in buffers {
                 guard let mData = buffer.mData else {
                     continue

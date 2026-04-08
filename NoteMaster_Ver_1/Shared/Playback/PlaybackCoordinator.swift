@@ -20,9 +20,10 @@ enum PlaybackStopReason: String, Sendable {
 typealias PlaybackVoiceID = PianoVoiceID
 
 protocol PlaybackAudioBackend: AnyObject {
-    func startPreview(note: NotePitch)
-    func replacePreview(note: NotePitch)
-    func stopPreview()
+    func startVoice(_ voiceID: PlaybackVoiceID, note: NotePitch)
+    func updateVoice(_ voiceID: PlaybackVoiceID, note: NotePitch)
+    func stopVoice(_ voiceID: PlaybackVoiceID)
+    func stopAllVoices()
 }
 
 final class PlaybackCoordinator {
@@ -45,44 +46,40 @@ final class PlaybackCoordinator {
         case .rowsChanged:
             return
         case let .previewStarted(preview):
-            transitionToPreview(preview)
+            upsertVoice(preview)
         case let .previewChanged(preview):
-            transitionToPreview(preview)
+            upsertVoice(preview)
         case let .previewEnded(preview):
             guard activeVoices[preview.voiceID] == preview else {
                 return
             }
 
             activeVoices.removeValue(forKey: preview.voiceID)
-            backend.stopPreview()
+            backend.stopVoice(preview.voiceID)
         }
     }
 
     func forceStop(reason _: PlaybackStopReason) {
         activeVoices.removeAll()
-        backend.stopPreview()
+        backend.stopAllVoices()
     }
 }
 
 private extension PlaybackCoordinator {
-    func transitionToPreview(_ preview: PianoPreviewState) {
-        if let currentPreview {
-            guard currentPreview != preview else {
+    func upsertVoice(_ preview: PianoPreviewState) {
+        if let currentVoice = activeVoices[preview.voiceID] {
+            guard currentVoice != preview else {
                 return
             }
 
-            if currentPreview.note != preview.note {
-                backend.replacePreview(note: preview.note)
+            activeVoices[preview.voiceID] = preview
+            if currentVoice.note != preview.note {
+                backend.updateVoice(preview.voiceID, note: preview.note)
             }
-
-            // Phase 1 only freezes the shared identity contract. Until the
-            // backend becomes polyphonic in phase 5, keep the legacy runtime
-            // behavior of collapsing playback to the latest active voice.
-            activeVoices = [preview.voiceID: preview]
             return
         }
 
-        activeVoices = [preview.voiceID: preview]
-        backend.startPreview(note: preview.note)
+        activeVoices[preview.voiceID] = preview
+        backend.startVoice(preview.voiceID, note: preview.note)
     }
 }

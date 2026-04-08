@@ -256,6 +256,8 @@ private extension PianoValidationRunner {
             "确认同一行两个音、跨行两个音可同时高亮；快速交替两音时不会只剩一个稳定高亮。",
             "确认 iOS 上两根手指可并发触发两路 pointer，抬起其中一根时另一根不会被误 ended。",
             "确认 macOS 上 mouse / touch pointer 中断、切换 mode、切 settings 或 view disappear 时，不会残留未清理 pointer 或重复 ended。",
+            "确认双指和弦、快速交替、以及 glissando 与和弦并发时，活动高亮数量始终与实际活动 pointer 一致。",
+            "确认切换 play/exercise、关闭页面或禁用交互时，pointer 高亮与音频 voice 都会全停，不会只清 UI 不清音频。",
             "确认一次输入序列会锁定在 A/B/C 其中一种模式，不会在 B 区拖动时切换成 C 区预览。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后才出现钢琴区域，关闭后会恢复主内容底边约束而不是改变 prompt/answer 主组合。",
             "确认钢琴组件保持“根 layer + 每行一个 row layer”，不存在按键级拆层或隐式动画。",

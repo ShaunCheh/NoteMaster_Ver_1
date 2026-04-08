@@ -105,24 +105,29 @@ private struct PlaybackValidationFixture {
 }
 
 private enum PlaybackValidationBackendCommand: Equatable {
-    case start(NotePitch)
-    case replace(NotePitch)
-    case stop
+    case start(PlaybackVoiceID, NotePitch)
+    case update(PlaybackVoiceID, NotePitch)
+    case stop(PlaybackVoiceID)
+    case stopAll
 }
 
 private final class PlaybackValidationBackendSpy: PlaybackAudioBackend {
     var commands: [PlaybackValidationBackendCommand] = []
 
-    func startPreview(note: NotePitch) {
-        commands.append(.start(note))
+    func startVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
+        commands.append(.start(voiceID, note))
     }
 
-    func replacePreview(note: NotePitch) {
-        commands.append(.replace(note))
+    func updateVoice(_ voiceID: PlaybackVoiceID, note: NotePitch) {
+        commands.append(.update(voiceID, note))
     }
 
-    func stopPreview() {
-        commands.append(.stop)
+    func stopVoice(_ voiceID: PlaybackVoiceID) {
+        commands.append(.stop(voiceID))
+    }
+
+    func stopAllVoices() {
+        commands.append(.stopAll)
     }
 }
 
@@ -130,20 +135,24 @@ private extension PlaybackValidationRunner {
     static func makeFixtures() -> [PlaybackValidationFixture] {
         [
             PlaybackValidationFixture(
-                name: "preview_lifecycle_routes_start_replace_stop",
-                validate: validatePreviewLifecycle
+                name: "multiple_voices_start_independently",
+                validate: validateMultipleVoiceStart
             ),
             PlaybackValidationFixture(
-                name: "changed_then_ended_does_not_leave_hanging_note",
-                validate: validateChangedThenEnded
+                name: "single_voice_update_does_not_replace_siblings",
+                validate: validateSingleVoiceUpdate
             ),
             PlaybackValidationFixture(
-                name: "stale_preview_end_is_ignored",
-                validate: validateStalePreviewEnd
+                name: "single_voice_stop_does_not_stop_siblings",
+                validate: validateSingleVoiceStop
             ),
             PlaybackValidationFixture(
-                name: "force_stop_clears_active_preview",
-                validate: validateForceStop
+                name: "stale_preview_end_is_ignored_per_voice",
+                validate: validateStalePreviewEndIsolation
+            ),
+            PlaybackValidationFixture(
+                name: "force_stop_stops_all_voices",
+                validate: validateForceStopStopsAllVoices
             ),
             PlaybackValidationFixture(
                 name: "rows_changed_is_ignored",
@@ -154,128 +163,199 @@ private extension PlaybackValidationRunner {
 
     static func manualChecklist(for platform: PlaybackValidationPlatform) -> [String] {
         [
-            "在 \(platform.displayName) 上确认 play 页面按下钢琴键会立即发声，保持按下时不会断音。",
-            "确认横向滑音时旧音会被当前音替换，松手后立即停音。",
-            "确认切换 exercise/play、关闭窗口层级、隐藏当前页面或 view disappear 后，不会残留悬空音。",
-            "确认修改钢琴行数、步进按钮改 row、settings 触发重建时，旧预览音会被强制打断。"
+            "在 \(platform.displayName) 上确认双指和弦可并发发声，抬起其中一指时另一指不会被误停。",
+            "确认快速交替两个音时，stale previewEnded 不会把当前仍活动的 voice 停掉。",
+            "确认 glissando 与另一根手指保持和弦并发时，只会更新对应 voice，另一 voice 持续发声。",
+            "确认切换 exercise/play、关闭页面、view disappear 或禁用交互时，所有活动 voice 都会可靠 stop all。",
+            "确认 play mode 与 exercise accessory piano 都共享同一套复音播放行为。"
         ]
     }
 
-    static func validatePreviewLifecycle() -> [PlaybackValidationIssue] {
-        let fixtureName = "preview_lifecycle_routes_start_replace_stop"
+    static func validateMultipleVoiceStart() -> [PlaybackValidationIssue] {
+        let fixtureName = "multiple_voices_start_independently"
         let spy = PlaybackValidationBackendSpy()
         let coordinator = PlaybackCoordinator(backend: spy)
-        let startedPreview = PianoPreviewState(
+        let voiceA = preview(
+            id: 1,
             rowIndex: 0,
             note: note(.c, octave: 4)
         )
-        let changedPreview = PianoPreviewState(
+        let voiceB = preview(
+            id: 2,
+            rowIndex: 1,
+            note: note(.g, octave: 4)
+        )
+
+        coordinator.handle(.previewStarted(voiceA))
+        coordinator.handle(.previewStarted(voiceB))
+
+        var issues: [PlaybackValidationIssue] = []
+        if spy.commands != [
+            .start(voiceA.voiceID, note(.c, octave: 4)),
+            .start(voiceB.voiceID, note(.g, octave: 4))
+        ] {
+            issues.append(issue(fixtureName, "两个 previewStarted 应分别路由成两个独立的 start voice 命令。"))
+        }
+        if coordinator.activeVoices != [
+            voiceA.voiceID: voiceA,
+            voiceB.voiceID: voiceB
+        ] {
+            issues.append(issue(fixtureName, "activeVoices 应同时保留两个活动 voice。"))
+        }
+        if coordinator.currentPreview != voiceA {
+            issues.append(issue(fixtureName, "兼容访问口 currentPreview 应稳定指向最小 voiceID 对应的 preview。"))
+        }
+        return issues
+    }
+
+    static func validateSingleVoiceUpdate() -> [PlaybackValidationIssue] {
+        let fixtureName = "single_voice_update_does_not_replace_siblings"
+        let spy = PlaybackValidationBackendSpy()
+        let coordinator = PlaybackCoordinator(backend: spy)
+        let voiceAStarted = preview(
+            id: 1,
+            rowIndex: 0,
+            note: note(.c, octave: 4)
+        )
+        let voiceB = preview(
+            id: 2,
+            rowIndex: 1,
+            note: note(.g, octave: 4)
+        )
+        let voiceAChanged = preview(
+            id: 1,
             rowIndex: 0,
             note: note(.d, octave: 4)
         )
 
-        coordinator.handle(.previewStarted(startedPreview))
-        coordinator.handle(.previewChanged(changedPreview))
-        coordinator.handle(.previewEnded(changedPreview))
+        coordinator.handle(.previewStarted(voiceAStarted))
+        coordinator.handle(.previewStarted(voiceB))
+        coordinator.handle(.previewChanged(voiceAChanged))
 
         var issues: [PlaybackValidationIssue] = []
+        if coordinator.activeVoices[voiceAChanged.voiceID] != voiceAChanged {
+            issues.append(issue(fixtureName, "单 voice update 后，voiceA 应刷新为最新 preview。"))
+        }
+        if coordinator.activeVoices[voiceB.voiceID] != voiceB {
+            issues.append(issue(fixtureName, "更新 voiceA 时，不应把并发的 voiceB 从 activeVoices 中挤掉。"))
+        }
         if spy.commands != [
-            .start(note(.c, octave: 4)),
-            .replace(note(.d, octave: 4)),
-            .stop
+            .start(voiceAStarted.voiceID, note(.c, octave: 4)),
+            .start(voiceB.voiceID, note(.g, octave: 4)),
+            .update(voiceAChanged.voiceID, note(.d, octave: 4))
         ] {
-            issues.append(issue(fixtureName, "preview 生命周期应映射成 start -> replace -> stop。"))
-        }
-        if coordinator.currentPreview != nil {
-            issues.append(issue(fixtureName, "previewEnded 后不应残留 currentPreview。"))
+            issues.append(issue(fixtureName, "单 voice previewChanged 只应路由成该 voice 的 update 命令。"))
         }
         return issues
     }
 
-    static func validateChangedThenEnded() -> [PlaybackValidationIssue] {
-        let fixtureName = "changed_then_ended_does_not_leave_hanging_note"
+    static func validateSingleVoiceStop() -> [PlaybackValidationIssue] {
+        let fixtureName = "single_voice_stop_does_not_stop_siblings"
         let spy = PlaybackValidationBackendSpy()
         let coordinator = PlaybackCoordinator(backend: spy)
-        let startedPreview = PianoPreviewState(
-            rowIndex: 1,
-            note: note(.f, octave: 4)
-        )
-        let finalPreview = PianoPreviewState(
-            rowIndex: 1,
-            note: note(.fSharp, octave: 4)
-        )
-
-        coordinator.handle(.previewStarted(startedPreview))
-        coordinator.handle(.previewChanged(finalPreview))
-        coordinator.handle(.previewEnded(finalPreview))
-
-        var issues: [PlaybackValidationIssue] = []
-        if coordinator.currentPreview != nil {
-            issues.append(issue(fixtureName, "previewChanged + previewEnded 背靠背后不应残留 active preview。"))
-        }
-        if Array(spy.commands.suffix(2)) != [
-            .replace(note(.fSharp, octave: 4)),
-            .stop
-        ] {
-            issues.append(issue(fixtureName, "最终切音后应立即停音，不得遗漏 stop。"))
-        }
-        return issues
-    }
-
-    static func validateStalePreviewEnd() -> [PlaybackValidationIssue] {
-        let fixtureName = "stale_preview_end_is_ignored"
-        let spy = PlaybackValidationBackendSpy()
-        let coordinator = PlaybackCoordinator(backend: spy)
-        let startedPreview = PianoPreviewState(
+        let voiceA = preview(
+            id: 1,
             rowIndex: 0,
             note: note(.g, octave: 4)
         )
-        let currentPreview = PianoPreviewState(
-            rowIndex: 0,
-            note: note(.a, octave: 4)
+        let voiceB = preview(
+            id: 2,
+            rowIndex: 1,
+            note: note(.b, octave: 3)
         )
 
-        coordinator.handle(.previewStarted(startedPreview))
-        coordinator.handle(.previewChanged(currentPreview))
-        coordinator.handle(.previewEnded(startedPreview))
+        coordinator.handle(.previewStarted(voiceA))
+        coordinator.handle(.previewStarted(voiceB))
+        coordinator.handle(.previewEnded(voiceA))
 
         var issues: [PlaybackValidationIssue] = []
-        if coordinator.currentPreview != currentPreview {
-            issues.append(issue(fixtureName, "过期 previewEnded 不应把当前音错误停掉。"))
+        if coordinator.activeVoices[voiceA.voiceID] != nil {
+            issues.append(issue(fixtureName, "previewEnded 后，voiceA 应从 activeVoices 中移除。"))
+        }
+        if coordinator.activeVoices[voiceB.voiceID] != voiceB {
+            issues.append(issue(fixtureName, "停止 voiceA 时，不应把并发的 voiceB 一起停掉。"))
         }
         if spy.commands != [
-            .start(note(.g, octave: 4)),
-            .replace(note(.a, octave: 4))
+            .start(voiceA.voiceID, note(.g, octave: 4)),
+            .start(voiceB.voiceID, note(.b, octave: 3)),
+            .stop(voiceA.voiceID)
         ] {
-            issues.append(issue(fixtureName, "过期 previewEnded 不应额外触发 stop。"))
+            issues.append(issue(fixtureName, "单 voice stop 只应路由成对应 voice 的 stop 命令。"))
         }
         return issues
     }
 
-    static func validateForceStop() -> [PlaybackValidationIssue] {
-        let fixtureName = "force_stop_clears_active_preview"
+    static func validateStalePreviewEndIsolation() -> [PlaybackValidationIssue] {
+        let fixtureName = "stale_preview_end_is_ignored_per_voice"
         let spy = PlaybackValidationBackendSpy()
         let coordinator = PlaybackCoordinator(backend: spy)
-
-        coordinator.handle(
-            .previewStarted(
-                PianoPreviewState(
-                    rowIndex: 2,
-                    note: note(.b, octave: 3)
-                )
-            )
+        let voiceAStarted = preview(
+            id: 1,
+            rowIndex: 0,
+            note: note(.g, octave: 4)
         )
+        let voiceAChanged = preview(
+            id: 1,
+            rowIndex: 0,
+            note: note(.a, octave: 4)
+        )
+        let voiceB = preview(
+            id: 2,
+            rowIndex: 1,
+            note: note(.c, octave: 5)
+        )
+
+        coordinator.handle(.previewStarted(voiceAStarted))
+        coordinator.handle(.previewStarted(voiceB))
+        coordinator.handle(.previewChanged(voiceAChanged))
+        coordinator.handle(.previewEnded(voiceAStarted))
+
+        var issues: [PlaybackValidationIssue] = []
+        if coordinator.activeVoices[voiceAChanged.voiceID] != voiceAChanged {
+            issues.append(issue(fixtureName, "过期 previewEnded 不应把已 update 的 voiceA 错误移除。"))
+        }
+        if coordinator.activeVoices[voiceB.voiceID] != voiceB {
+            issues.append(issue(fixtureName, "过期 previewEnded 不应影响其他并发 voice。"))
+        }
+        if spy.commands != [
+            .start(voiceAStarted.voiceID, note(.g, octave: 4)),
+            .start(voiceB.voiceID, note(.c, octave: 5)),
+            .update(voiceAChanged.voiceID, note(.a, octave: 4))
+        ] {
+            issues.append(issue(fixtureName, "过期 previewEnded 不应额外触发 stop 或 stopAll 命令。"))
+        }
+        return issues
+    }
+
+    static func validateForceStopStopsAllVoices() -> [PlaybackValidationIssue] {
+        let fixtureName = "force_stop_stops_all_voices"
+        let spy = PlaybackValidationBackendSpy()
+        let coordinator = PlaybackCoordinator(backend: spy)
+        let voiceA = preview(
+            id: 1,
+            rowIndex: 0,
+            note: note(.b, octave: 3)
+        )
+        let voiceB = preview(
+            id: 2,
+            rowIndex: 1,
+            note: note(.e, octave: 4)
+        )
+
+        coordinator.handle(.previewStarted(voiceA))
+        coordinator.handle(.previewStarted(voiceB))
         coordinator.forceStop(reason: .rootModeChanged)
 
         var issues: [PlaybackValidationIssue] = []
-        if coordinator.currentPreview != nil {
-            issues.append(issue(fixtureName, "forceStop 后 currentPreview 应被清空。"))
+        if !coordinator.activeVoices.isEmpty || coordinator.currentPreview != nil {
+            issues.append(issue(fixtureName, "forceStop 后不应残留任何活动 voice。"))
         }
         if spy.commands != [
-            .start(note(.b, octave: 3)),
-            .stop
+            .start(voiceA.voiceID, note(.b, octave: 3)),
+            .start(voiceB.voiceID, note(.e, octave: 4)),
+            .stopAll
         ] {
-            issues.append(issue(fixtureName, "forceStop 应向 backend 追加 stop 命令。"))
+            issues.append(issue(fixtureName, "forceStop 应路由成 stopAllVoices，而不是只停最后一路 voice。"))
         }
         return issues
     }
@@ -298,6 +378,18 @@ private extension PlaybackValidationRunner {
         octave: Int
     ) -> NotePitch {
         NotePitch(pitchClass: pitchClass, octave: octave)
+    }
+
+    static func preview(
+        id: UInt64,
+        rowIndex: Int,
+        note: NotePitch
+    ) -> PianoPreviewState {
+        PianoPreviewState(
+            previewID: PianoPreviewID(rawValue: id),
+            rowIndex: rowIndex,
+            note: note
+        )
     }
 
     static func issue(

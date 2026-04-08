@@ -34,6 +34,13 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         print("[Startup][iOSApp] run exercise composition validation")
         ExerciseCompositionValidationRunner.runAndReportIfNeeded(platform: .iOS)
 
+        #if DEBUG
+        if RuntimeSmokeScenario.shouldRunStartupValidationOnly {
+            print("[RuntimeSmoke][iOS] PASS scenario=startup_validation")
+            exit(0)
+        }
+        #endif
+
         print("[Startup][iOSApp] create window")
         let window = UIWindow(frame: UIScreen.main.bounds)
         // 从应用入口统一锁定浅色外观，避免语义色跟随系统进入深色模式。
@@ -85,10 +92,16 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
 private enum RuntimeSmokeScenario {
     static let environmentKey = "NOTE_MASTER_RUNTIME_SMOKE_TEST"
     static let layoutPresetRegressionValue = "layout-preset-regression"
+    static let startupValidationValue = "startup-validation"
 
     static var shouldRunLayoutPresetRegression: Bool {
         ProcessInfo.processInfo.environment[environmentKey]
             == layoutPresetRegressionValue
+    }
+
+    static var shouldRunStartupValidationOnly: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == startupValidationValue
     }
 }
 #endif
