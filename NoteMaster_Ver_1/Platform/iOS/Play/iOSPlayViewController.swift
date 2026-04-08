@@ -26,7 +26,6 @@ final class iOSPlayViewController: UIViewController {
 
     var onRootModeChangeRequest: ((RootMode) -> Void)?
 
-    private let scrollView = iOSInteractiveSurfaceScrollView()
     private let contentView = UIView()
 
     private lazy var settingsButton: UIButton = {
@@ -154,35 +153,22 @@ private extension iOSPlayViewController {
     }
 
     func configureLayout() {
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
-
-        scrollView.alwaysBounceVertical = true
-        scrollView.alwaysBounceHorizontal = false
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.isDirectionalLockEnabled = true
-        // Piano surface needs the initial tap immediately; once the gesture
-        // turns into a pan, the shared interactive scroll host will cancel it.
-
-        view.addSubview(scrollView)
-        scrollView.addSubview(contentView)
+        // Play 页面只有钢琴主内容，不再通过 scroll host 承载内容，
+        // 这样钢琴输入不会再参与页面级滚动仲裁。
+        view.addSubview(contentView)
         contentView.addSubview(pianoSurfaceView)
         view.addSubview(settingsButton)
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: safeArea.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: safeArea.bottomAnchor),
-            contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-            contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-            contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-            contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-            contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            contentView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            contentView.topAnchor.constraint(equalTo: safeArea.topAnchor),
+            contentView.bottomAnchor.constraint(equalTo: safeArea.bottomAnchor),
             pianoSurfaceView.leadingAnchor.constraint(
                 equalTo: contentView.leadingAnchor,
                 constant: Layout.horizontalInset
@@ -196,7 +182,7 @@ private extension iOSPlayViewController {
                 constant: Layout.contentTopInset
             ),
             pianoSurfaceView.bottomAnchor.constraint(
-                equalTo: contentView.bottomAnchor,
+                lessThanOrEqualTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
             ),
             settingsButton.leadingAnchor.constraint(

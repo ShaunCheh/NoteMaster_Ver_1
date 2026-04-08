@@ -26,7 +26,6 @@ final class macOSPlayViewController: NSViewController {
 
     var onRootModeChangeRequest: ((RootMode) -> Void)?
 
-    private let scrollView = NSScrollView()
     private let contentView = NSView()
 
     private lazy var settingsButton: NSButton = {
@@ -158,33 +157,22 @@ private extension macOSPlayViewController {
     }
 
     func configureLayout() {
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         settingsContainerView.translatesAutoresizingMaskIntoConstraints = false
-
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.documentView = contentView
-
-        view.addSubview(scrollView)
+        // Play 页面只有钢琴主内容，不再通过 scroll host 承载内容，
+        // 这样鼠标/触摸输入不会先经过页面级滚动容器。
+        view.addSubview(contentView)
         contentView.addSubview(pianoSurfaceView)
         view.addSubview(settingsButton)
         view.addSubview(settingsContainerView)
 
         let safeArea = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: safeArea.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: safeArea.bottomAnchor),
-            contentView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
-            contentView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
-            contentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
-            contentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+            contentView.leadingAnchor.constraint(equalTo: safeArea.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: safeArea.trailingAnchor),
+            contentView.topAnchor.constraint(equalTo: safeArea.topAnchor),
+            contentView.bottomAnchor.constraint(equalTo: safeArea.bottomAnchor),
             pianoSurfaceView.leadingAnchor.constraint(
                 equalTo: contentView.leadingAnchor,
                 constant: Layout.horizontalInset
@@ -198,7 +186,7 @@ private extension macOSPlayViewController {
                 constant: Layout.contentTopInset
             ),
             pianoSurfaceView.bottomAnchor.constraint(
-                equalTo: contentView.bottomAnchor,
+                lessThanOrEqualTo: contentView.bottomAnchor,
                 constant: -Layout.bottomInset
             ),
             settingsButton.leadingAnchor.constraint(
