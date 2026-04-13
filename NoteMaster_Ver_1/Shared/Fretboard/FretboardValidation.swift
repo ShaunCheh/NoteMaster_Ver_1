@@ -1449,6 +1449,25 @@ private extension FretboardValidationRunner {
             return cellsByString
         }
 
+        func positionPromptCandidateCellsByStringAndPitchClass(
+            _ candidateCells: [FretboardCell]
+        ) -> [Int: [PitchClass: [FretboardCell]]] {
+            var cellsByStringAndPitchClass: [Int: [PitchClass: [FretboardCell]]] = [:]
+            cellsByStringAndPitchClass.reserveCapacity(candidateCells.count)
+
+            for cell in candidateCells {
+                guard let pitchClass = configuration.pitchClass(for: cell) else {
+                    record("position prompt trainer 候选格子无法解析为 pitchClass。")
+                    continue
+                }
+                var cellsByPitchClass = cellsByStringAndPitchClass[cell.stringIndex] ?? [:]
+                cellsByPitchClass[pitchClass, default: []].append(cell)
+                cellsByStringAndPitchClass[cell.stringIndex] = cellsByPitchClass
+            }
+
+            return cellsByStringAndPitchClass
+        }
+
         func validatePositionPromptSessionState(
             scenario name: String,
             stage: String,
@@ -1456,6 +1475,7 @@ private extension FretboardValidationRunner {
             filter: PositionPromptCandidateFilter,
             candidateCellSet: Set<FretboardCell>,
             candidateCellsByString: [Int: [FretboardCell]],
+            candidateCellsByStringAndPitchClass: [Int: [PitchClass: [FretboardCell]]],
             expectedSignature: PositionPromptCandidatePoolSignature
         ) {
             if !session.promptPitchClass.isNatural {
@@ -1483,6 +1503,28 @@ private extension FretboardValidationRunner {
             ) {
                 record("position prompt trainer \(name) \(stage) 的 remainingStringsInRound 超出了当前候选弦集合。")
             }
+            if !Set(session.schedulingState.noteHitCountsByString.keys).isSubset(
+                of: expectedSignature.availableStringIndices
+            ) {
+                record("position prompt trainer \(name) \(stage) 的 noteHitCountsByString 包含了候选池之外的弦。")
+            }
+            if !session.schedulingState.noteHitCountsByString.values.allSatisfy({
+                !$0.isEmpty
+                    && $0.keys.allSatisfy(\.isNatural)
+                    && $0.values.allSatisfy { $0 > 0 }
+            }) {
+                record("position prompt trainer \(name) \(stage) 的 noteHitCountsByString 应全部为自然音正数。")
+            }
+            for (stringIndex, noteHitCounts) in session.schedulingState.noteHitCountsByString {
+                guard let candidatePitchGroups =
+                    candidateCellsByStringAndPitchClass[stringIndex] else {
+                    record("position prompt trainer \(name) \(stage) 的 noteHitCountsByString 包含了缺少候选分组的弦。")
+                    continue
+                }
+                if !Set(noteHitCounts.keys).isSubset(of: Set(candidatePitchGroups.keys)) {
+                    record("position prompt trainer \(name) \(stage) 的 noteHitCountsByString 包含了候选池之外的音名。")
+                }
+            }
             let trackedCells = Set(session.schedulingState.cellHitCounts.keys)
             if !trackedCells.isSubset(of: candidateCellSet) {
                 record("position prompt trainer \(name) \(stage) 的 cellHitCounts 包含了候选池之外的格子。")
@@ -1493,8 +1535,17 @@ private extension FretboardValidationRunner {
             if session.schedulingState.hitCount(for: session.promptCell) <= 0 {
                 record("position prompt trainer \(name) \(stage) 的当前 promptCell 应已有命中记录。")
             }
+            if session.schedulingState.noteHitCount(
+                forStringIndex: session.promptCell.stringIndex,
+                pitchClass: session.promptPitchClass
+            ) <= 0 {
+                record("position prompt trainer \(name) \(stage) 的当前 promptPitchClass 应已有同弦命中记录。")
+            }
             if candidateCellsByString[session.promptCell.stringIndex] == nil {
                 record("position prompt trainer \(name) \(stage) 的 promptCell 所在弦缺少按弦分组候选。")
+            }
+            if candidateCellsByStringAndPitchClass[session.promptCell.stringIndex]?[session.promptPitchClass] == nil {
+                record("position prompt trainer \(name) \(stage) 的 promptCell 所在弦缺少按音名分组候选。")
             }
         }
 
@@ -1506,6 +1557,7 @@ private extension FretboardValidationRunner {
             filter: PositionPromptCandidateFilter,
             candidateCellSet: Set<FretboardCell>,
             candidateCellsByString: [Int: [FretboardCell]],
+            candidateCellsByStringAndPitchClass: [Int: [PitchClass: [FretboardCell]]],
             expectedSignature: PositionPromptCandidatePoolSignature
         ) {
             validatePositionPromptSessionState(
@@ -1515,6 +1567,7 @@ private extension FretboardValidationRunner {
                 filter: filter,
                 candidateCellSet: candidateCellSet,
                 candidateCellsByString: candidateCellsByString,
+                candidateCellsByStringAndPitchClass: candidateCellsByStringAndPitchClass,
                 expectedSignature: expectedSignature
             )
             if evaluation.promptCell != previousSession.promptCell {
@@ -1566,14 +1619,44 @@ private extension FretboardValidationRunner {
                 record("position prompt trainer \(name) 正确作答后 remainingStringsInRound 未按轮巡语义更新。")
             }
 
-            guard let stringCandidates = candidateCellsByString[nextStringIndex] else {
+            guard candidateCellsByString[nextStringIndex] != nil else {
                 record("position prompt trainer \(name) 正确作答后缺少 nextPromptCell 所在弦的候选分组。")
                 return
             }
-            let minimumHitCount = stringCandidates.map {
+            guard let stringCandidatesByPitchClass =
+                candidateCellsByStringAndPitchClass[nextStringIndex] else {
+                record("position prompt trainer \(name) 正确作答后缺少 nextPromptCell 所在弦的音名候选分组。")
+                return
+            }
+            let availablePitchClasses = Set(stringCandidatesByPitchClass.keys)
+            let orderedPitchClasses = PitchClass.naturalCasesInOrder.filter {
+                availablePitchClasses.contains($0)
+            }
+            let minimumNoteHitCount = orderedPitchClasses.map {
+                previousSession.schedulingState.noteHitCount(
+                    forStringIndex: nextStringIndex,
+                    pitchClass: $0
+                )
+            }.min() ?? 0
+            let preferredPitchClasses = orderedPitchClasses.filter {
+                previousSession.schedulingState.noteHitCount(
+                    forStringIndex: nextStringIndex,
+                    pitchClass: $0
+                ) == minimumNoteHitCount
+            }
+            if !preferredPitchClasses.contains(nextSession.promptPitchClass) {
+                record("position prompt trainer \(name) 正确作答后 nextPromptPitchClass 未遵循同弦最低音名命中优先规则。")
+            }
+
+            guard let pitchCandidates =
+                stringCandidatesByPitchClass[nextSession.promptPitchClass] else {
+                record("position prompt trainer \(name) 正确作答后缺少 nextPromptPitchClass 对应的格子候选分组。")
+                return
+            }
+            let minimumHitCount = pitchCandidates.map {
                 previousSession.schedulingState.hitCount(for: $0)
             }.min() ?? 0
-            let preferredCandidates = stringCandidates.filter {
+            let preferredCandidates = pitchCandidates.filter {
                 previousSession.schedulingState.hitCount(for: $0) == minimumHitCount
             }
             let filteredPreferredCandidates = preferredCandidates.filter {
@@ -1583,7 +1666,30 @@ private extension FretboardValidationRunner {
                 ? preferredCandidates
                 : filteredPreferredCandidates
             if !allowedCandidates.contains(nextSession.promptCell) {
-                record("position prompt trainer \(name) 正确作答后 nextPromptCell 未遵循最低命中优先或排除当前格规则。")
+                record("position prompt trainer \(name) 正确作答后 nextPromptCell 未遵循同音格子的最低命中优先或排除当前格规则。")
+            }
+
+            for (stringIndex, pitchGroups) in candidateCellsByStringAndPitchClass {
+                for pitchClass in pitchGroups.keys {
+                    let previousNoteHitCount = previousSession.schedulingState.noteHitCount(
+                        forStringIndex: stringIndex,
+                        pitchClass: pitchClass
+                    )
+                    let nextNoteHitCount = nextSession.schedulingState.noteHitCount(
+                        forStringIndex: stringIndex,
+                        pitchClass: pitchClass
+                    )
+                    if stringIndex == nextSession.promptCell.stringIndex,
+                       pitchClass == nextSession.promptPitchClass {
+                        if nextNoteHitCount != previousNoteHitCount + 1 {
+                            record("position prompt trainer \(name) 正确作答后新题音名的 noteHitCount 未按预期加一。")
+                            break
+                        }
+                    } else if nextNoteHitCount != previousNoteHitCount {
+                        record("position prompt trainer \(name) 正确作答后非新题音名的 noteHitCount 不应变化。")
+                        break
+                    }
+                }
             }
 
             for cell in candidateCellSet {
@@ -1631,6 +1737,10 @@ private extension FretboardValidationRunner {
             let candidateCellsByString = positionPromptCandidateCellsByString(
                 candidateCells
             )
+            let candidateCellsByStringAndPitchClass =
+                positionPromptCandidateCellsByStringAndPitchClass(
+                    candidateCells
+                )
             let expectedSignature =
                 FretboardNaturalNoteTrainerState
                 .positionPromptCandidatePoolSignature(
@@ -1662,6 +1772,7 @@ private extension FretboardValidationRunner {
                 filter: normalizedFilter,
                 candidateCellSet: candidateCellSet,
                 candidateCellsByString: candidateCellsByString,
+                candidateCellsByStringAndPitchClass: candidateCellsByStringAndPitchClass,
                 expectedSignature: expectedSignature
             )
             let expectedInitialRemainingStrings =
@@ -1675,6 +1786,14 @@ private extension FretboardValidationRunner {
             if initialSession.schedulingState.cellHitCounts
                 != [initialSession.promptCell: 1] {
                 record("position prompt trainer \(name) 新建 session 的 cellHitCounts 未对齐首题初始化语义。")
+            }
+            if initialSession.schedulingState.noteHitCountsByString
+                != [
+                    initialSession.promptCell.stringIndex: [
+                        initialSession.promptPitchClass: 1
+                    ]
+                ] {
+                record("position prompt trainer \(name) 新建 session 的 noteHitCountsByString 未对齐首题初始化语义。")
             }
 
             logStage("\(name)-wrongAnswer")
@@ -1694,6 +1813,7 @@ private extension FretboardValidationRunner {
                 filter: normalizedFilter,
                 candidateCellSet: candidateCellSet,
                 candidateCellsByString: candidateCellsByString,
+                candidateCellsByStringAndPitchClass: candidateCellsByStringAndPitchClass,
                 expectedSignature: expectedSignature
             )
             guard let wrongAnswer = PitchClass.naturalCasesInOrder.first(where: {
@@ -1755,6 +1875,7 @@ private extension FretboardValidationRunner {
                 filter: normalizedFilter,
                 candidateCellSet: candidateCellSet,
                 candidateCellsByString: candidateCellsByString,
+                candidateCellsByStringAndPitchClass: candidateCellsByStringAndPitchClass,
                 expectedSignature: expectedSignature
             )
 
@@ -1772,9 +1893,10 @@ private extension FretboardValidationRunner {
                 expectedSignature.availableStringIndices.count,
                 1
             )
-            let observedPromptCount = max(roundLength * 2, 2)
+            let observedPromptCount = max(roundLength * 4, 8)
             var observedStringsByPrompt: [Int] = []
             observedStringsByPrompt.reserveCapacity(observedPromptCount)
+            var observedPitchClassesByString: [Int: [PitchClass]] = [:]
 
             for promptIndex in 0..<observedPromptCount {
                 validatePositionPromptSessionState(
@@ -1784,11 +1906,16 @@ private extension FretboardValidationRunner {
                     filter: normalizedFilter,
                     candidateCellSet: candidateCellSet,
                     candidateCellsByString: candidateCellsByString,
+                    candidateCellsByStringAndPitchClass: candidateCellsByStringAndPitchClass,
                     expectedSignature: expectedSignature
                 )
                 observedStringsByPrompt.append(
                     sequenceSession.promptCell.stringIndex
                 )
+                observedPitchClassesByString[
+                    sequenceSession.promptCell.stringIndex,
+                    default: []
+                ].append(sequenceSession.promptPitchClass)
 
                 guard promptIndex < observedPromptCount - 1 else {
                     break
@@ -1811,12 +1938,14 @@ private extension FretboardValidationRunner {
                         filter: normalizedFilter,
                         candidateCellSet: candidateCellSet,
                         candidateCellsByString: candidateCellsByString,
+                        candidateCellsByStringAndPitchClass: candidateCellsByStringAndPitchClass,
                         expectedSignature: expectedSignature
                     )
                 }
             }
 
-            for roundIndex in 0..<2 {
+            let completeRoundCount = observedPromptCount / roundLength
+            for roundIndex in 0..<completeRoundCount {
                 let start = roundIndex * roundLength
                 let end = start + roundLength
                 let roundStrings = Array(observedStringsByPrompt[start..<end])
@@ -1825,6 +1954,31 @@ private extension FretboardValidationRunner {
                 }
                 if Set(roundStrings).count != roundStrings.count {
                     record("position prompt trainer \(name) 第 \(roundIndex + 1) 轮出现了重复弦，未遵循每轮每弦一次的语义。")
+                }
+            }
+
+            for stringIndex in expectedSignature.availableStringIndices {
+                guard let pitchGroups =
+                    candidateCellsByStringAndPitchClass[stringIndex] else {
+                    record("position prompt trainer \(name) 缺少某条候选弦的音名分组，无法验证音名公平。")
+                    continue
+                }
+                if observedPitchClassesByString[stringIndex]?.isEmpty ?? true {
+                    record("position prompt trainer \(name) 在观察序列中遗漏了候选弦 \(stringIndex) 的题目。")
+                }
+                let candidatePitchClasses = PitchClass.naturalCasesInOrder.filter {
+                    pitchGroups[$0] != nil
+                }
+                let noteHitCounts = candidatePitchClasses.map {
+                    sequenceSession.schedulingState.noteHitCount(
+                        forStringIndex: stringIndex,
+                        pitchClass: $0
+                    )
+                }
+                if let minimumNoteHitCount = noteHitCounts.min(),
+                   let maximumNoteHitCount = noteHitCounts.max(),
+                   maximumNoteHitCount - minimumNoteHitCount > 1 {
+                    record("position prompt trainer \(name) 在弦 \(stringIndex) 上的音名命中分布差值超过 1，未遵循最低音名命中优先语义。")
                 }
             }
         }
@@ -1997,6 +2151,14 @@ private extension FretboardValidationRunner {
             filter: TrainerPositionPromptConfiguration(
                 filterMode: .noteName,
                 selectedPitchClasses: [.c, .e]
+            ).activeFilter,
+            requiresNoOpenStrings: false
+        )
+        validateFilterScenario(
+            name: "defaultNoteNamesPlusD",
+            filter: TrainerPositionPromptConfiguration(
+                filterMode: .noteName,
+                selectedPitchClasses: [.c, .d, .e, .f, .b]
             ).activeFilter,
             requiresNoOpenStrings: false
         )

@@ -176,11 +176,13 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             }
 
             var remainingStringsInRound: Set<Int>
+            var noteHitCountsByString: [Int: [PitchClass: Int]]
             var cellHitCounts: [FretboardCell: Int]
             var candidatePoolSignature: CandidatePoolSignature
 
             init(
                 remainingStringsInRound: Set<Int>,
+                noteHitCountsByString: [Int: [PitchClass: Int]],
                 cellHitCounts: [FretboardCell: Int],
                 candidatePoolSignature: CandidatePoolSignature
             ) {
@@ -191,13 +193,36 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                     invalidRemainingStrings.isEmpty,
                     "Position prompt scheduling remaining strings must stay within the current candidate pool."
                 )
+                let invalidTrackedStrings = Set(noteHitCountsByString.keys).subtracting(
+                    candidatePoolSignature.availableStringIndices
+                )
+                precondition(
+                    invalidTrackedStrings.isEmpty,
+                    "Position prompt scheduling tracked note strings must stay within the current candidate pool."
+                )
+                precondition(
+                    noteHitCountsByString.values.allSatisfy { noteHitCounts in
+                        !noteHitCounts.isEmpty
+                            && noteHitCounts.keys.allSatisfy(\.isNatural)
+                            && noteHitCounts.values.allSatisfy { $0 > 0 }
+                    },
+                    "Position prompt scheduling note hit counts must stay positive and natural."
+                )
                 precondition(
                     cellHitCounts.values.allSatisfy { $0 > 0 },
                     "Position prompt scheduling hit counts must stay positive."
                 )
                 self.remainingStringsInRound = remainingStringsInRound
+                self.noteHitCountsByString = noteHitCountsByString
                 self.cellHitCounts = cellHitCounts
                 self.candidatePoolSignature = candidatePoolSignature
+            }
+
+            func noteHitCount(
+                forStringIndex stringIndex: Int,
+                pitchClass: PitchClass
+            ) -> Int {
+                noteHitCountsByString[stringIndex]?[pitchClass] ?? 0
             }
 
             func hitCount(for cell: FretboardCell) -> Int {
@@ -206,11 +231,17 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
             static func initial(
                 promptCell: FretboardCell,
+                promptPitchClass: PitchClass,
                 candidatePoolSignature: CandidatePoolSignature
             ) -> SchedulingState {
                 SchedulingState(
                     remainingStringsInRound: candidatePoolSignature.availableStringIndices
                         .subtracting([promptCell.stringIndex]),
+                    noteHitCountsByString: [
+                        promptCell.stringIndex: [
+                            promptPitchClass: 1
+                        ]
+                    ],
                     cellHitCounts: [promptCell: 1],
                     candidatePoolSignature: candidatePoolSignature
                 )
@@ -245,6 +276,13 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             precondition(
                 schedulingState.hitCount(for: promptCell) > 0,
                 "Position prompt scheduling must record at least one hit for the current prompt cell."
+            )
+            precondition(
+                schedulingState.noteHitCount(
+                    forStringIndex: promptCell.stringIndex,
+                    pitchClass: promptPitchClass
+                ) > 0,
+                "Position prompt scheduling must record at least one hit for the current prompt pitch on its string."
             )
             self.promptCell = promptCell
             self.promptPitchClass = promptPitchClass
@@ -622,7 +660,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             using: &generator
         )
         print(
-            "[PositionPrompt][Trainer] makePositionPromptSession end \(filterText) prompt=string=\(session.promptCell.stringIndex) fret=\(session.promptCell.fret) pitch=\(session.promptPitchClass.displayText()) \(Self.positionPromptSchedulingDebugText(session.schedulingState, promptCell: session.promptCell))"
+            "[PositionPrompt][Trainer] makePositionPromptSession end \(filterText) prompt=string=\(session.promptCell.stringIndex) fret=\(session.promptCell.fret) pitch=\(session.promptPitchClass.displayText()) \(Self.positionPromptSchedulingDebugText(session.schedulingState, promptCell: session.promptCell, promptPitchClass: session.promptPitchClass))"
         )
         return session
     }
@@ -874,7 +912,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
         let resultText = isCorrect ? "correct" : "wrong"
         print(
-            "[PositionPrompt][Trainer] answer result=\(resultText) expected=\(expectedPitchClass.displayText()) answered=\(pitchClass.displayText()) current=string=\(promptCell.stringIndex) fret=\(promptCell.fret) next=string=\(nextSession.promptCell.stringIndex) fret=\(nextSession.promptCell.fret) \(Self.positionPromptSchedulingDebugText(nextSession.schedulingState, promptCell: nextSession.promptCell))"
+            "[PositionPrompt][Trainer] answer result=\(resultText) expected=\(expectedPitchClass.displayText()) answered=\(pitchClass.displayText()) current=string=\(promptCell.stringIndex) fret=\(promptCell.fret) next=string=\(nextSession.promptCell.stringIndex) fret=\(nextSession.promptCell.fret) \(Self.positionPromptSchedulingDebugText(nextSession.schedulingState, promptCell: nextSession.promptCell, promptPitchClass: nextSession.promptPitchClass))"
         )
 
         return .evaluated(
@@ -1047,20 +1085,27 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             "[PositionPrompt][Trainer] selectPrompt candidates count=\(candidates.count) \(positionPromptCandidatePoolDebugText(candidatePoolSignature))"
         )
         let candidatesByString = positionPromptCandidateCellsByString(candidates)
+        let candidatesByStringAndPitchClass =
+            positionPromptCandidateCellsByStringAndPitchClass(
+                candidates,
+                configuration: configuration
+            )
         let selection = selectPositionPromptCell(
             candidatesByString: candidatesByString,
+            candidatesByStringAndPitchClass: candidatesByStringAndPitchClass,
             candidatePoolSignature: candidatePoolSignature,
             excluding: excludedCell,
             carryingOver: schedulingState,
             using: &generator
         )
         let promptCell = selection.promptCell
+        let promptPitchClass = selection.promptPitchClass
         print(
             "[PositionPrompt][Trainer] selectPrompt selectedCell string=\(promptCell.stringIndex) fret=\(promptCell.fret)"
         )
-        guard let promptPitchClass = configuration.pitchClass(for: promptCell) else {
+        guard configuration.pitchClass(for: promptCell) == promptPitchClass else {
             preconditionFailure(
-                "Position prompt candidate cell must resolve to a pitch class."
+                "Position prompt candidate cell pitch class must stay aligned with the current configuration."
             )
         }
         print(
@@ -1128,6 +1173,31 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return cellsByString
     }
 
+    private static func positionPromptCandidateCellsByStringAndPitchClass(
+        _ candidateCells: [FretboardCell],
+        configuration: FretboardConfiguration
+    ) -> [Int: [PitchClass: [FretboardCell]]] {
+        var cellsByStringAndPitchClass: [Int: [PitchClass: [FretboardCell]]] = [:]
+        cellsByStringAndPitchClass.reserveCapacity(candidateCells.count)
+
+        for cell in candidateCells {
+            guard let pitchClass = configuration.pitchClass(for: cell) else {
+                preconditionFailure(
+                    "Position prompt candidate cell must resolve to a pitch class."
+                )
+            }
+            precondition(
+                pitchClass.isNatural,
+                "Position prompt candidate cell pitch class must stay natural."
+            )
+            var cellsByPitchClass = cellsByStringAndPitchClass[cell.stringIndex] ?? [:]
+            cellsByPitchClass[pitchClass, default: []].append(cell)
+            cellsByStringAndPitchClass[cell.stringIndex] = cellsByPitchClass
+        }
+
+        return cellsByStringAndPitchClass
+    }
+
     static func positionPromptCandidatePoolSignature(
         in configuration: FretboardConfiguration,
         filter: PositionPromptCandidateFilter
@@ -1164,6 +1234,17 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return orderedStrings.isEmpty ? "none" : orderedStrings.joined(separator: ",")
     }
 
+    private static func positionPromptOrderedPitchClassText(
+        _ pitchClasses: Set<PitchClass>
+    ) -> String {
+        let orderedPitchClasses = PitchClass.naturalCasesInOrder
+            .filter { pitchClasses.contains($0) }
+            .map { $0.displayText() }
+        return orderedPitchClasses.isEmpty
+            ? "none"
+            : orderedPitchClasses.joined(separator: ",")
+    }
+
     private static func positionPromptCandidatePoolDebugText(
         _ signature: PositionPromptSession.SchedulingState.CandidatePoolSignature
     ) -> String {
@@ -1179,7 +1260,8 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     private static func positionPromptSchedulingDebugText(
         _ schedulingState: PositionPromptSession.SchedulingState,
-        promptCell: FretboardCell? = nil
+        promptCell: FretboardCell? = nil,
+        promptPitchClass: PitchClass? = nil
     ) -> String {
         let availableStrings =
             schedulingState.candidatePoolSignature.availableStringIndices
@@ -1196,25 +1278,41 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         let consumedStringText = positionPromptOrderedStringText(
             consumedStrings
         )
-        let promptHitCountText: String
+        let trackedStringNotes = schedulingState.noteHitCountsByString.values.reduce(0) {
+            $0 + $1.count
+        }
+        let promptCellHitCountText: String
         if let promptCell {
-            promptHitCountText = String(
+            promptCellHitCountText = String(
                 schedulingState.hitCount(for: promptCell)
             )
         } else {
-            promptHitCountText = "n/a"
+            promptCellHitCountText = "n/a"
         }
-        return "roundProgress=\(roundProgress) availableStrings=\(availableStringText) consumedStrings=\(consumedStringText) remainingStrings=\(remainingStringText) trackedCells=\(schedulingState.cellHitCounts.count) promptHits=\(promptHitCountText)"
+        let promptNoteHitCountText: String
+        if let promptCell, let promptPitchClass {
+            promptNoteHitCountText = String(
+                schedulingState.noteHitCount(
+                    forStringIndex: promptCell.stringIndex,
+                    pitchClass: promptPitchClass
+                )
+            )
+        } else {
+            promptNoteHitCountText = "n/a"
+        }
+        return "roundProgress=\(roundProgress) availableStrings=\(availableStringText) consumedStrings=\(consumedStringText) remainingStrings=\(remainingStringText) trackedStringNotes=\(trackedStringNotes) trackedCells=\(schedulingState.cellHitCounts.count) promptNoteHits=\(promptNoteHitCountText) promptCellHits=\(promptCellHitCountText)"
     }
 
     private static func selectPositionPromptCell<R: RandomNumberGenerator>(
         candidatesByString: [Int: [FretboardCell]],
+        candidatesByStringAndPitchClass: [Int: [PitchClass: [FretboardCell]]],
         candidatePoolSignature: PositionPromptSession.SchedulingState.CandidatePoolSignature,
         excluding excludedCell: FretboardCell?,
         carryingOver schedulingState: PositionPromptSession.SchedulingState?,
         using generator: inout R
     ) -> (
         promptCell: FretboardCell,
+        promptPitchClass: PitchClass,
         schedulingState: PositionPromptSession.SchedulingState
     ) {
         let seedState = seededPositionPromptSchedulingState(
@@ -1238,12 +1336,49 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                 "Position prompt selected string should always have at least one candidate cell."
             )
         }
+        guard let stringCandidatesByPitchClass =
+            candidatesByStringAndPitchClass[selectedStringIndex],
+            !stringCandidatesByPitchClass.isEmpty else {
+            preconditionFailure(
+                "Position prompt selected string should always have at least one candidate pitch class."
+            )
+        }
 
-        let minimumHitCount = stringCandidates.map {
+        let availablePitchClasses = Set(stringCandidatesByPitchClass.keys)
+        let orderedPitchClasses = PitchClass.naturalCasesInOrder.filter {
+            availablePitchClasses.contains($0)
+        }
+        let minimumNoteHitCount = orderedPitchClasses.map {
+            seedState.noteHitCount(
+                forStringIndex: selectedStringIndex,
+                pitchClass: $0
+            )
+        }.min() ?? 0
+        let preferredPitchClasses = orderedPitchClasses.filter {
+            seedState.noteHitCount(
+                forStringIndex: selectedStringIndex,
+                pitchClass: $0
+            ) == minimumNoteHitCount
+        }
+        guard let selectedPitchClass = preferredPitchClasses.randomElement(
+            using: &generator
+        ) else {
+            preconditionFailure(
+                "Position prompt preferred pitch classes should never be empty."
+            )
+        }
+        guard let pitchCandidates = stringCandidatesByPitchClass[selectedPitchClass],
+              !pitchCandidates.isEmpty else {
+            preconditionFailure(
+                "Position prompt selected pitch class should always have at least one candidate cell."
+            )
+        }
+
+        let minimumCellHitCount = pitchCandidates.map {
             seedState.hitCount(for: $0)
         }.min() ?? 0
-        let preferredCandidates = stringCandidates.filter {
-            seedState.hitCount(for: $0) == minimumHitCount
+        let preferredCandidates = pitchCandidates.filter {
+            seedState.hitCount(for: $0) == minimumCellHitCount
         }
         let filteredPreferredCandidates = preferredCandidates.filter {
             $0 != excludedCell
@@ -1254,7 +1389,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         let excludedCellWasFiltered = filteredPreferredCandidates.count
             != preferredCandidates.count
         print(
-            "[PositionPrompt][Trainer] selectPrompt schedulingBefore \(positionPromptSchedulingDebugText(seedState)) activeRoundStrings=\(positionPromptOrderedStringText(activeRoundStrings)) selectedString=\(selectedStringIndex) stringCandidates=\(stringCandidates.count) minimumHitCount=\(minimumHitCount) minimumHitCandidateCount=\(preferredCandidates.count) resolvedCandidateCount=\(resolvedCandidates.count) excludedApplied=\(excludedCellWasFiltered)"
+            "[PositionPrompt][Trainer] selectPrompt schedulingBefore \(positionPromptSchedulingDebugText(seedState)) activeRoundStrings=\(positionPromptOrderedStringText(activeRoundStrings)) selectedString=\(selectedStringIndex) stringCandidates=\(stringCandidates.count) candidatePitchClasses=\(positionPromptOrderedPitchClassText(availablePitchClasses)) minimumNoteHitCount=\(minimumNoteHitCount) preferredPitchClasses=\(positionPromptOrderedPitchClassText(Set(preferredPitchClasses))) selectedPitch=\(selectedPitchClass.displayText()) pitchCandidates=\(pitchCandidates.count) minimumCellHitCount=\(minimumCellHitCount) minimumCellCandidateCount=\(preferredCandidates.count) resolvedCandidateCount=\(resolvedCandidates.count) excludedApplied=\(excludedCellWasFiltered)"
         )
         guard let promptCell = resolvedCandidates.randomElement(using: &generator) else {
             preconditionFailure(
@@ -1262,20 +1397,27 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             )
         }
 
+        var nextNoteHitCountsByString = seedState.noteHitCountsByString
+        var nextStringNoteHitCounts =
+            nextNoteHitCountsByString[selectedStringIndex] ?? [:]
+        nextStringNoteHitCounts[selectedPitchClass, default: 0] += 1
+        nextNoteHitCountsByString[selectedStringIndex] = nextStringNoteHitCounts
         var nextHitCounts = seedState.cellHitCounts
         nextHitCounts[promptCell, default: 0] += 1
         let nextSchedulingState = PositionPromptSession.SchedulingState(
             remainingStringsInRound: activeRoundStrings.subtracting([
                 selectedStringIndex
             ]),
+            noteHitCountsByString: nextNoteHitCountsByString,
             cellHitCounts: nextHitCounts,
             candidatePoolSignature: candidatePoolSignature
         )
         print(
-            "[PositionPrompt][Trainer] selectPrompt schedulingAfter \(positionPromptSchedulingDebugText(nextSchedulingState, promptCell: promptCell))"
+            "[PositionPrompt][Trainer] selectPrompt schedulingAfter \(positionPromptSchedulingDebugText(nextSchedulingState, promptCell: promptCell, promptPitchClass: selectedPitchClass))"
         )
         return (
             promptCell: promptCell,
+            promptPitchClass: selectedPitchClass,
             schedulingState: nextSchedulingState
         )
     }
@@ -1292,6 +1434,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                 : "candidatePoolChanged"
             let resetState = PositionPromptSession.SchedulingState(
                 remainingStringsInRound: candidatePoolSignature.availableStringIndices,
+                noteHitCountsByString: [:],
                 cellHitCounts: [:],
                 candidatePoolSignature: candidatePoolSignature
             )
@@ -1427,8 +1570,23 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             "\(function) position prompt session hit counts must stay positive."
         )
         precondition(
+            session.schedulingState.noteHitCountsByString.values.allSatisfy {
+                !$0.isEmpty
+                    && $0.keys.allSatisfy(\.isNatural)
+                    && $0.values.allSatisfy { $0 > 0 }
+            },
+            "\(function) position prompt session note hit counts must stay positive and natural."
+        )
+        precondition(
             session.schedulingState.hitCount(for: session.promptCell) > 0,
             "\(function) position prompt session current prompt cell must have recorded history."
+        )
+        precondition(
+            session.schedulingState.noteHitCount(
+                forStringIndex: session.promptCell.stringIndex,
+                pitchClass: session.promptPitchClass
+            ) > 0,
+            "\(function) position prompt session current prompt pitch must have recorded history on its string."
         )
     }
 
