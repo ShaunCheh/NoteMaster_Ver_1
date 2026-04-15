@@ -1097,6 +1097,133 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateStaffToNaturalNoteStripSkipsLegacyBackProjection()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "staff_to_natural_note_strip_skips_legacy_back_projection"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let trainerDisplayState = TrainerDisplayState(exerciseMode: .sr0)
+        let requestedPreferences = ExerciseLayoutPreferences(
+            compositionPreset: .staffToNaturalNoteStrip,
+            layoutPreset: .stacked,
+            accessoryPresentation: .docked,
+            isNaturalNoteStripVisible: true,
+            isPianoAccessoryVisible: true,
+            isAccessoryExpanded: true
+        )
+        let normalizedPreferences = LegacyPageLayoutAdapter.normalizedPreferences(
+            requestedPreferences,
+            trainerDisplayState: trainerDisplayState
+        )
+        if normalizedPreferences.compositionPreset != .staffToNaturalNoteStrip {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 在 legacy adapter 的 normalize 阶段不应被提前改写成 legacy preset。"
+                )
+            )
+        }
+        if !normalizedPreferences.isNaturalNoteStripVisible
+            || normalizedPreferences.isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 在 legacy adapter 的 normalize 阶段应保留主 strip，并继续压平 piano accessory。"
+                )
+            )
+        }
+
+        let projectedPageDisplayState = LegacyPageLayoutAdapter
+            .projectedPageDisplayState(
+                from: requestedPreferences,
+                trainerDisplayState: trainerDisplayState
+            )
+        if projectedPageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 在 legacy adapter 中应直接回落到默认 legacy page，而不是伪造新的 page 投影。"
+                )
+            )
+        }
+
+        var stateContext = SettingsPanelStateContext(
+            pageDisplayState: .default,
+            exerciseLayoutPreferences: requestedPreferences,
+            trainerDisplayState: trainerDisplayState,
+            pianoPanelState: PianoPanelState(isVisible: true)
+        )
+        LegacyPageLayoutAdapter.reconcile(&stateContext)
+        if stateContext.exerciseLayoutPreferences != .srNoteStripAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "settings bridge 在回写 `staffToNaturalNoteStrip` 时应保留该 preset，并继续对齐到 `srNoteStripAnswer`。"
+                )
+            )
+        }
+        if stateContext.pageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "settings bridge 不应尝试把 `staffToNaturalNoteStrip` 反投影成新的 legacy page 组合。"
+                )
+            )
+        }
+        if stateContext.pianoPanelState.isVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的 settings reconcile 应同步清掉 accessory piano 的显隐状态。"
+                )
+            )
+        }
+
+        let legacyCompatiblePresentation = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: trainerDisplayState,
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: PianoPanelState(isVisible: true),
+                    layoutPreferences: requestedPreferences
+                )
+            )
+        if legacyCompatiblePresentation.resolvedLayoutPreferences.compositionPreset
+            != .staffToFretboard
+            || legacyCompatiblePresentation.resolvedLayoutPreferences.layoutPreset
+            != .stacked {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "显式请求 legacy-compatible presentation 时，`staffToNaturalNoteStrip` 应回退到 legacy 可表达的 `staffToFretboard + stacked`。"
+                )
+            )
+        }
+        if legacyCompatiblePresentation.resolvedLayoutPreferences
+            .isNaturalNoteStripVisible
+            || legacyCompatiblePresentation.resolvedLayoutPreferences
+            .isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy-compatible fallback 不应把主 strip 或 piano accessory 带回 legacy scene。"
+                )
+            )
+        }
+        if legacyCompatiblePresentation.legacyPageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的 legacy-compatible fallback 应继续回投影到默认 legacy page。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateSRModesFreezeStaffToPianoPolicyContracts()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "sr_modes_freeze_staff_to_piano_policy_contracts"

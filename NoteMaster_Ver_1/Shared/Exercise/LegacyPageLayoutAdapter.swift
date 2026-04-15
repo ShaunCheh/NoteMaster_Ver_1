@@ -57,7 +57,8 @@ enum LegacyPageLayoutAdapter {
             preferences,
             trainerDisplayState: trainerDisplayState
         )
-        if resolvedPreferences.compositionPreset == .staffToPiano {
+        if resolvedPreferences.compositionPreset == .staffToPiano
+            || resolvedPreferences.compositionPreset == .staffToNaturalNoteStrip {
             return fallbackPageDisplayState(
                 for: trainerDisplayState.exerciseMode
             )

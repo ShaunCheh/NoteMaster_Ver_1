@@ -936,9 +936,38 @@ extension SettingsNavigationValidationRunner {
         return issues
     }
 
+    static func validateSR0SettingsStateFreezesFixedPresentationOptions()
+        -> [SettingsNavigationValidationIssue] {
+        validateSRFixedSettingsState(
+            triggerAction: .setExerciseModeSr0,
+            expectedExerciseMode: .sr0,
+            modeTitle: "SR-0",
+            fixtureName: "sr0_settings_state_freezes_fixed_presentation_options",
+            expectedLayoutPreferences: .srNoteStripAnswer,
+            hidesPianoRowsAndMovement: false
+        )
+    }
+
     static func validateSR1SettingsStateFreezesFixedPresentationOptions()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "sr1_settings_state_freezes_fixed_presentation_options"
+        validateSRFixedSettingsState(
+            triggerAction: .setExerciseModeSr1,
+            expectedExerciseMode: .sr1,
+            modeTitle: "SR-1",
+            fixtureName: "sr1_settings_state_freezes_fixed_presentation_options",
+            expectedLayoutPreferences: .srPianoAnswer,
+            hidesPianoRowsAndMovement: true
+        )
+    }
+
+    private static func validateSRFixedSettingsState(
+        triggerAction: SettingsActionID,
+        expectedExerciseMode: TrainerExerciseMode,
+        modeTitle: String,
+        fixtureName: String,
+        expectedLayoutPreferences: ExerciseLayoutPreferences,
+        hidesPianoRowsAndMovement: Bool
+    ) -> [SettingsNavigationValidationIssue] {
         var issues: [SettingsNavigationValidationIssue] = []
         var stateContext = SettingsPanelStateContext(
             exerciseLayoutPreferences: ExerciseLayoutPreferences(
@@ -964,9 +993,7 @@ extension SettingsNavigationValidationRunner {
                 movementScope: .cascade
             )
         )
-        SettingsPanelEvent.triggerAction(.setExerciseModeSr1).apply(
-            to: &stateContext
-        )
+        SettingsPanelEvent.triggerAction(triggerAction).apply(to: &stateContext)
 
         let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
         let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
@@ -974,17 +1001,52 @@ extension SettingsNavigationValidationRunner {
         )
         let resolvedSequenceConfiguration = stateContext.trainerDisplayState
             .resolvedSequenceConfiguration
+        let expectedExerciseModeChoices: [SettingsActionID] = [
+            .setExerciseModeSingle,
+            .setExerciseModeSequence,
+            .setExerciseModeSr0,
+            .setExerciseModeSr1,
+            .setExerciseModePositionPrompt
+        ]
+        let expectedStaffSectionRowIDs: [SettingsRowID] = [
+            .slider(.clefScale),
+            .slider(.clefVerticalTrim),
+            .slider(.clefAnchorYOffset)
+        ]
+        let expectedPianoSectionRowIDs: [SettingsRowID] = hidesPianoRowsAndMovement
+            ? [
+                .choice(.pianoWhiteKeyStyle),
+                .toggle(.pianoSnapEnabled)
+            ]
+            : [
+                .slider(.pianoRowCount),
+                .choice(.pianoMovementScope),
+                .choice(.pianoWhiteKeyStyle),
+                .toggle(.pianoSnapEnabled)
+            ]
+        let expectedPianoBehaviorRowIDs: [SettingsRowID] = hidesPianoRowsAndMovement
+            ? [
+                .toggle(.pianoSnapEnabled)
+            ]
+            : [
+                .slider(.pianoRowCount),
+                .choice(.pianoMovementScope),
+                .toggle(.pianoSnapEnabled)
+            ]
 
-        if stateContext.trainerDisplayState.exerciseMode != .sr1 {
-            issues.append(
-                issue(fixtureName, "触发 setExerciseModeSr1 后，trainerDisplayState.exerciseMode 应切到 .sr1。")
-            )
-        }
-        if stateContext.exerciseLayoutPreferences != .srPianoAnswer {
+        if stateContext.trainerDisplayState.exerciseMode != expectedExerciseMode {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 的 settings writeback 应把 exerciseLayoutPreferences 固定收敛到 `staffToPiano + stacked`。"
+                    "触发 \(triggerAction) 后，trainerDisplayState.exerciseMode 应切到 \(expectedExerciseMode)。"
+                )
+            )
+        }
+        if stateContext.exerciseLayoutPreferences != expectedLayoutPreferences {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "\(modeTitle) 的 settings writeback 应把 exerciseLayoutPreferences 固定收敛到 \(expectedLayoutPreferences)。"
                 )
             )
         }
@@ -992,7 +1054,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 的 settings state 仍应保留 legacy 默认 pageState 作为后台兼容值，而不是伪造新的 legacy 组合。"
+                    "\(modeTitle) 的 settings state 仍应保留 legacy 默认 pageState 作为后台兼容值，而不是伪造新的 legacy 组合。"
                 )
             )
         }
@@ -1000,7 +1062,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 的 settings writeback 应同步清掉 accessory piano 显隐状态。"
+                    "\(modeTitle) 的 settings writeback 应同步清掉 accessory piano 显隐状态。"
                 )
             )
         }
@@ -1009,7 +1071,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 的 resolvedSequenceConfiguration 应强制固定为 treble + pitchClass。"
+                    "\(modeTitle) 的 resolvedSequenceConfiguration 应强制固定为 treble + pitchClass。"
                 )
             )
         }
@@ -1018,38 +1080,31 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 只应钳制 clef / answerPolicy；其余 sequence 配置仍应保留。"
+                    "\(modeTitle) 只应钳制 clef / answerPolicy；其余 sequence 配置仍应保留。"
                 )
             )
         }
 
         guard let exerciseModeRow = panelModel.choiceRow(for: .exerciseMode) else {
             issues.append(
-                issue(fixtureName, "SR-1 state 应继续暴露 Exercise Mode row。")
+                issue(fixtureName, "\(modeTitle) state 应继续暴露 Exercise Mode row。")
             )
             return issues
         }
 
-        if exerciseModeRow.choices.map(\.id) != [
-            .setExerciseModeSingle,
-            .setExerciseModeSequence,
-            .setExerciseModeSr1,
-            .setExerciseModePositionPrompt
-        ] {
+        if exerciseModeRow.choices.map(\.id) != expectedExerciseModeChoices {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / SR-1 / Position。"
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / SR-0 / SR-1 / Position。"
                 )
             )
         }
-        if exerciseModeRow.choices.filter(\.isSelected).map(\.id) != [
-            .setExerciseModeSr1
-        ] {
+        if exerciseModeRow.choices.filter(\.isSelected).map(\.id) != [triggerAction] {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下 Exercise Mode row 应只选中 SR-1。"
+                    "\(modeTitle) state 下 Exercise Mode row 应只选中 \(modeTitle)。"
                 )
             )
         }
@@ -1062,17 +1117,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下所有会被 fixed presentation 强拉回的 Exercise / Accessories 行都应从 panel snapshot 中隐藏。"
-                )
-            )
-        }
-        if panelModel.choiceRow(for: .clef) != nil
-            || panelModel.sliderRow(for: .pianoRowCount) != nil
-            || panelModel.choiceRow(for: .pianoMovementScope) != nil {
-            issues.append(
-                issue(
-                    fixtureName,
-                    "SR-1 state 下固定的 Clef / Piano Rows / Piano Movement Scope 行都应被隐藏。"
+                    "\(modeTitle) state 下所有会被 fixed presentation 强拉回的 Exercise / Accessories 行都应从 panel snapshot 中隐藏。"
                 )
             )
         }
@@ -1080,26 +1125,41 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下 Accessories section 应整体消失，而不是保留一个空分区。"
+                    "\(modeTitle) state 下 Accessories section 应整体消失，而不是保留一个空分区。"
+                )
+            )
+        }
+
+        guard let staffSection = resolveSection(.staff, in: panelModel) else {
+            issues.append(
+                issue(fixtureName, "\(modeTitle) state 下仍应保留 Staff section。")
+            )
+            return issues
+        }
+
+        if staffSection.rows.map(\.id) != expectedStaffSectionRowIDs {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "\(modeTitle) state 下 Staff section 应只保留 Clef Layout sliders，并隐藏固定的 Clef 入口。"
                 )
             )
         }
 
         guard let pianoSection = resolveSection(.piano, in: panelModel) else {
             issues.append(
-                issue(fixtureName, "SR-1 state 下仍应保留 Piano section。")
+                issue(fixtureName, "\(modeTitle) state 下仍应保留 Piano section。")
             )
             return issues
         }
 
-        if pianoSection.rows.map(\.id) != [
-            .choice(.pianoWhiteKeyStyle),
-            .toggle(.pianoSnapEnabled)
-        ] {
+        if pianoSection.rows.map(\.id) != expectedPianoSectionRowIDs {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下 Piano section 应只保留 White Key Style 与 Snap Drag。"
+                    hidesPianoRowsAndMovement
+                        ? "\(modeTitle) state 下 Piano section 应只保留 White Key Style 与 Snap Drag。"
+                        : "\(modeTitle) state 下 Piano section 应保留 Rows / Movement / White Key Style / Snap Drag。"
                 )
             )
         }
@@ -1109,19 +1169,19 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下仍应生成 Piano Behavior page，以保留 Snap Drag。"
+                    "\(modeTitle) state 下仍应生成 Piano Behavior page。"
                 )
             )
             return issues
         }
 
-        if pianoBehaviorSection.rows.map(\.id) != [
-            .toggle(.pianoSnapEnabled)
-        ] {
+        if pianoBehaviorSection.rows.map(\.id) != expectedPianoBehaviorRowIDs {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下 Piano Behavior page 应收敛为只包含 Snap Drag。"
+                    hidesPianoRowsAndMovement
+                        ? "\(modeTitle) state 下 Piano Behavior page 应收敛为只包含 Snap Drag。"
+                        : "\(modeTitle) state 下 Piano Behavior page 应保留 Rows / Movement / Snap Drag。"
                 )
             )
         }
@@ -1129,7 +1189,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下仍应保留 Piano Appearance page。"
+                    "\(modeTitle) state 下仍应保留 Piano Appearance page。"
                 )
             )
         }
@@ -1145,7 +1205,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 state 下 Piano > Behavior 路径仍应保持可达。"
+                    "\(modeTitle) state 下 Piano > Behavior 路径仍应保持可达。"
                 )
             )
         }

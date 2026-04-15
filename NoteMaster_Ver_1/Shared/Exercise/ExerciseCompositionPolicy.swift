@@ -62,6 +62,9 @@ enum ExerciseCompositionPolicy {
     static func legacyCompatiblePreferences(
         from input: ExerciseCompositionPolicyInput
     ) -> ExerciseLayoutPreferences {
+        let normalizedLegacyTrainerDisplayState = legacyCompatibleTrainerDisplayState(
+            input.trainerDisplayState
+        )
         let resolvedPreferences = ExerciseCompositionPolicy.normalizedPreferences(
             input.layoutPreferences,
             trainerDisplayState: input.trainerDisplayState
@@ -92,7 +95,7 @@ enum ExerciseCompositionPolicy {
         legacyCompatiblePreferences = ExerciseCompositionPolicy
             .normalizedPreferences(
                 legacyCompatiblePreferences,
-                trainerDisplayState: input.trainerDisplayState
+                trainerDisplayState: normalizedLegacyTrainerDisplayState
             )
 
         let legacyScene = makeScene(

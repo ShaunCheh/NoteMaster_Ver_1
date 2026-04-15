@@ -9,9 +9,29 @@ import Foundation
 
 @MainActor
 extension SettingsNavigationValidationRunner {
+    static func validateSR0RootTreeDropsInvalidExerciseAndAccessoryRoutes()
+        -> [SettingsNavigationValidationIssue] {
+        validateSRFixedRootTreeDropsInvalidExerciseAndAccessoryRoutes(
+            exerciseMode: .sr0,
+            modeTitle: "SR-0",
+            fixtureName: "sr0_root_tree_drops_invalid_exercise_and_accessory_routes"
+        )
+    }
+
     static func validateSR1RootTreeDropsInvalidExerciseAndAccessoryRoutes()
         -> [SettingsNavigationValidationIssue] {
-        let fixtureName = "sr1_root_tree_drops_invalid_exercise_and_accessory_routes"
+        validateSRFixedRootTreeDropsInvalidExerciseAndAccessoryRoutes(
+            exerciseMode: .sr1,
+            modeTitle: "SR-1",
+            fixtureName: "sr1_root_tree_drops_invalid_exercise_and_accessory_routes"
+        )
+    }
+
+    private static func validateSRFixedRootTreeDropsInvalidExerciseAndAccessoryRoutes(
+        exerciseMode: TrainerExerciseMode,
+        modeTitle: String,
+        fixtureName: String
+    ) -> [SettingsNavigationValidationIssue] {
         let stateContext = SettingsPanelStateContext(
             exerciseLayoutPreferences: ExerciseLayoutPreferences(
                 compositionPreset: .fretboardSelfAnswer,
@@ -22,7 +42,7 @@ extension SettingsNavigationValidationRunner {
                 isAccessoryExpanded: false
             ),
             trainerDisplayState: TrainerDisplayState(
-                exerciseMode: .sr1,
+                exerciseMode: exerciseMode,
                 sequenceConfiguration: TrainerSequenceConfiguration(
                     clef: .bass,
                     noteCount: 5,
@@ -54,7 +74,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 root tree 应裁掉 Accessories 分区，只保留 Mode / Exercise / Fretboard / Staff / Piano / Debug。"
+                    "\(modeTitle) root tree 应裁掉 Accessories 分区，只保留 Mode / Exercise / Fretboard / Staff / Piano / Debug。"
                 )
             )
         }
@@ -62,7 +82,10 @@ extension SettingsNavigationValidationRunner {
         guard let rootPage = navigationModel.rootPage,
               let rootRouteItems = rootPage.content.routeItems else {
             issues.append(
-                issue(fixtureName, "SR-1 state 应继续生成可用的 settings root page。")
+                issue(
+                    fixtureName,
+                    "\(modeTitle) state 应继续生成可用的 settings root page。"
+                )
             )
             return issues
         }
@@ -72,7 +95,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 root route items 应与收敛后的 section 顺序完全一致。"
+                    "\(modeTitle) root route items 应与收敛后的 section 顺序完全一致。"
                 )
             )
         }
@@ -80,7 +103,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 root page 不应再暴露 Accessories section 入口。"
+                    "\(modeTitle) root page 不应再暴露 Accessories section 入口。"
                 )
             )
         }
@@ -88,7 +111,10 @@ extension SettingsNavigationValidationRunner {
         guard let exercisePage = navigationModel.page(for: .section(.exercise)),
               let exerciseSection = exercisePage.content.sections?.first else {
             issues.append(
-                issue(fixtureName, "SR-1 root tree 应继续保留 Exercise section page。")
+                issue(
+                    fixtureName,
+                    "\(modeTitle) root tree 应继续保留 Exercise section page。"
+                )
             )
             return issues
         }
@@ -97,7 +123,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 的 Exercise section page 应折叠成只包含 Exercise Mode 的单页表单。"
+                    "\(modeTitle) 的 Exercise section page 应折叠成只包含 Exercise Mode 的单页表单。"
                 )
             )
         }
@@ -107,7 +133,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 下不应继续保留 Exercise 的深层 Mode / Composition / Layout 子页。"
+                    "\(modeTitle) 下不应继续保留 Exercise 的深层 Mode / Composition / Layout 子页。"
                 )
             )
         }
@@ -117,7 +143,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 下不应继续生成 Accessories section 或其深层子页。"
+                    "\(modeTitle) 下不应继续生成 Accessories section 或其深层子页。"
                 )
             )
         }
@@ -132,7 +158,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 下请求失效的 Exercise 深层 route 时，应回退到仍然有效的 Exercise section。"
+                    "\(modeTitle) 下请求失效的 Exercise 深层 route 时，应回退到仍然有效的 Exercise section。"
                 )
             )
         }
@@ -144,7 +170,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 下请求已移除的 Accessories route 时，应直接回退到 root。"
+                    "\(modeTitle) 下请求已移除的 Accessories route 时，应直接回退到 root。"
                 )
             )
         }
@@ -320,7 +346,7 @@ extension SettingsNavigationValidationRunner {
             expectedRouteItems: [
                 SettingsRouteItem(
                     title: SettingsRouteID.exerciseMode.fallbackTitle,
-                    subtitle: "Single, sequence, SR-1, or position",
+                    subtitle: "Single, sequence, SR-0, SR-1, or position",
                     route: .exerciseMode
                 ),
                 SettingsRouteItem(

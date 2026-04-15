@@ -253,6 +253,10 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateStaffToPianoSkipsLegacyBackProjection
             ),
             ExerciseCompositionValidationFixture(
+                name: "staff_to_natural_note_strip_skips_legacy_back_projection",
+                validate: validateStaffToNaturalNoteStripSkipsLegacyBackProjection
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "sr_modes_freeze_staff_to_piano_policy_contracts",
                 validate: validateSRModesFreezeStaffToPianoPolicyContracts
             ),
