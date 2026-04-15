@@ -960,16 +960,43 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
+    static func resolvedSequenceAnswer(
+        from event: ExerciseAnswerEvent,
+        configuration: FretboardConfiguration
+    ) -> ResolvedSequenceAnswer? {
+        switch event.payload {
+        case let .pitchClass(pitchClass):
+            return ResolvedSequenceAnswer(
+                pitchClass: pitchClass,
+                notePitch: nil,
+                surfaceID: event.surfaceID
+            )
+        case let .notePitch(notePitch):
+            return ResolvedSequenceAnswer(
+                pitchClass: notePitch.pitchClass,
+                notePitch: notePitch,
+                surfaceID: event.surfaceID
+            )
+        case let .fretboardCell(cell):
+            guard let notePitch = configuration.notePitch(for: cell) else {
+                return nil
+            }
+            return ResolvedSequenceAnswer(
+                pitchClass: notePitch.pitchClass,
+                notePitch: notePitch,
+                surfaceID: event.surfaceID
+            )
+        }
+    }
+
     static func resolvedPitchClass(
         from event: ExerciseAnswerEvent,
         configuration: FretboardConfiguration
     ) -> PitchClass? {
-        switch event.payload {
-        case let .pitchClass(pitchClass):
-            return pitchClass
-        case let .fretboardCell(cell):
-            return configuration.notePitch(for: cell)?.pitchClass
-        }
+        resolvedSequenceAnswer(
+            from: event,
+            configuration: configuration
+        )?.pitchClass
     }
 
     static func resolvedPositionPromptAnswerPitchClass(

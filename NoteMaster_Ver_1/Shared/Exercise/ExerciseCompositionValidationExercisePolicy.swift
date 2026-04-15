@@ -1164,6 +1164,22 @@ extension ExerciseCompositionValidationRunner {
             )
         }
 
+        let notePitchEvent = ExerciseAnswerEvent.notePitch(
+            NotePitch(pitchClass: .c, octave: 4),
+            from: .piano
+        )
+        if notePitchEvent.surfaceID != .piano
+            || notePitchEvent.payload.notePitch
+                != NotePitch(pitchClass: .c, octave: 4)
+            || notePitchEvent.payload.pitchClass != .c {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "ExerciseAnswerEvent 应保留 notePitch payload、pitchClass 投影与来源 surfaceID。"
+                )
+            )
+        }
+
         return issues
     }
 
@@ -1173,23 +1189,39 @@ extension ExerciseCompositionValidationRunner {
         var issues: [ExerciseCompositionValidationIssue] = []
         let fretboardConfiguration = FretboardConfiguration()
         let answerCell = FretboardCell(stringIndex: 0, fret: 0)
-        guard let answerPitchClass = fretboardConfiguration.pitchClass(
+        guard let answerNotePitch = fretboardConfiguration.notePitch(
             for: answerCell
         ) else {
             issues.append(
                 issue(
                     fixtureName,
-                    "阶段 5 的 answer router 夹具需要一个可解析为 pitch class 的 fretboard cell。"
+                    "阶段 5 的 answer router 夹具需要一个可解析为 note pitch 的 fretboard cell。"
                 )
             )
             return issues
         }
+        let answerPitchClass = answerNotePitch.pitchClass
 
         let singleTrainerDisplayState = TrainerDisplayState(exerciseMode: .single)
         let stackedSinglePresentation = ExerciseCompositionPolicy.makePresentation(
             from: ExerciseCompositionPolicyInput(
                 trainerDisplayState: singleTrainerDisplayState,
                 fretboardTrainerState: .init(targetPitchClass: .c),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .default
+            )
+        )
+        let sequenceTrainerDisplayState = TrainerDisplayState(exerciseMode: .sequence)
+        let stackedSequencePresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: sequenceTrainerDisplayState,
+                fretboardTrainerState: .init(
+                    quarterNoteSequenceSpec: sequenceTrainerDisplayState
+                        .sequenceConfiguration
+                        .quarterNoteSequenceSpec
+                ),
                 fretboardDisplayState: .default,
                 staffDisplayState: .default,
                 pianoPanelState: .init(),
@@ -1215,6 +1247,28 @@ extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "上下布局中的单音训练应把 fretboardCell 事件路由到 singleCoverage answer。"
+                )
+            )
+        }
+        if ExerciseAnswerRouter.route(
+            fretboardCellEvent,
+            presentationState: stackedSequencePresentation,
+            trainerDisplayState: sequenceTrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .routed(
+            .quarterNoteSequence(
+                event: fretboardCellEvent,
+                answer: ResolvedSequenceAnswer(
+                    pitchClass: answerPitchClass,
+                    notePitch: answerNotePitch,
+                    surfaceID: .fretboard
+                )
+            )
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "上下布局中的 sequence 应把 fretboardCell 事件路由为携带 pitchClass 与 notePitch 的 ResolvedSequenceAnswer。"
                 )
             )
         }

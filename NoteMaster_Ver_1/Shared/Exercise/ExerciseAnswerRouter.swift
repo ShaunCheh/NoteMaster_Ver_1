@@ -64,7 +64,7 @@ enum ExerciseAnswerRoute: Equatable, Sendable {
     )
     case quarterNoteSequence(
         event: ExerciseAnswerEvent,
-        pitchClass: PitchClass
+        answer: ResolvedSequenceAnswer
     )
     case positionPrompt(
         ExercisePositionPromptRoutedAnswer
@@ -107,8 +107,8 @@ enum ExerciseAnswerRouter {
                 )
             )
         case .sequence, .sr1, .sr2:
-            guard let pitchClass = FretboardNaturalNoteTrainerState
-                .resolvedPitchClass(
+            guard let answer = FretboardNaturalNoteTrainerState
+                .resolvedSequenceAnswer(
                     from: event,
                     configuration: fretboardConfiguration
                 ) else {
@@ -131,7 +131,7 @@ enum ExerciseAnswerRouter {
             return .routed(
                 .quarterNoteSequence(
                     event: event,
-                    pitchClass: pitchClass
+                    answer: answer
                 )
             )
         case .positionPrompt:

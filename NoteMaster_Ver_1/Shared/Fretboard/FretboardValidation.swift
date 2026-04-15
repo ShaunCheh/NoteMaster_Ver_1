@@ -2260,6 +2260,69 @@ private extension FretboardValidationRunner {
             record("quarter-note trainer 新建 session 的 staff sequence presentation 不应为 nil。")
         }
 
+        logStage("resolvedSequenceAnswer")
+        let resolvedAnswerCell = FretboardCell(
+            stringIndex: 0,
+            fret: fixture.configuration.fretRange.lowerBound
+        )
+        if let resolvedAnswerNotePitch = fixture.configuration.notePitch(
+            for: resolvedAnswerCell
+        ) {
+            let pitchClassEvent = ExerciseAnswerEvent.pitchClass(
+                resolvedAnswerNotePitch.pitchClass,
+                from: .naturalNoteStrip
+            )
+            if FretboardNaturalNoteTrainerState.resolvedSequenceAnswer(
+                from: pitchClassEvent,
+                configuration: fixture.configuration
+            ) != ResolvedSequenceAnswer(
+                pitchClass: resolvedAnswerNotePitch.pitchClass,
+                notePitch: nil,
+                surfaceID: .naturalNoteStrip
+            ) {
+                record("resolvedSequenceAnswer 应把 pitchClass payload 解析成只带 pitchClass 的 sequence 答案。")
+            }
+
+            let fretboardCellEvent = ExerciseAnswerEvent.fretboardCell(
+                resolvedAnswerCell,
+                from: .fretboard
+            )
+            if FretboardNaturalNoteTrainerState.resolvedSequenceAnswer(
+                from: fretboardCellEvent,
+                configuration: fixture.configuration
+            ) != ResolvedSequenceAnswer(
+                pitchClass: resolvedAnswerNotePitch.pitchClass,
+                notePitch: resolvedAnswerNotePitch,
+                surfaceID: .fretboard
+            ) {
+                record("resolvedSequenceAnswer 应把 fretboardCell payload 解析成同时带 pitchClass 与 notePitch 的 sequence 答案。")
+            }
+
+            let notePitchEvent = ExerciseAnswerEvent.notePitch(
+                resolvedAnswerNotePitch,
+                from: .piano
+            )
+            if FretboardNaturalNoteTrainerState.resolvedSequenceAnswer(
+                from: notePitchEvent,
+                configuration: fixture.configuration
+            ) != ResolvedSequenceAnswer(
+                pitchClass: resolvedAnswerNotePitch.pitchClass,
+                notePitch: resolvedAnswerNotePitch,
+                surfaceID: .piano
+            ) {
+                record("resolvedSequenceAnswer 应把 notePitch payload 解析成保留完整音高的 sequence 答案。")
+            }
+
+            if FretboardNaturalNoteTrainerState.resolvedPitchClass(
+                from: notePitchEvent,
+                configuration: fixture.configuration
+            ) != resolvedAnswerNotePitch.pitchClass {
+                record("resolvedPitchClass 应继续从 notePitch payload 投影出 pitchClass。")
+            }
+        } else {
+            record("quarter-note trainer 阶段 2 验证缺少可解析为 NotePitch 的 fretboard cell。")
+        }
+
         guard let firstExpectedPitchClass = naturalPrompt.generatedSequence.answerPitchClasses.first else {
             record("quarter-note trainer natural prompt 缺少首个 expectedPitchClass。")
             return

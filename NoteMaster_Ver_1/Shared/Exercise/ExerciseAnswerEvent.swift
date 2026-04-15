@@ -7,13 +7,25 @@
 
 enum ExerciseAnswerPayload: Equatable, Sendable {
     case pitchClass(PitchClass)
+    case notePitch(NotePitch)
     case fretboardCell(FretboardCell)
 
     var pitchClass: PitchClass? {
-        guard case let .pitchClass(pitchClass) = self else {
+        switch self {
+        case let .pitchClass(pitchClass):
+            return pitchClass
+        case let .notePitch(notePitch):
+            return notePitch.pitchClass
+        case .fretboardCell:
             return nil
         }
-        return pitchClass
+    }
+
+    var notePitch: NotePitch? {
+        guard case let .notePitch(notePitch) = self else {
+            return nil
+        }
+        return notePitch
     }
 
     var fretboardCell: FretboardCell? {
@@ -38,6 +50,16 @@ struct ExerciseAnswerEvent: Equatable, Sendable {
         )
     }
 
+    static func notePitch(
+        _ notePitch: NotePitch,
+        from surfaceID: ExerciseSurfaceID
+    ) -> ExerciseAnswerEvent {
+        ExerciseAnswerEvent(
+            surfaceID: surfaceID,
+            payload: .notePitch(notePitch)
+        )
+    }
+
     static func fretboardCell(
         _ cell: FretboardCell,
         from surfaceID: ExerciseSurfaceID
@@ -47,4 +69,10 @@ struct ExerciseAnswerEvent: Equatable, Sendable {
             payload: .fretboardCell(cell)
         )
     }
+}
+
+struct ResolvedSequenceAnswer: Equatable, Sendable {
+    var pitchClass: PitchClass
+    var notePitch: NotePitch?
+    var surfaceID: ExerciseSurfaceID
 }

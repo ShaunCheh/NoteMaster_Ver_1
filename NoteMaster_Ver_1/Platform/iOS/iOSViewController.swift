@@ -978,10 +978,10 @@ final class iOSViewController: UIViewController {
         switch route {
         case let .singleCoverage(_, cell):
             handleSingleCoverageAnswer(cell)
-        case let .quarterNoteSequence(event, pitchClass):
+        case let .quarterNoteSequence(event, answer):
             handleQuarterNoteSequenceAnswer(
                 event,
-                pitchClass: pitchClass
+                answer: answer
             )
         case let .positionPrompt(answer):
             handlePositionPromptAnswer(answer)
@@ -1150,7 +1150,7 @@ final class iOSViewController: UIViewController {
 
     private func handleQuarterNoteSequenceAnswer(
         _ event: ExerciseAnswerEvent,
-        pitchClass: PitchClass
+        answer: ResolvedSequenceAnswer
     ) {
         guard let generatedSequence = currentGeneratedQuarterNoteSequence else {
             print(
@@ -1172,7 +1172,7 @@ final class iOSViewController: UIViewController {
         }
 
         let answerResult = fretboardTrainerState.handleQuarterNoteSequenceAnswer(
-            pitchClass,
+            answer.pitchClass,
             session: &quarterNoteSequenceSession
         )
         self.quarterNoteSequenceSession = quarterNoteSequenceSession
@@ -1184,7 +1184,7 @@ final class iOSViewController: UIViewController {
         )
 
         let selectedCell = event.payload.fretboardCell
-        let selectedPitch = selectedCell.flatMap {
+        let selectedPitch = answer.notePitch ?? selectedCell.flatMap {
             displayState.configuration.notePitch(for: $0)
         }
 
@@ -1194,9 +1194,13 @@ final class iOSViewController: UIViewController {
                 print(
                     "[QuarterNoteSequence][iOS] result=ignored reason=completedSession string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
                 )
+            } else if let selectedPitch {
+                print(
+                    "[QuarterNoteSequence][iOS] result=ignored reason=completedSession answered=\(selectedPitch.displayText())"
+                )
             } else {
                 print(
-                    "[QuarterNoteSequence][iOS] result=ignored reason=completedSession answered=\(pitchClass.displayText())"
+                    "[QuarterNoteSequence][iOS] result=ignored reason=completedSession answered=\(answer.pitchClass.displayText())"
                 )
             }
         case let .evaluated(evaluation):
@@ -1205,9 +1209,13 @@ final class iOSViewController: UIViewController {
                 print(
                     "[iOS] \(evaluation.debugSummary()) selected=\(selectedPitch.displayText()) string=\(selectedCell.stringIndex) fret=\(selectedCell.fret)"
                 )
+            } else if let selectedPitch {
+                print(
+                    "[iOS] \(evaluation.debugSummary()) answered=\(selectedPitch.displayText())"
+                )
             } else {
                 print(
-                    "[iOS] \(evaluation.debugSummary()) answered=\(pitchClass.displayText())"
+                    "[iOS] \(evaluation.debugSummary()) answered=\(answer.pitchClass.displayText())"
                 )
             }
         }
