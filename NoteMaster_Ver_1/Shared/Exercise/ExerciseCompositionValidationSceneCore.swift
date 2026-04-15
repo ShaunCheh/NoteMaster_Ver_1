@@ -445,6 +445,377 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateNaturalNoteStripHorizontalLayoutContextFreezesTwoRowDefaults()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_horizontal_layout_context_freezes_two_row_defaults"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let expectedGeometry =
+            ExerciseNaturalNoteStripHorizontalGeometry
+            .defaultTwoRowHorizontalStrip(
+                buttonExtent:
+                    ExerciseNaturalNoteStripHorizontalGeometry.defaultButtonExtent
+            )
+        let expectedContext = ExerciseNaturalNoteStripHorizontalLayoutContext(
+            appliesToSurface: .naturalNoteStrip,
+            titleDisplayPolicy:
+                ExerciseNaturalNoteStripHorizontalLayoutContext
+                .defaultTitleDisplayPolicy,
+            geometry: expectedGeometry,
+            accidentalPitchClasses: PitchClass.accidentalCasesInOrder,
+            naturalPitchClasses: PitchClass.naturalCasesInOrder
+        )
+
+        let stackedPositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .stacked
+                    )
+                )
+            )
+        if stackedPositionPromptPresentation.naturalNoteStripHorizontalLayoutContext
+            != expectedContext {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 stacked horizontalStrip scene 应暴露默认双行 layoutContext：allPitchClasses 标题、共享 geometry token，以及上半音/下自然音顺序。"
+                )
+            )
+        }
+        if stackedPositionPromptPresentation.scene
+            .naturalNoteStripHorizontalLayoutContext
+            != stackedPositionPromptPresentation
+                .naturalNoteStripHorizontalLayoutContext {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 ExerciseScene 应把 horizontalStrip layoutContext 原样透传给 presentation 层。"
+                )
+            )
+        }
+
+        let accessoryStripPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToFretboard,
+                    layoutPreset: .stacked,
+                    accessoryPresentation: .docked,
+                    isNaturalNoteStripVisible: true,
+                    isPianoAccessoryVisible: false,
+                    isAccessoryExpanded: true
+                )
+            )
+        )
+        if accessoryStripPresentation.naturalNoteStripHorizontalLayoutContext
+            != expectedContext {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 accessory horizontalStrip scene 也应复用同一份双行 layoutContext，而不是只给主 answer strip 暴露 contract。"
+                )
+            )
+        }
+
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(
+                    exerciseMode: .positionPrompt
+                ),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+        if sideRailPresentation.naturalNoteStripHorizontalLayoutContext != nil
+            || sideRailPresentation.scene.naturalNoteStripHorizontalLayoutContext
+            != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 verticalRail scene 不应误暴露 horizontalStrip layoutContext。"
+                )
+            )
+        }
+
+        let targetPromptSideBySidePresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .targetPromptToFretboard,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        if targetPromptSideBySidePresentation.naturalNoteStripHorizontalLayoutContext
+            != nil
+            || targetPromptSideBySidePresentation.scene
+                .naturalNoteStripHorizontalLayoutContext != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的非 strip scene 不应误暴露 horizontalStrip layoutContext。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripHorizontalLayoutBuilderExposesSharedLayoutOutput()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_horizontal_layout_builder_exposes_shared_layout_output"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let stackedPositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .stacked
+                    )
+                )
+            )
+
+        switch stackedPositionPromptPresentation.naturalNoteStripHorizontalLayout {
+        case let .some(layout):
+            if layout.context
+                != stackedPositionPromptPresentation
+                    .naturalNoteStripHorizontalLayoutContext {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的 shared horizontal layout 应直接引用当前 presentation 暴露的 layoutContext。"
+                    )
+                )
+            }
+            if layout.accidentalPlacements.map(\.pitchClass)
+                != PitchClass.accidentalCasesInOrder {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的 shared horizontal layout 应按固定顺序输出顶部半音 placements。"
+                    )
+                )
+            }
+            if layout.naturalPlacements.map(\.pitchClass)
+                != PitchClass.naturalCasesInOrder {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的 shared horizontal layout 应按固定顺序输出底部自然音 placements。"
+                    )
+                )
+            }
+            if layout.contentSize.width <= 0 || layout.contentSize.height <= 0 {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的 shared horizontal layout 应产出正值 contentSize，而不是零尺寸布局。"
+                    )
+                )
+            }
+            if layout.placementsInDisplayOrder.contains(where: { !$0.showsTitle }) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 1 的默认双行 horizontalStrip layout 在 allPitchClasses 策略下，不应遗漏任何按钮标题可见性。"
+                    )
+                )
+            }
+        case .none:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 stacked horizontalStrip scene 应暴露 active shared horizontal layout，而不是 nil。"
+                )
+            )
+        }
+
+        if stackedPositionPromptPresentation.scene.naturalNoteStripHorizontalLayout
+            != stackedPositionPromptPresentation
+                .naturalNoteStripHorizontalLayout {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 ExerciseScene 应把 shared horizontal layout 原样透传给 presentation 层。"
+                )
+            )
+        }
+
+        let sideRailPresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(
+                    exerciseMode: .positionPrompt
+                ),
+                fretboardTrainerState: .init(positionPromptMode: ()),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .fretboardToNaturalNoteStrip,
+                    layoutPreset: .sideBySide
+                )
+            )
+        )
+        if sideRailPresentation.naturalNoteStripHorizontalLayout != nil
+            || sideRailPresentation.scene.naturalNoteStripHorizontalLayout != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的 verticalRail scene 不应误暴露 shared horizontal layout。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateNaturalNoteStripHorizontalLayoutPreservesRowTopologyAndContentSize()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "natural_note_strip_horizontal_layout_preserves_row_topology_and_content_size"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let stackedPositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .stacked
+                    )
+                )
+            )
+
+        guard let layout = stackedPositionPromptPresentation
+            .naturalNoteStripHorizontalLayout else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 应能从 stacked horizontalStrip presentation 读到 active shared horizontal layout。"
+                )
+            )
+            return issues
+        }
+
+        if layout.accidentalPlacements.contains(where: {
+            $0.row != .accidentalsTop
+        }) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的顶部 placements 应全部固定在 accidentalsTop 行。"
+                )
+            )
+        }
+        if layout.naturalPlacements.contains(where: {
+            $0.row != .naturalsBottom
+        }) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的底部 placements 应全部固定在 naturalsBottom 行。"
+                )
+            )
+        }
+
+        if layout.accidentalPlacements.map(\.columnIndex)
+            != Array(layout.accidentalPlacements.indices) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的顶部半音 placements 应继续以 0..<count 的列索引顺序输出。"
+                )
+            )
+        }
+        if layout.naturalPlacements.map(\.columnIndex)
+            != Array(layout.naturalPlacements.indices) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的底部自然音 placements 应继续以 0..<count 的列索引顺序输出。"
+                )
+            )
+        }
+
+        let geometry = layout.context.geometry
+        let expectedAccidentalWidth = geometry.rowContentWidth(
+            columnCount: PitchClass.accidentalCasesInOrder.count
+        )
+        let expectedNaturalWidth = geometry.rowContentWidth(
+            columnCount: PitchClass.naturalCasesInOrder.count
+        )
+        let expectedContentSize = geometry.twoRowContentSize(
+            topColumnCount: PitchClass.accidentalCasesInOrder.count,
+            bottomColumnCount: PitchClass.naturalCasesInOrder.count
+        )
+        if layout.contentSize != expectedContentSize {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的双行 horizontalStrip contentSize 应继续由共享 geometry token 和上下两行按钮数共同决定。"
+                )
+            )
+        }
+        if expectedNaturalWidth <= expectedAccidentalWidth {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的共享几何语义应继续保证 7 个自然音行宽大于 5 个半音行宽。"
+                )
+            )
+        }
+        if layout.contentSize.width != expectedNaturalWidth {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 1 的双行 horizontalStrip 总宽度应继续由较宽的自然音行驱动，而不是错误取半音行宽。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "natural_note_strip_rail_contract_freezes_scope_and_geometry_defaults"

@@ -310,10 +310,6 @@ struct ExerciseNaturalNoteStripRailContract: Equatable, Sendable {
 }
 
 extension PitchClass {
-    static var accidentalCasesInOrder: [PitchClass] {
-        allCases.filter(\.isAccidental)
-    }
-
     static var naturalNoteStripStaggeredRailTopologiesInChromaticOrder:
         [ExerciseNaturalNoteStripRailPitchTopology] {
         allCases.map(\.naturalNoteStripStaggeredRailPitchTopology)

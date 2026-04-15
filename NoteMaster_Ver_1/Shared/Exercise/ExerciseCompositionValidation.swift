@@ -165,6 +165,21 @@ fileprivate extension ExerciseCompositionValidationRunner {
                     validateSchemeOneHorizontalStripSemanticBoundaryStaysDistinctFromVerticalRail
             ),
             ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_horizontal_layout_context_freezes_two_row_defaults",
+                validate:
+                    validateNaturalNoteStripHorizontalLayoutContextFreezesTwoRowDefaults
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_horizontal_layout_builder_exposes_shared_layout_output",
+                validate:
+                    validateNaturalNoteStripHorizontalLayoutBuilderExposesSharedLayoutOutput
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "natural_note_strip_horizontal_layout_preserves_row_topology_and_content_size",
+                validate:
+                    validateNaturalNoteStripHorizontalLayoutPreservesRowTopologyAndContentSize
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "natural_note_strip_rail_contract_freezes_scope_and_geometry_defaults",
                 validate: validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults
             ),

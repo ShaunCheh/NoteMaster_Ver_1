@@ -36,6 +36,10 @@ enum PitchClass: Int, CaseIterable, Hashable, Sendable {
         allCases.filter(\.isNatural)
     }
 
+    static var accidentalCasesInOrder: [PitchClass] {
+        allCases.filter(\.isAccidental)
+    }
+
     func displayText(using spelling: PitchSpelling = .sharp) -> String {
         switch (self, spelling) {
         case (.c, _):

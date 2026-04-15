@@ -7,6 +7,133 @@
 
 import CoreGraphics
 
+enum ExerciseNaturalNoteStripHorizontalRow: Equatable, Sendable {
+    case accidentalsTop
+    case naturalsBottom
+}
+
+enum ExerciseNaturalNoteStripHorizontalTitleDisplayPolicy: Equatable, Sendable {
+    case naturalsOnly
+    case allPitchClasses
+}
+
+struct ExerciseNaturalNoteStripHorizontalInsets: Equatable, Sendable {
+    static let defaultHorizontalStrip = ExerciseNaturalNoteStripHorizontalInsets(
+        top: 10,
+        leading: 12,
+        bottom: 10,
+        trailing: 12
+    )
+
+    var top: Double
+    var leading: Double
+    var bottom: Double
+    var trailing: Double
+
+    var horizontal: Double {
+        leading + trailing
+    }
+
+    var vertical: Double {
+        top + bottom
+    }
+}
+
+struct ExerciseNaturalNoteStripHorizontalGeometry: Equatable, Sendable {
+    static let defaultColumnSpacing: Double = 6
+    static let defaultRowSpacing: Double = 6
+    static let defaultButtonExtent =
+        ExerciseNaturalNoteStripRailContract.defaultButtonExtent
+
+    var contentInsets: ExerciseNaturalNoteStripHorizontalInsets
+    var columnSpacing: Double
+    var rowSpacing: Double
+    var buttonExtent: Double
+
+    var resolvedColumnSpacing: Double {
+        max(columnSpacing, 0)
+    }
+
+    var resolvedRowSpacing: Double {
+        max(rowSpacing, 0)
+    }
+
+    var resolvedButtonExtent: Double {
+        max(buttonExtent, 0)
+    }
+
+    func rowContentWidth(columnCount: Int) -> Double {
+        let resolvedColumnCount = max(columnCount, 0)
+        let gapCount = max(resolvedColumnCount - 1, 0)
+        return contentInsets.leading
+            + (resolvedButtonExtent * Double(resolvedColumnCount))
+            + (resolvedColumnSpacing * Double(gapCount))
+            + contentInsets.trailing
+    }
+
+    func contentHeight(rowCount: Int) -> Double {
+        let resolvedRowCount = max(rowCount, 0)
+        let gapCount = max(resolvedRowCount - 1, 0)
+        return contentInsets.top
+            + (resolvedButtonExtent * Double(resolvedRowCount))
+            + (resolvedRowSpacing * Double(gapCount))
+            + contentInsets.bottom
+    }
+
+    func twoRowContentSize(
+        topColumnCount: Int,
+        bottomColumnCount: Int
+    ) -> CGSize {
+        CGSize(
+            width: max(
+                rowContentWidth(columnCount: topColumnCount),
+                rowContentWidth(columnCount: bottomColumnCount)
+            ),
+            height: contentHeight(rowCount: 2)
+        )
+    }
+
+    static func defaultTwoRowHorizontalStrip(
+        buttonExtent: Double = defaultButtonExtent
+    ) -> ExerciseNaturalNoteStripHorizontalGeometry {
+        ExerciseNaturalNoteStripHorizontalGeometry(
+            contentInsets: .defaultHorizontalStrip,
+            columnSpacing: defaultColumnSpacing,
+            rowSpacing: defaultRowSpacing,
+            buttonExtent: buttonExtent
+        )
+    }
+}
+
+struct ExerciseNaturalNoteStripHorizontalLayoutContext: Equatable, Sendable {
+    static let defaultTitleDisplayPolicy:
+        ExerciseNaturalNoteStripHorizontalTitleDisplayPolicy = .allPitchClasses
+
+    var appliesToSurface: ExerciseSurfaceID
+    var titleDisplayPolicy: ExerciseNaturalNoteStripHorizontalTitleDisplayPolicy
+    var geometry: ExerciseNaturalNoteStripHorizontalGeometry
+    var accidentalPitchClasses: [PitchClass]
+    var naturalPitchClasses: [PitchClass]
+}
+
+struct ExerciseNaturalNoteStripHorizontalPlacement: Equatable, Sendable {
+    var pitchClass: PitchClass
+    var row: ExerciseNaturalNoteStripHorizontalRow
+    var columnIndex: Int
+    var showsTitle: Bool
+}
+
+struct ExerciseNaturalNoteStripHorizontalLayout: Equatable, Sendable {
+    var context: ExerciseNaturalNoteStripHorizontalLayoutContext
+    var accidentalPlacements: [ExerciseNaturalNoteStripHorizontalPlacement]
+    var naturalPlacements: [ExerciseNaturalNoteStripHorizontalPlacement]
+    var contentSize: CGSize
+
+    var placementsInDisplayOrder: [ExerciseNaturalNoteStripHorizontalPlacement] {
+        accidentalPlacements + naturalPlacements
+    }
+}
+
 enum ExerciseNaturalNoteStripRailPlacementModel: Equatable, Sendable {
     case singleColumnChromatic12
     case staggeredNaturalAccidentalTwoColumn
@@ -150,6 +277,31 @@ extension ExerciseNaturalNoteStripRailTitleDisplayPolicy {
     }
 }
 
+extension ExerciseNaturalNoteStripHorizontalTitleDisplayPolicy {
+    func showsTitle(for pitchClass: PitchClass) -> Bool {
+        switch self {
+        case .naturalsOnly:
+            return pitchClass.isNatural
+        case .allPitchClasses:
+            return true
+        }
+    }
+}
+
+extension ExerciseNaturalNoteStripHorizontalLayoutContext {
+    var resolvedLayout: ExerciseNaturalNoteStripHorizontalLayout {
+        ExerciseNaturalNoteStripHorizontalLayout.build(from: self)
+    }
+}
+
+extension ExerciseNaturalNoteStripHorizontalLayout {
+    static func build(
+        from context: ExerciseNaturalNoteStripHorizontalLayoutContext
+    ) -> ExerciseNaturalNoteStripHorizontalLayout {
+        ExerciseNaturalNoteStripHorizontalLayoutBuilder.build(from: context)
+    }
+}
+
 extension ExerciseNaturalNoteStripRailLayoutContext {
     var resolvedLayout: ExerciseNaturalNoteStripRailLayout {
         ExerciseNaturalNoteStripRailLayout.build(from: self)
@@ -169,6 +321,47 @@ extension ExerciseNaturalNoteStripRailLayout {
         from context: ExerciseNaturalNoteStripRailLayoutContext
     ) -> ExerciseNaturalNoteStripRailLayout {
         ExerciseNaturalNoteStripRailLayoutBuilder.build(from: context)
+    }
+}
+
+private enum ExerciseNaturalNoteStripHorizontalLayoutBuilder {
+    static func build(
+        from context: ExerciseNaturalNoteStripHorizontalLayoutContext
+    ) -> ExerciseNaturalNoteStripHorizontalLayout {
+        let accidentalPlacements = context.accidentalPitchClasses.enumerated().map {
+            index,
+            pitchClass in
+            ExerciseNaturalNoteStripHorizontalPlacement(
+                pitchClass: pitchClass,
+                row: .accidentalsTop,
+                columnIndex: index,
+                showsTitle: context.titleDisplayPolicy.showsTitle(
+                    for: pitchClass
+                )
+            )
+        }
+        let naturalPlacements = context.naturalPitchClasses.enumerated().map {
+            index,
+            pitchClass in
+            ExerciseNaturalNoteStripHorizontalPlacement(
+                pitchClass: pitchClass,
+                row: .naturalsBottom,
+                columnIndex: index,
+                showsTitle: context.titleDisplayPolicy.showsTitle(
+                    for: pitchClass
+                )
+            )
+        }
+
+        return ExerciseNaturalNoteStripHorizontalLayout(
+            context: context,
+            accidentalPlacements: accidentalPlacements,
+            naturalPlacements: naturalPlacements,
+            contentSize: context.geometry.twoRowContentSize(
+                topColumnCount: accidentalPlacements.count,
+                bottomColumnCount: naturalPlacements.count
+            )
+        )
     }
 }
 
@@ -340,6 +533,29 @@ extension ExerciseNaturalNoteStripRailContract {
 }
 
 extension ExerciseScene {
+    var naturalNoteStripHorizontalLayoutContext:
+        ExerciseNaturalNoteStripHorizontalLayoutContext? {
+        guard let horizontalStripSurface = activeNaturalNoteStripHorizontalSurface
+        else {
+            return nil
+        }
+
+        return ExerciseNaturalNoteStripHorizontalLayoutContext(
+            appliesToSurface: horizontalStripSurface.id,
+            titleDisplayPolicy:
+                ExerciseNaturalNoteStripHorizontalLayoutContext
+                .defaultTitleDisplayPolicy,
+            geometry: .defaultTwoRowHorizontalStrip(),
+            accidentalPitchClasses: PitchClass.accidentalCasesInOrder,
+            naturalPitchClasses: PitchClass.naturalCasesInOrder
+        )
+    }
+
+    var naturalNoteStripHorizontalLayout: ExerciseNaturalNoteStripHorizontalLayout?
+    {
+        naturalNoteStripHorizontalLayoutContext?.resolvedLayout
+    }
+
     var naturalNoteStripRailLayoutContext: ExerciseNaturalNoteStripRailLayoutContext?
     {
         naturalNoteStripRailContract?.defaultLayoutContext
@@ -351,6 +567,16 @@ extension ExerciseScene {
 }
 
 extension ExercisePresentationState {
+    var naturalNoteStripHorizontalLayoutContext:
+        ExerciseNaturalNoteStripHorizontalLayoutContext? {
+        scene.naturalNoteStripHorizontalLayoutContext
+    }
+
+    var naturalNoteStripHorizontalLayout: ExerciseNaturalNoteStripHorizontalLayout?
+    {
+        scene.naturalNoteStripHorizontalLayout
+    }
+
     var naturalNoteStripRailLayoutContext: ExerciseNaturalNoteStripRailLayoutContext?
     {
         scene.naturalNoteStripRailLayoutContext
@@ -358,5 +584,26 @@ extension ExercisePresentationState {
 
     var naturalNoteStripRailLayout: ExerciseNaturalNoteStripRailLayout? {
         scene.naturalNoteStripRailLayout
+    }
+}
+
+private extension ExerciseScene {
+    var activeNaturalNoteStripHorizontalSurface: ExerciseSurfaceNode? {
+        let horizontalStripSurfaces = surfaceNodes.filter {
+            $0.isNaturalNoteStripHorizontalStrip
+        }
+        guard horizontalStripSurfaces.count == 1 else {
+            return nil
+        }
+
+        return horizontalStripSurfaces.first
+    }
+}
+
+private extension ExerciseSurfaceNode {
+    var isNaturalNoteStripHorizontalStrip: Bool {
+        id == .naturalNoteStrip
+            && kind == .naturalNoteStrip
+            && presentationStyle == .horizontalStrip
     }
 }
