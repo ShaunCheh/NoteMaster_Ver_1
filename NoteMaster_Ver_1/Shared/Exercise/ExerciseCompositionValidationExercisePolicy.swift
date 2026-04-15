@@ -977,7 +977,7 @@ extension ExerciseCompositionValidationRunner {
         let fixtureName = "staff_to_piano_skips_legacy_back_projection"
         var issues: [ExerciseCompositionValidationIssue] = []
 
-        let trainerDisplayState = TrainerDisplayState(exerciseMode: .single)
+        let trainerDisplayState = TrainerDisplayState(exerciseMode: .sr1)
         let requestedPreferences = ExerciseLayoutPreferences(
             compositionPreset: .staffToPiano,
             layoutPreset: .stacked,

@@ -4,14 +4,19 @@ extension ExerciseCompositionPolicy {
         trainerDisplayState: TrainerDisplayState
     ) -> ExerciseLayoutPreferences {
         var normalized = preferences
-        normalized.compositionPreset = normalizedCompositionPreset(
-            normalized.compositionPreset,
-            for: trainerDisplayState.exerciseMode
-        )
-        normalized.layoutPreset = normalizedLayoutPreset(
-            normalized.layoutPreset,
-            for: normalized.compositionPreset
-        )
+        if let fixedPreferences = trainerDisplayState.exerciseMode
+            .fixedExerciseLayoutPreferences {
+            normalized = fixedPreferences
+        } else {
+            normalized.compositionPreset = normalizedCompositionPreset(
+                normalized.compositionPreset,
+                for: trainerDisplayState.exerciseMode
+            )
+            normalized.layoutPreset = normalizedLayoutPreset(
+                normalized.layoutPreset,
+                for: normalized.compositionPreset
+            )
+        }
 
         if !isAccessoryPresentationSupported(normalized.accessoryPresentation) {
             normalized.accessoryPresentation = .docked
@@ -35,13 +40,15 @@ extension ExerciseCompositionPolicy {
         for exerciseMode: TrainerExerciseMode
     ) -> Bool {
         switch exerciseMode {
-        case .single, .sequence, .sr1, .sr2:
+        case .single, .sequence:
             switch preset {
-            case .staffToFretboard, .staffToPiano, .targetPromptToFretboard:
+            case .staffToFretboard, .targetPromptToFretboard:
                 return true
-            case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
+            case .staffToPiano, .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
                 return false
             }
+        case .sr1, .sr2:
+            return preset == .staffToPiano
         case .positionPrompt:
             switch preset {
             case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
@@ -69,8 +76,10 @@ private extension ExerciseCompositionPolicy {
     ) -> ExerciseCompositionPreset {
         guard isCompositionPresetSupported(preset, for: exerciseMode) else {
             switch exerciseMode {
-            case .single, .sequence, .sr1, .sr2:
+            case .single, .sequence:
                 return .staffToFretboard
+            case .sr1, .sr2:
+                return .staffToPiano
             case .positionPrompt:
                 return .fretboardToNaturalNoteStrip
             }

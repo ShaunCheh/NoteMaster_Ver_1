@@ -370,6 +370,7 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
             return [
                 .setExerciseModeSingle,
                 .setExerciseModeSequence,
+                .setExerciseModeSr1,
                 .setExerciseModePositionPrompt
             ]
         case .compositionPreset:
@@ -454,6 +455,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
     case setRootModePlay
     case setExerciseModeSingle
     case setExerciseModeSequence
+    case setExerciseModeSr1
     case setExerciseModePositionPrompt
     case setCompositionPresetStaffToFretboard
     case setCompositionPresetTargetPromptToFretboard
@@ -497,6 +499,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return .rootMode
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
+             .setExerciseModeSr1,
              .setExerciseModePositionPrompt:
             return .exerciseMode
         case .setCompositionPresetStaffToFretboard,
@@ -559,6 +562,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Single"
         case .setExerciseModeSequence:
             return "Sequence"
+        case .setExerciseModeSr1:
+            return "SR-1"
         case .setExerciseModePositionPrompt:
             return "Position"
         case .setCompositionPresetStaffToFretboard:
@@ -642,6 +647,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return "Train a single target note"
         case .setExerciseModeSequence:
             return "Train a generated note sequence"
+        case .setExerciseModeSr1:
+            return "Train treble staff reading with a single-row piano answer surface"
         case .setExerciseModePositionPrompt:
             return "Train note names from a highlighted fretboard position"
         case .setCompositionPresetStaffToFretboard:
@@ -727,6 +734,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return stateContext.trainerDisplayState.exerciseMode == .single
         case .setExerciseModeSequence:
             return stateContext.trainerDisplayState.exerciseMode == .sequence
+        case .setExerciseModeSr1:
+            return stateContext.trainerDisplayState.exerciseMode == .sr1
         case .setExerciseModePositionPrompt:
             return stateContext.trainerDisplayState.exerciseMode == .positionPrompt
         case .setCompositionPresetStaffToFretboard:
@@ -866,6 +875,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             )
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
+             .setExerciseModeSr1,
              .setExerciseModePositionPrompt,
              .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret,
@@ -901,6 +911,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setRootModePlay,
              .setExerciseModeSingle,
              .setExerciseModeSequence,
+             .setExerciseModeSr1,
              .setExerciseModePositionPrompt,
              .setCompositionPresetStaffToFretboard,
              .setCompositionPresetTargetPromptToFretboard,
@@ -966,6 +977,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
              .setRootModePlay,
              .setExerciseModeSingle,
              .setExerciseModeSequence,
+             .setExerciseModeSr1,
              .setExerciseModePositionPrompt,
              .setCompositionPresetStaffToFretboard,
              .setCompositionPresetTargetPromptToFretboard,
@@ -1012,6 +1024,8 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             displayState.setExerciseMode(.single)
         case .setExerciseModeSequence:
             displayState.setExerciseMode(.sequence)
+        case .setExerciseModeSr1:
+            displayState.setExerciseMode(.sr1)
         case .setExerciseModePositionPrompt:
             displayState.setExerciseMode(.positionPrompt)
         case .setCompositionPresetStaffToFretboard,
@@ -1084,6 +1098,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             return
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
+             .setExerciseModeSr1,
              .setExerciseModePositionPrompt,
              .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret,
@@ -1137,6 +1152,7 @@ enum SettingsActionID: CaseIterable, Equatable, Hashable, Sendable {
             exerciseLayoutPreferences.accessoryPresentation = .collapsible
         case .setExerciseModeSingle,
              .setExerciseModeSequence,
+             .setExerciseModeSr1,
              .setExerciseModePositionPrompt,
              .setPositionPromptFilterModeNoteName,
              .setPositionPromptFilterModeFret,

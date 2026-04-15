@@ -53,6 +53,14 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         isPianoAccessoryVisible: false,
         isAccessoryExpanded: true
     )
+    static let srPianoAnswer = ExerciseLayoutPreferences(
+        compositionPreset: .staffToPiano,
+        layoutPreset: .stacked,
+        accessoryPresentation: .docked,
+        isNaturalNoteStripVisible: false,
+        isPianoAccessoryVisible: false,
+        isAccessoryExpanded: true
+    )
 
     init(
         compositionPreset: ExerciseCompositionPreset = .staffToFretboard,

@@ -56,7 +56,7 @@ final class iOSViewController: UIViewController {
                 return
             }
 
-            if !trainerDisplayState.isSequenceMode {
+            if !trainerDisplayState.usesQuarterNoteSequenceKernel {
                 baseStaffDisplayState = staffDisplayState
             }
             applyStaffDisplayState()
@@ -96,6 +96,7 @@ final class iOSViewController: UIViewController {
 
             applySettingsPanelState()
             applySequenceRegenerateButtonState()
+            applyPianoAccessoryState()
         }
     }
     private var settingsDebugState = SettingsDebugState() {
@@ -122,6 +123,7 @@ final class iOSViewController: UIViewController {
     private var hasLoggedInitialLayoutPass = false
     private var pianoPanelState = iOSViewController.initialPianoPanelState
     private var playbackCoordinator: PlaybackCoordinator?
+    private var lastPianoAnswerNotesByPreviewID: [PianoPreviewID: NotePitch] = [:]
     var onRootModeChangeRequest: ((RootMode) -> Void)?
 
     private func logLifecycle(_ message: String) {
@@ -301,6 +303,7 @@ final class iOSViewController: UIViewController {
     private func resetQuarterNoteSequenceInteractionState() {
         quarterNoteSequenceSession = nil
         clearQuarterNoteSequenceFeedbackState()
+        clearPianoAnswerPreviewCache()
     }
 
     private func singleCoverageSessionMatchesCurrentTrainer(
@@ -468,7 +471,7 @@ final class iOSViewController: UIViewController {
         from oldValue: ExercisePresentationState,
         to newValue: ExercisePresentationState
     ) {
-        guard trainerDisplayState.isSequenceMode,
+        guard trainerDisplayState.usesQuarterNoteSequenceKernel,
               oldValue.isSurfaceVisible(.staff),
               !newValue.isSurfaceVisible(.staff),
               quarterNoteSequenceLastEvaluation != nil else {
@@ -488,7 +491,7 @@ final class iOSViewController: UIViewController {
     }
 
     private var configuredQuarterNoteSequenceSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec {
-        trainerDisplayState.sequenceConfiguration.quarterNoteSequenceSpec
+        trainerDisplayState.resolvedSequenceConfiguration.quarterNoteSequenceSpec
     }
 
     private var isQuarterNoteSequenceMode: Bool {
@@ -505,6 +508,26 @@ final class iOSViewController: UIViewController {
 
     private var isShowingStaffSurface: Bool {
         exercisePresentationState.isSurfaceVisible(.staff)
+    }
+
+    private var resolvedPianoSettingsSlice: PianoPanelSettingsSlice {
+        var settingsSlice = pianoPanelState.settingsSlice
+        if let fixedRowCount = trainerDisplayState.exerciseMode.fixedPianoRowCount {
+            settingsSlice.rowCount = fixedRowCount
+        }
+        if let fixedMovementScope = trainerDisplayState.exerciseMode
+            .fixedPianoMovementScope {
+            settingsSlice.movementScope = fixedMovementScope
+        }
+        return settingsSlice
+    }
+
+    private var canRoutePianoPreviewAnswers: Bool {
+        let pianoSurfaceState = exercisePresentationState
+            .effectiveSurfaceState(for: .piano)
+        return trainerDisplayState.usesQuarterNoteSequenceKernel
+            && pianoSurfaceState.isAnswerEnabled
+            && pianoSurfaceState.isInteractionEnabled
     }
 
     private var settingsPanelStateContext: SettingsPanelStateContext {
@@ -764,10 +787,12 @@ final class iOSViewController: UIViewController {
 
     func interruptActivePianoPlayback(reason: PlaybackStopReason) {
         guard isViewLoaded else {
+            clearPianoAnswerPreviewCache()
             playbackCoordinator?.forceStop(reason: reason)
             return
         }
 
+        clearPianoAnswerPreviewCache()
         pianoSurfaceView.interruptActiveInteraction()
         playbackCoordinator?.forceStop(reason: reason)
     }
@@ -1386,11 +1411,18 @@ final class iOSViewController: UIViewController {
         let naturalNoteStripInteractionEnabled = exercisePresentationState
             .effectiveSurfaceState(for: .naturalNoteStrip)
             .isInteractionEnabled
+        let pianoInteractionEnabled = exercisePresentationState
+            .effectiveSurfaceState(for: .piano)
+            .isInteractionEnabled
 
         fretboardView.isUserInteractionEnabled = fretboardInteractionEnabled
             && allowsLiveAnswerInteraction
         naturalNoteStripView.isUserInteractionEnabled = naturalNoteStripInteractionEnabled
             && allowsLiveAnswerInteraction
+        if pianoSurfaceView.isPianoInteractionEnabled && !pianoInteractionEnabled {
+            interruptActivePianoPlayback(reason: .interactionDisabled)
+        }
+        pianoSurfaceView.isPianoInteractionEnabled = pianoInteractionEnabled
     }
 
     private func applySingleCoverageProjection(
@@ -1443,7 +1475,8 @@ final class iOSViewController: UIViewController {
     }
 
     private func applySequenceRegenerateButtonState() {
-        sequenceRegenerateButton.isHidden = !trainerDisplayState.isSequenceMode
+        sequenceRegenerateButton.isHidden = !trainerDisplayState
+            .usesQuarterNoteSequenceKernel
     }
 
     private func applyLabelVisibilityButtonState() {
@@ -1470,7 +1503,7 @@ final class iOSViewController: UIViewController {
     }
 
     private func regenerateQuarterNoteSequence(reason: String) {
-        guard trainerDisplayState.isSequenceMode else {
+        guard trainerDisplayState.usesQuarterNoteSequenceKernel else {
             return
         }
 
@@ -1549,7 +1582,7 @@ final class iOSViewController: UIViewController {
 
     private func applyPianoAccessoryState() {
         pianoSurfaceView.applySharedSettings(
-            pianoPanelState.settingsSlice
+            resolvedPianoSettingsSlice
         )
         pianoSurfaceView.showsComponentBoundsOverlay = false
         updateLayoutIfNeeded()
@@ -1558,6 +1591,45 @@ final class iOSViewController: UIViewController {
 
     private func handlePianoSemanticEvent(_ event: PianoSemanticEvent) {
         playbackCoordinator?.handle(event)
+        switch event {
+        case .rowsChanged:
+            return
+        case let .previewStarted(preview):
+            routePianoPreviewAnswerIfNeeded(
+                preview,
+                shouldEmitDuplicateNote: true
+            )
+        case let .previewChanged(preview):
+            routePianoPreviewAnswerIfNeeded(
+                preview,
+                shouldEmitDuplicateNote: false
+            )
+        case let .previewEnded(preview):
+            lastPianoAnswerNotesByPreviewID.removeValue(forKey: preview.previewID)
+        }
+    }
+
+    private func routePianoPreviewAnswerIfNeeded(
+        _ preview: PianoPreviewState,
+        shouldEmitDuplicateNote: Bool
+    ) {
+        guard canRoutePianoPreviewAnswers else {
+            return
+        }
+
+        let previousNote = lastPianoAnswerNotesByPreviewID[preview.previewID]
+        if !shouldEmitDuplicateNote, previousNote == preview.note {
+            return
+        }
+
+        lastPianoAnswerNotesByPreviewID[preview.previewID] = preview.note
+        handleExerciseAnswerEvent(
+            .notePitch(preview.note, from: .piano)
+        )
+    }
+
+    private func clearPianoAnswerPreviewCache() {
+        lastPianoAnswerNotesByPreviewID.removeAll()
     }
 
     @objc
@@ -1619,7 +1691,7 @@ final class iOSViewController: UIViewController {
             return
         }
 
-        if nextTrainerDisplayState.isSequenceMode,
+        if nextTrainerDisplayState.usesQuarterNoteSequenceKernel,
            nextRequestedStaffDisplayState != staffDisplayState {
             baseStaffDisplayState = sanitizedSequenceFreeStaffDisplayState(
                 nextRequestedStaffDisplayState

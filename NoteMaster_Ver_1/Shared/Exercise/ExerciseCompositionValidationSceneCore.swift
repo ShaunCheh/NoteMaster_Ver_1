@@ -2098,7 +2098,7 @@ extension ExerciseCompositionValidationRunner {
 
         let presentation = ExerciseCompositionPolicy.makePresentation(
             from: ExerciseCompositionPolicyInput(
-                trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .sr1),
                 fretboardTrainerState: .init(),
                 fretboardDisplayState: .default,
                 staffDisplayState: .default,

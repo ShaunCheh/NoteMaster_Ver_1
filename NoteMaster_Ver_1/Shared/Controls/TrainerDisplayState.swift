@@ -31,6 +31,42 @@ extension TrainerExerciseMode {
             return nil
         }
     }
+
+    var fixedSequenceClef: StaffClef? {
+        switch self {
+        case .sr1, .sr2:
+            return .treble
+        case .single, .sequence, .positionPrompt:
+            return nil
+        }
+    }
+
+    var fixedExerciseLayoutPreferences: ExerciseLayoutPreferences? {
+        switch self {
+        case .sr1, .sr2:
+            return .srPianoAnswer
+        case .single, .sequence, .positionPrompt:
+            return nil
+        }
+    }
+
+    var fixedPianoRowCount: Int? {
+        switch self {
+        case .sr1, .sr2:
+            return 1
+        case .single, .sequence, .positionPrompt:
+            return nil
+        }
+    }
+
+    var fixedPianoMovementScope: PianoMovementScope? {
+        switch self {
+        case .sr1, .sr2:
+            return .rowOnly
+        case .single, .sequence, .positionPrompt:
+            return nil
+        }
+    }
 }
 
 enum TrainerPositionPromptFilterMode: Equatable, Hashable, Sendable {
@@ -461,6 +497,19 @@ struct TrainerDisplayState: Equatable, Sendable {
 }
 
 extension TrainerSequenceConfiguration {
+    func applyingModeConstraints(
+        _ exerciseMode: TrainerExerciseMode
+    ) -> TrainerSequenceConfiguration {
+        var normalized = self
+        if let fixedClef = exerciseMode.fixedSequenceClef {
+            normalized.clef = fixedClef
+        }
+        if let fixedAnswerPolicy = exerciseMode.fixedSequenceAnswerPolicy {
+            normalized.answerPolicy = fixedAnswerPolicy
+        }
+        return normalized
+    }
+
     init(
         quarterNoteSequenceSpec: FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec
     ) {
@@ -479,5 +528,11 @@ extension TrainerSequenceConfiguration {
             includesAccidentals: includesAccidentals,
             answerPolicy: answerPolicy
         )
+    }
+}
+
+extension TrainerDisplayState {
+    var resolvedSequenceConfiguration: TrainerSequenceConfiguration {
+        sequenceConfiguration.applyingModeConstraints(exerciseMode)
     }
 }

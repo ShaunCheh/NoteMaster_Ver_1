@@ -97,6 +97,13 @@ enum SettingsPanelSnapshotBuilder {
                 )
             )
         case let .toggle(toggleID):
+            guard shouldInclude(
+                toggleID: toggleID,
+                stateContext: stateContext
+            ) else {
+                return nil
+            }
+
             return .toggle(
                 makeToggleRow(
                     id: toggleID,
@@ -240,8 +247,18 @@ enum SettingsPanelSnapshotBuilder {
         stateContext: SettingsPanelStateContext
     ) -> Bool {
         switch choiceRowID {
+        case .compositionPreset,
+             .layoutPreset,
+             .accessoryPresentation:
+            return !hasFixedExercisePresentationMode(stateContext)
         case .positionPromptFilterMode:
             return stateContext.trainerDisplayState.isPositionPromptMode
+        case .clef:
+            return stateContext.trainerDisplayState.exerciseMode
+                .fixedSequenceClef == nil
+        case .pianoMovementScope:
+            return stateContext.trainerDisplayState.exerciseMode
+                .fixedPianoMovementScope == nil
         default:
             return true
         }
@@ -255,8 +272,25 @@ enum SettingsPanelSnapshotBuilder {
         case .verticalHostHeightRatio:
             return stateContext.showsVerticalViewportHeightControl
         case .pianoRowCount:
-            return true
+            return stateContext.trainerDisplayState.exerciseMode
+                .fixedPianoRowCount == nil
         case .clefScale, .clefVerticalTrim, .clefAnchorYOffset:
+            return true
+        }
+    }
+
+    private static func shouldInclude(
+        toggleID: SettingsToggleID,
+        stateContext: SettingsPanelStateContext
+    ) -> Bool {
+        switch toggleID {
+        case .naturalStripVisible,
+             .pianoAccessoryVisible,
+             .accessoryExpanded:
+            return !hasFixedExercisePresentationMode(stateContext)
+        case .showsComponentBounds,
+             .showsSideBySideContainerOutlines,
+             .pianoSnapEnabled:
             return true
         }
     }
@@ -271,5 +305,12 @@ enum SettingsPanelSnapshotBuilder {
         case .positionPromptFilterOptions:
             return false
         }
+    }
+
+    private static func hasFixedExercisePresentationMode(
+        _ stateContext: SettingsPanelStateContext
+    ) -> Bool {
+        stateContext.trainerDisplayState.exerciseMode
+            .fixedExerciseLayoutPreferences != nil
     }
 }

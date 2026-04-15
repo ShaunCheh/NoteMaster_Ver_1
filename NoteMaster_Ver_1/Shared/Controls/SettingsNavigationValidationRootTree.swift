@@ -177,7 +177,7 @@ extension SettingsNavigationValidationRunner {
             expectedRouteItems: [
                 SettingsRouteItem(
                     title: SettingsRouteID.exerciseMode.fallbackTitle,
-                    subtitle: "Single, sequence, or position",
+                    subtitle: "Single, sequence, SR-1, or position",
                     route: .exerciseMode
                 ),
                 SettingsRouteItem(
