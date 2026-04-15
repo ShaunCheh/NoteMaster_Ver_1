@@ -73,7 +73,34 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
         self.window = window
 
         #if DEBUG
-        if RuntimeSmokeScenario.shouldRunSR1PianoAnswerSmoke {
+        if RuntimeSmokeScenario.shouldRunSR0NoteStripAnswerSmoke {
+            print("[RuntimeSmoke][macOS] scheduled scenario=sr0-note-strip-answer")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard
+                    let self,
+                    let window = self.window,
+                    let rootViewController = window.contentViewController
+                    as? macOSRootViewController,
+                    let viewController = rootViewController.activeExerciseViewController
+                else {
+                    let summary =
+                        "[RuntimeSmoke][macOS] FAIL scenario=sr0-note-strip-answer reason=missing_window_or_view_controller"
+                    print(summary)
+                    fatalError(summary)
+                }
+
+                viewController.runSR0NoteStripAnswerSmokeTest(
+                    in: window
+                ) { passed, summary in
+                    print(summary)
+                    if passed {
+                        NSApp.terminate(nil)
+                    } else {
+                        fatalError(summary)
+                    }
+                }
+            }
+        } else if RuntimeSmokeScenario.shouldRunSR1PianoAnswerSmoke {
             print("[RuntimeSmoke][macOS] scheduled scenario=sr1_piano_answer")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
                 guard
@@ -143,9 +170,15 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
 #if DEBUG
 private enum RuntimeSmokeScenario {
     static let environmentKey = "NOTE_MASTER_RUNTIME_SMOKE_TEST"
+    static let sr0NoteStripAnswerValue = "sr0-note-strip-answer"
     static let sr1PianoAnswerValue = "sr1-piano-answer"
     static let layoutPresetRegressionValue = "layout-preset-regression"
     static let startupValidationValue = "startup-validation"
+
+    static var shouldRunSR0NoteStripAnswerSmoke: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == sr0NoteStripAnswerValue
+    }
 
     static var shouldRunSR1PianoAnswerSmoke: Bool {
         ProcessInfo.processInfo.environment[environmentKey]

@@ -299,7 +299,7 @@ extension ExerciseCompositionValidationRunner {
     ) -> [String] {
         var checklist = [
             "确认 `single` 与 `sequence` 继续使用上方 `staff`、下方 `fretboard` 的主视觉组合。",
-            "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合；其中底部 `horizontalStrip` 合同在方案一中固定对应“上半音、下自然音”的双行语义。",
+            "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合；其中 `stacked` 底部 `horizontalStrip` 合同在方案一中固定对应“上半音、下自然音”的双行语义。",
             "确认把 `Layout Preset` 切到 `Side` 后，主视觉立即切成左右双栏，而不是被自动打回 `Stacked`。",
             "确认 `positionPrompt + Side` 在 `fretboardToNaturalNoteStrip` 组合下呈现为左 `fretboard`、右竖排 `natural note strip`；右侧 strip 继续走 `verticalRail` 语义，不会被底部 `horizontalStrip` 合同覆盖。",
             "确认在 `positionPrompt` 里切到 `Composition Preset = Self` 后，页面收敛为单 `fretboard`，并且 settings 重新打开后该选择仍然保留。",
@@ -316,8 +316,9 @@ extension ExerciseCompositionValidationRunner {
             "确认 `Collapsible` accessory 收起时，隐藏的 accessory 不可见也不可交互；重新展开后恢复到原来的 surface。",
             "确认 `single/sequence + Side` 未投影 `natural note strip` 时，scene membership 仍为 absent，而 renderer/controller/router 只把它当作有效 `.hidden`，不会误判为混入布局。",
             "确认 `stacked + vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 或 `side` 后该滑块消失，切回 `stacked + vertical` 后沿用上次值。",
+            "确认切到 `SR-0` 后主视觉稳定收敛到 `treble staff + 双行 natural note strip`，strip 答错会给五线谱错误反馈、答对会推进到下一题。",
             "确认切到 `SR-1` 后主视觉稳定收敛到 `treble staff + 单行 piano`，不会再把 `piano accessory` 或 legacy page 投影混回主场景。",
-            "确认 `SR-1` 下钢琴答错会给五线谱错误反馈、答对会推进到下一题；随后切回非 SR 模式时不会残留 sequence 高亮或钢琴答题缓存。"
+            "确认在 `SR-0` 与 `SR-1` 之间互切，再切回非 SR 模式时，不会残留 sequence 高亮、strip / piano 旧答案缓存，answer surface 交互状态也会随模式正确清理。"
         ]
 
         switch platform {

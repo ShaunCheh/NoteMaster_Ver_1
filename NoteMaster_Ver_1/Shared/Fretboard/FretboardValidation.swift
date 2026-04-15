@@ -2205,6 +2205,31 @@ private extension FretboardValidationRunner {
         }
 
         logStage("modePolicySeam")
+        let sr0DisplayState = TrainerDisplayState(
+            exerciseMode: .sr0,
+            sequenceConfiguration: TrainerSequenceConfiguration(
+                clef: .bass,
+                noteCount: 5,
+                includesAccidentals: true,
+                answerPolicy: .exactNote
+            )
+        )
+        let sr0ResolvedSequenceConfiguration = sr0DisplayState
+            .resolvedSequenceConfiguration
+        if !sr0DisplayState.usesQuarterNoteSequenceKernel {
+            record("SR-0 display state 应继续复用 quarter-note sequence kernel。")
+        }
+        if sr0ResolvedSequenceConfiguration.clef != .treble {
+            record("SR-0 的 resolvedSequenceConfiguration 应强制锁定 treble clef。")
+        }
+        if sr0ResolvedSequenceConfiguration.answerPolicy != .pitchClass {
+            record("SR-0 的 resolvedSequenceConfiguration.answerPolicy 应固定为 .pitchClass。")
+        }
+        if sr0ResolvedSequenceConfiguration.noteCount != 5
+            || !sr0ResolvedSequenceConfiguration.includesAccidentals {
+            record("SR-0 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
+        }
+
         let sr1DisplayState = TrainerDisplayState(
             exerciseMode: .sr1,
             sequenceConfiguration: TrainerSequenceConfiguration(

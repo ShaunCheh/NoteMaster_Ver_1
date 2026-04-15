@@ -1943,24 +1943,271 @@ extension iOSViewController {
         print(
             "[RuntimeSmoke][iOS] begin scenario=sr1_piano_answer initialMode=\(String(describing: trainerDisplayState.exerciseMode))"
         )
-        runSR1PianoAnswerSmokeSteps(
+        runExerciseAnswerSmokeSteps(
             steps,
             index: 0,
+            scenarioName: "sr1_piano_answer",
             settleLayout: settleLayout,
+            successSummary: {
+                "[RuntimeSmoke][iOS] PASS scenario=sr1_piano_answer finalMode=\(String(describing: self.trainerDisplayState.exerciseMode)) pianoVisible=\(self.exercisePresentationState.isSurfaceVisible(.piano))"
+            },
             completion: completion
         )
     }
 
-    private func runSR1PianoAnswerSmokeSteps(
+    func runSR0NoteStripAnswerSmokeTest(
+        in window: UIWindow,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        typealias SmokeStep = (
+            name: String,
+            action: () -> Void,
+            validate: () -> String?
+        )
+        var wrongPitchClass: PitchClass?
+        var correctPitchClass: PitchClass?
+
+        func currentExpectedPitchClass() -> PitchClass? {
+            if let currentItem = quarterNoteSequenceSession?.currentItem {
+                return currentItem.answerPitchClass
+            }
+            return currentGeneratedQuarterNoteSequence?.items.first?.answerPitchClass
+        }
+
+        func nextDifferentPitchClass(from pitchClass: PitchClass) -> PitchClass {
+            let nextRawValue = (pitchClass.rawValue + 1) % PitchClass.allCases.count
+            return PitchClass(rawValue: nextRawValue)!
+        }
+
+        func settleLayout() {
+            window.setNeedsLayout()
+            window.layoutIfNeeded()
+            view.setNeedsLayout()
+            view.layoutIfNeeded()
+        }
+
+        let steps: [SmokeStep] = [
+            (
+                name: "switch_to_sr0",
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setExerciseModeSr0)
+                    )
+                },
+                validate: {
+                    guard self.trainerDisplayState.exerciseMode == .sr0 else {
+                        return "reason=mode_not_sr0 resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode))"
+                    }
+                    guard self.exerciseLayoutPreferences == .srNoteStripAnswer else {
+                        return "reason=layout_not_fixed resolvedLayout=\(String(describing: self.exerciseLayoutPreferences))"
+                    }
+                    guard self.trainerDisplayState.usesQuarterNoteSequenceKernel else {
+                        return "reason=sequence_kernel_disabled"
+                    }
+                    let resolvedSequenceConfiguration = self.trainerDisplayState
+                        .resolvedSequenceConfiguration
+                    guard resolvedSequenceConfiguration.clef == .treble else {
+                        return "reason=clef_not_treble resolvedClef=\(String(describing: resolvedSequenceConfiguration.clef))"
+                    }
+                    guard resolvedSequenceConfiguration.answerPolicy == .pitchClass else {
+                        return "reason=answer_policy_not_pitch_class resolvedPolicy=\(String(describing: resolvedSequenceConfiguration.answerPolicy))"
+                    }
+                    guard self.exercisePresentationState.projectedSurfaceState(for: .staff) == .promptOnly else {
+                        return "reason=staff_not_prompt_only"
+                    }
+                    guard self.exercisePresentationState.projectedSurfaceState(for: .naturalNoteStrip) == .answerOnly else {
+                        return "reason=strip_not_answer_only"
+                    }
+                    guard self.exercisePresentationState.isSurfaceVisible(.staff),
+                          self.exercisePresentationState.isSurfaceVisible(.naturalNoteStrip) else {
+                        return "reason=sr0_surfaces_not_visible"
+                    }
+                    guard !self.exercisePresentationState.containsSurface(.fretboard),
+                          self.exercisePresentationState.projectedSurfaceState(for: .fretboard) == nil else {
+                        return "reason=fretboard_surface_present"
+                    }
+                    guard !self.exercisePresentationState.containsSurface(.piano),
+                          self.exercisePresentationState.projectedSurfaceState(for: .piano) == nil else {
+                        return "reason=piano_surface_present"
+                    }
+                    guard self.exercisePresentationState.scene.surfaceNode(for: .naturalNoteStrip)?.presentationStyle == .horizontalStrip else {
+                        return "reason=strip_not_horizontal_strip"
+                    }
+                    guard self.exercisePresentationState.naturalNoteStripRailLayout == nil else {
+                        return "reason=unexpected_rail_layout"
+                    }
+                    guard let stripLayout = self.exercisePresentationState.naturalNoteStripHorizontalLayout else {
+                        return "reason=missing_horizontal_layout"
+                    }
+                    guard stripLayout.accidentalPlacements.count == PitchClass.accidentalCasesInOrder.count,
+                          stripLayout.naturalPlacements.count == PitchClass.naturalCasesInOrder.count else {
+                        return "reason=strip_layout_counts_incorrect accidentalCount=\(stripLayout.accidentalPlacements.count) naturalCount=\(stripLayout.naturalPlacements.count)"
+                    }
+                    guard stripLayout.accidentalPlacements.allSatisfy({ $0.row == .accidentalsTop }),
+                          stripLayout.naturalPlacements.allSatisfy({ $0.row == .naturalsBottom }) else {
+                        return "reason=strip_layout_rows_incorrect"
+                    }
+                    guard self.naturalNoteStripView.isUserInteractionEnabled else {
+                        return "reason=strip_interaction_disabled"
+                    }
+                    guard !self.pianoSurfaceView.isPianoInteractionEnabled else {
+                        return "reason=piano_interaction_enabled"
+                    }
+                    guard self.currentGeneratedQuarterNoteSequence != nil else {
+                        return "reason=missing_sequence"
+                    }
+                    guard self.staffDisplayState.sequencePresentation?.state == .idle else {
+                        return "reason=staff_not_idle presentation=\(String(describing: self.staffDisplayState.sequencePresentation))"
+                    }
+                    guard !self.sequenceRegenerateButton.isHidden else {
+                        return "reason=regenerate_hidden"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "wrong_strip_answer",
+                action: {
+                    guard let expectedPitchClass = currentExpectedPitchClass() else {
+                        wrongPitchClass = nil
+                        return
+                    }
+                    let wrongAnswer = nextDifferentPitchClass(from: expectedPitchClass)
+                    wrongPitchClass = wrongAnswer
+                    self.handleNaturalNoteStripPitchClassTap(wrongAnswer)
+                },
+                validate: {
+                    guard let wrongPitchClass else {
+                        return "reason=missing_wrong_pitch_class"
+                    }
+                    guard let evaluation = self.quarterNoteSequenceLastEvaluation else {
+                        return "reason=missing_wrong_evaluation"
+                    }
+                    guard !evaluation.isCorrect else {
+                        return "reason=wrong_strip_answer_marked_correct"
+                    }
+                    guard evaluation.comparisonPolicy == .pitchClass else {
+                        return "reason=wrong_policy=\(String(describing: evaluation.comparisonPolicy))"
+                    }
+                    guard evaluation.answeredPitchClass == wrongPitchClass else {
+                        return "reason=wrong_pitch_lost answered=\(evaluation.answeredPitchClass.displayText()) expected=\(wrongPitchClass.displayText())"
+                    }
+                    guard evaluation.answeredNotePitch == nil else {
+                        return "reason=strip_wrong_answer_leaked_note_pitch answered=\(String(describing: evaluation.answeredNotePitch))"
+                    }
+                    guard self.quarterNoteSequenceSession?.currentIndex == 0 else {
+                        return "reason=wrong_strip_answer_advanced currentIndex=\(self.quarterNoteSequenceSession?.currentIndex ?? -1)"
+                    }
+                    guard self.staffDisplayState.sequencePresentation?.state == .wrong,
+                          self.staffDisplayState.sequencePresentation?.lastEvaluationResult == .incorrect else {
+                        return "reason=staff_missing_wrong_feedback presentation=\(String(describing: self.staffDisplayState.sequencePresentation))"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "correct_strip_answer",
+                action: {
+                    guard let expectedPitchClass = currentExpectedPitchClass() else {
+                        correctPitchClass = nil
+                        return
+                    }
+                    correctPitchClass = expectedPitchClass
+                    self.handleNaturalNoteStripPitchClassTap(expectedPitchClass)
+                },
+                validate: {
+                    guard let correctPitchClass else {
+                        return "reason=missing_correct_pitch_class"
+                    }
+                    guard let evaluation = self.quarterNoteSequenceLastEvaluation else {
+                        return "reason=missing_correct_evaluation"
+                    }
+                    guard evaluation.isCorrect else {
+                        return "reason=correct_strip_answer_marked_wrong"
+                    }
+                    guard evaluation.comparisonPolicy == .pitchClass else {
+                        return "reason=correct_policy=\(String(describing: evaluation.comparisonPolicy))"
+                    }
+                    guard evaluation.answeredPitchClass == correctPitchClass else {
+                        return "reason=correct_pitch_lost answered=\(evaluation.answeredPitchClass.displayText()) expected=\(correctPitchClass.displayText())"
+                    }
+                    guard evaluation.answeredNotePitch == nil else {
+                        return "reason=strip_correct_answer_leaked_note_pitch answered=\(String(describing: evaluation.answeredNotePitch))"
+                    }
+                    guard self.quarterNoteSequenceSession?.currentIndex == 1 else {
+                        return "reason=correct_strip_answer_did_not_advance currentIndex=\(self.quarterNoteSequenceSession?.currentIndex ?? -1)"
+                    }
+                    guard self.staffDisplayState.sequencePresentation?.state == .correct,
+                          self.staffDisplayState.sequencePresentation?.lastEvaluationResult == .correct else {
+                        return "reason=staff_missing_correct_feedback presentation=\(String(describing: self.staffDisplayState.sequencePresentation))"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "switch_back_to_single",
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setExerciseModeSingle)
+                    )
+                },
+                validate: {
+                    guard self.trainerDisplayState.exerciseMode == .single else {
+                        return "reason=mode_not_single resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode))"
+                    }
+                    guard self.quarterNoteSequenceSession == nil,
+                          self.quarterNoteSequenceLastEvaluation == nil else {
+                        return "reason=sequence_state_not_cleared sessionIndex=\(self.quarterNoteSequenceSession?.currentIndex ?? -1) lastEvaluation=\(String(describing: self.quarterNoteSequenceLastEvaluation))"
+                    }
+                    guard self.staffDisplayState.sequencePresentation == nil else {
+                        return "reason=staff_sequence_feedback_leaked presentation=\(String(describing: self.staffDisplayState.sequencePresentation))"
+                    }
+                    guard self.exercisePresentationState.projectedSurfaceState(for: .fretboard) == .answerOnly else {
+                        return "reason=fretboard_not_answer_only"
+                    }
+                    guard self.exercisePresentationState.projectedSurfaceState(for: .naturalNoteStrip) != .answerOnly,
+                          !self.exercisePresentationState
+                            .effectiveSurfaceState(for: .naturalNoteStrip)
+                            .isAnswerEnabled,
+                          !self.naturalNoteStripView.isUserInteractionEnabled else {
+                        return "reason=strip_answer_surface_not_cleared"
+                    }
+                    guard !self.pianoSurfaceView.isPianoInteractionEnabled else {
+                        return "reason=piano_interaction_enabled"
+                    }
+                    guard self.sequenceRegenerateButton.isHidden else {
+                        return "reason=regenerate_still_visible"
+                    }
+                    return nil
+                }
+            )
+        ]
+
+        print(
+            "[RuntimeSmoke][iOS] begin scenario=sr0_note_strip_answer initialMode=\(String(describing: trainerDisplayState.exerciseMode))"
+        )
+        runExerciseAnswerSmokeSteps(
+            steps,
+            index: 0,
+            scenarioName: "sr0_note_strip_answer",
+            settleLayout: settleLayout,
+            successSummary: {
+                "[RuntimeSmoke][iOS] PASS scenario=sr0_note_strip_answer finalMode=\(String(describing: self.trainerDisplayState.exerciseMode)) stripVisible=\(self.exercisePresentationState.isSurfaceVisible(.naturalNoteStrip))"
+            },
+            completion: completion
+        )
+    }
+
+    private func runExerciseAnswerSmokeSteps(
         _ steps: [(name: String, action: () -> Void, validate: () -> String?)],
         index: Int,
+        scenarioName: String,
         settleLayout: @escaping () -> Void,
+        successSummary: @escaping () -> String,
         completion: @escaping (Bool, String) -> Void
     ) {
         guard index < steps.count else {
-            let summary =
-                "[RuntimeSmoke][iOS] PASS scenario=sr1_piano_answer finalMode=\(String(describing: trainerDisplayState.exerciseMode)) pianoVisible=\(exercisePresentationState.isSurfaceVisible(.piano))"
-            completion(true, summary)
+            completion(true, successSummary())
             return
         }
 
@@ -1976,17 +2223,19 @@ extension iOSViewController {
                 if let failure = step.validate() {
                     completion(
                         false,
-                        "[RuntimeSmoke][iOS] FAIL scenario=sr1_piano_answer step=\(step.name) \(failure)"
+                        "[RuntimeSmoke][iOS] FAIL scenario=\(scenarioName) step=\(step.name) \(failure)"
                     )
                     return
                 }
                 print(
                     "[RuntimeSmoke][iOS] step=\(step.name) end mode=\(String(describing: self.trainerDisplayState.exerciseMode))"
                 )
-                self.runSR1PianoAnswerSmokeSteps(
+                self.runExerciseAnswerSmokeSteps(
                     steps,
                     index: index + 1,
+                    scenarioName: scenarioName,
                     settleLayout: settleLayout,
+                    successSummary: successSummary,
                     completion: completion
                 )
             }

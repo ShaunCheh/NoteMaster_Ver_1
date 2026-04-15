@@ -23,10 +23,14 @@ enum ExerciseCompositionPolicy {
                 input.layoutPreferences,
                 trainerDisplayState: input.trainerDisplayState
             )
+        let allowsAccessoryPianoPromotion =
+            input.trainerDisplayState.exerciseMode.fixedExerciseLayoutPreferences
+            == nil
         resolvedLayoutPreferences.isPianoAccessoryVisible =
             resolvedLayoutPreferences.isPianoAccessoryVisible
             || (
-                input.pianoPanelState.isVisible
+                allowsAccessoryPianoPromotion
+                    && input.pianoPanelState.isVisible
                     && !resolvedLayoutPreferences.compositionPreset
                     .usesMainPianoAnswerSurface
             )
