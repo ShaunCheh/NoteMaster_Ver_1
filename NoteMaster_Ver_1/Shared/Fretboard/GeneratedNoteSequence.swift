@@ -6,7 +6,12 @@
 //
 
 struct GeneratedNoteSequenceItem: Equatable, Hashable, Sendable {
+    // Keep the written pitch intact so future exact-note judging can compare the
+    // full `NotePitch` without changing the generated content shape.
     var writtenPitch: StaffPitch
+    // Current sequence answers are still modeled as pitch class only.
+    // Later phases will select between `pitchClass` and exact-note judging via
+    // external policy rather than by mutating this content model.
     var answerPitchClass: PitchClass
 
     init(

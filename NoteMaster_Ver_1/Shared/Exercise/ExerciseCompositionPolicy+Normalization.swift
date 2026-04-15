@@ -31,8 +31,10 @@ extension ExerciseCompositionPolicy {
         _ preset: ExerciseCompositionPreset,
         for exerciseMode: TrainerExerciseMode
     ) -> Bool {
+        // Stage 0 only reserves SR modes. Until `staffToPiano` lands, keep them
+        // on the existing sequence-compatible normalization envelope.
         switch exerciseMode {
-        case .single, .sequence:
+        case .single, .sequence, .sr1, .sr2:
             switch preset {
             case .staffToFretboard, .targetPromptToFretboard:
                 return true
@@ -66,7 +68,7 @@ private extension ExerciseCompositionPolicy {
     ) -> ExerciseCompositionPreset {
         guard isCompositionPresetSupported(preset, for: exerciseMode) else {
             switch exerciseMode {
-            case .single, .sequence:
+            case .single, .sequence, .sr1, .sr2:
                 return .staffToFretboard
             case .positionPrompt:
                 return .fretboardToNaturalNoteStrip

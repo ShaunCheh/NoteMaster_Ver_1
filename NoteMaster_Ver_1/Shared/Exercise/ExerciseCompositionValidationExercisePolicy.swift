@@ -72,7 +72,7 @@ extension ExerciseCompositionValidationRunner {
         }
 
         switch exerciseMode {
-        case .single, .sequence:
+        case .single, .sequence, .sr1, .sr2:
             if exerciseSection.rows.map(\.id) != [
                 .choice(.exerciseMode),
                 .choice(.compositionPreset),

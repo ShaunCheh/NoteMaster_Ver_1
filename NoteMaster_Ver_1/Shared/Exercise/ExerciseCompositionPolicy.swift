@@ -67,7 +67,7 @@ enum ExerciseCompositionPolicy {
         legacyCompatiblePreferences.isAccessoryExpanded = true
 
         switch input.trainerDisplayState.exerciseMode {
-        case .single, .sequence:
+        case .single, .sequence, .sr1, .sr2:
             if legacyCompatiblePreferences.compositionPreset
                 != .targetPromptToFretboard,
                legacyCompatiblePreferences.compositionPreset
@@ -379,7 +379,7 @@ enum ExerciseCompositionPolicy {
         isPianoAccessoryVisible _: Bool
     ) -> ExerciseLayoutPreferences {
         switch exerciseMode {
-        case .single, .sequence:
+        case .single, .sequence, .sr1, .sr2:
             return ExerciseLayoutPreferences(
                 compositionPreset: .staffToFretboard,
                 layoutPreset: .stacked,

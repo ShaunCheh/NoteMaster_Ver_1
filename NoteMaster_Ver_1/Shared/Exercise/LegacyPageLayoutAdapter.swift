@@ -16,7 +16,7 @@ enum LegacyPageLayoutAdapter {
         switch trainerDisplayState.exerciseMode {
         case .positionPrompt:
             inferredCompositionPreset = .fretboardToNaturalNoteStrip
-        case .single, .sequence:
+        case .single, .sequence, .sr1, .sr2:
             switch pageDisplayState.topContentMode {
             case .targetPrompt:
                 inferredCompositionPreset = .targetPromptToFretboard
@@ -67,7 +67,7 @@ enum LegacyPageLayoutAdapter {
         }
 
         switch trainerDisplayState.exerciseMode {
-        case .single, .sequence:
+        case .single, .sequence, .sr1, .sr2:
             return .default
         case .positionPrompt:
             return .positionPrompt

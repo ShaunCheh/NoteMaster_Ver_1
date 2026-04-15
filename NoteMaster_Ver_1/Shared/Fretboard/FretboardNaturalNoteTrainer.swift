@@ -320,6 +320,10 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         case evaluated(PositionPromptEvaluation)
     }
 
+    // Sequence content generation and judging policy stay decoupled.
+    // Stage 0 only freezes the seam here; later phases will thread
+    // `TrainerSequenceAnswerPolicy` through this spec instead of embedding it
+    // into `GeneratedNoteSequence`.
     struct QuarterNoteSequenceSpec: Equatable, Sendable {
         var clef: StaffClef
         var noteCount: Int
@@ -455,6 +459,8 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             expectedItem.answerPitchClass
         }
 
+        // Keep the full written pitch available so future exact-note judging can
+        // compare `writtenPitch.notePitch` without reshaping the generated content.
         var expectedWrittenPitch: StaffPitch {
             expectedItem.writtenPitch
         }

@@ -9,6 +9,28 @@ enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case single
     case sequence
     case positionPrompt
+    case sr1
+    case sr2
+}
+
+// Sequence judging policy is configuration, not generated content.
+// `.pitchClass` ignores octave, while `.exactNote` compares the full `NotePitch`.
+enum TrainerSequenceAnswerPolicy: Equatable, Hashable, Sendable {
+    case pitchClass
+    case exactNote
+}
+
+extension TrainerExerciseMode {
+    var fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy? {
+        switch self {
+        case .sr1:
+            return .pitchClass
+        case .sr2:
+            return .exactNote
+        case .single, .sequence, .positionPrompt:
+            return nil
+        }
+    }
 }
 
 enum TrainerPositionPromptFilterMode: Equatable, Hashable, Sendable {
@@ -354,12 +376,25 @@ struct TrainerDisplayState: Equatable, Sendable {
         self.positionPromptConfiguration = positionPromptConfiguration.normalized()
     }
 
+    var isPositionPromptMode: Bool {
+        exerciseMode == .positionPrompt
+    }
+
+    // Keep the legacy `.sequence` UI semantics stable until SR modes get
+    // their own dedicated settings and scene wiring in later phases.
     var isSequenceMode: Bool {
         exerciseMode == .sequence
     }
 
-    var isPositionPromptMode: Bool {
-        exerciseMode == .positionPrompt
+    // This is the shared seam for modes that reuse the quarter-note sequence
+    // trainer kernel, independent from which UI mode is currently selected.
+    var usesQuarterNoteSequenceKernel: Bool {
+        switch exerciseMode {
+        case .sequence, .sr1, .sr2:
+            return true
+        case .single, .positionPrompt:
+            return false
+        }
     }
 
     var positionPromptAnswerRule: PositionPromptAnswerRule {

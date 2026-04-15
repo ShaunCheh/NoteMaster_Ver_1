@@ -44,6 +44,10 @@ enum ExerciseAnswerRouteIgnoreReason: Equatable, Sendable {
             return "sequence"
         case .positionPrompt:
             return "positionPrompt"
+        case .sr1:
+            return "sr1"
+        case .sr2:
+            return "sr2"
         }
     }
 }
@@ -102,7 +106,7 @@ enum ExerciseAnswerRouter {
                     cell: cell
                 )
             )
-        case .sequence:
+        case .sequence, .sr1, .sr2:
             guard let pitchClass = FretboardNaturalNoteTrainerState
                 .resolvedPitchClass(
                     from: event,

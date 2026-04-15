@@ -1239,7 +1239,7 @@ final class iOSViewController: UIViewController {
         switch trainerDisplayState.exerciseMode {
         case .single:
             synchronizeSingleTrainerPresentation(reason: reason)
-        case .sequence:
+        case .sequence, .sr1, .sr2:
             synchronizeQuarterNoteSequencePresentation(reason: reason)
         case .positionPrompt:
             synchronizePositionPromptPresentation(reason: reason)
