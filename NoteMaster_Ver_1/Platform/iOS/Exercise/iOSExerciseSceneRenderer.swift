@@ -34,7 +34,7 @@ final class iOSExerciseSceneRenderer {
     private let staffView: iOSStaffView
     private let targetNotePromptView: iOSTargetNotePromptView
     private let naturalNoteStripView: iOSNaturalNoteStripView
-    private let pianoAccessoryView: UIView
+    private let pianoSurfaceView: UIView
     private let fretboardView: iOSFretboardView
 
     private var currentPresentationState: ExercisePresentationState?
@@ -53,7 +53,7 @@ final class iOSExerciseSceneRenderer {
         staffView: iOSStaffView,
         targetNotePromptView: iOSTargetNotePromptView,
         naturalNoteStripView: iOSNaturalNoteStripView,
-        pianoAccessoryView: UIView,
+        pianoSurfaceView: UIView,
         fretboardView: iOSFretboardView
     ) {
         self.safeAreaHeightAnchor = safeAreaHeightAnchor
@@ -62,7 +62,7 @@ final class iOSExerciseSceneRenderer {
         self.staffView = staffView
         self.targetNotePromptView = targetNotePromptView
         self.naturalNoteStripView = naturalNoteStripView
-        self.pianoAccessoryView = pianoAccessoryView
+        self.pianoSurfaceView = pianoSurfaceView
         self.fretboardView = fretboardView
 
         configureStaticHierarchy()
@@ -114,7 +114,7 @@ final class iOSExerciseSceneRenderer {
         staffView.translatesAutoresizingMaskIntoConstraints = false
         targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
         naturalNoteStripView.translatesAutoresizingMaskIntoConstraints = false
-        pianoAccessoryView.translatesAutoresizingMaskIntoConstraints = false
+        pianoSurfaceView.translatesAutoresizingMaskIntoConstraints = false
         sequenceRegenerateButton.translatesAutoresizingMaskIntoConstraints = false
 
         fretboardViewportScrollView.alwaysBounceVertical = false
@@ -719,7 +719,7 @@ final class iOSExerciseSceneRenderer {
         case .naturalNoteStrip:
             naturalNoteStripView.isHidden = isHidden
         case .piano:
-            pianoAccessoryView.isHidden = isHidden
+            pianoSurfaceView.isHidden = isHidden
         }
     }
 
@@ -734,7 +734,7 @@ final class iOSExerciseSceneRenderer {
         case .naturalNoteStrip:
             return naturalNoteStripView
         case .piano:
-            return pianoAccessoryView
+            return pianoSurfaceView
         }
     }
 

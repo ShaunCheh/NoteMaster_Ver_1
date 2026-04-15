@@ -23,9 +23,13 @@ enum ExerciseCompositionPolicy {
                 input.layoutPreferences,
                 trainerDisplayState: input.trainerDisplayState
             )
-        resolvedLayoutPreferences.isPianoAccessoryVisible = resolvedLayoutPreferences
-            .isPianoAccessoryVisible
-            || input.pianoPanelState.isVisible
+        resolvedLayoutPreferences.isPianoAccessoryVisible =
+            resolvedLayoutPreferences.isPianoAccessoryVisible
+            || (
+                input.pianoPanelState.isVisible
+                    && !resolvedLayoutPreferences.compositionPreset
+                    .usesMainPianoAnswerSurface
+            )
         let scene = makeScene(
             preferences: resolvedLayoutPreferences
         )
@@ -134,6 +138,8 @@ enum ExerciseCompositionPolicy {
         switch preferences.compositionPreset {
         case .staffToFretboard:
             return (.staffPrompt, .fretboardAnswer)
+        case .staffToPiano:
+            return (.staffPrompt, .pianoAnswer)
         case .targetPromptToFretboard:
             return (.targetPrompt, .fretboardAnswer)
         case .fretboardToNaturalNoteStrip:
@@ -228,7 +234,7 @@ enum ExerciseCompositionPolicy {
                     )
                 ]
             )
-        case .staffToFretboard, .targetPromptToFretboard:
+        case .staffToFretboard, .staffToPiano, .targetPromptToFretboard:
             return .makeSplit(
                 axis: .horizontal,
                 children: [
@@ -253,7 +259,7 @@ enum ExerciseCompositionPolicy {
         var accessoryChildren: [ExerciseSceneSplitChild] = []
 
         if preferences.isNaturalNoteStripVisible,
-           preferences.compositionPreset != .fretboardToNaturalNoteStrip {
+           !preferences.compositionPreset.usesMainNaturalNoteStripAnswerSurface {
             accessoryChildren.append(
                 makeVerticalSceneChild(
                     for: .naturalNoteStripAccessory,
@@ -262,7 +268,8 @@ enum ExerciseCompositionPolicy {
             )
         }
 
-        if preferences.isPianoAccessoryVisible {
+        if preferences.isPianoAccessoryVisible,
+           !preferences.compositionPreset.usesMainPianoAnswerSurface {
             accessoryChildren.append(
                 makeVerticalSceneChild(
                     for: .pianoAccessory,

@@ -172,6 +172,11 @@ extension ExerciseSurfaceNode {
         roles: [.auxiliary],
         presentationStyle: .horizontalStrip
     )
+    static let pianoAnswer = ExerciseSurfaceNode(
+        id: .piano,
+        kind: .piano,
+        roles: [.answer]
+    )
     static let pianoAccessory = ExerciseSurfaceNode(
         id: .piano,
         kind: .piano,

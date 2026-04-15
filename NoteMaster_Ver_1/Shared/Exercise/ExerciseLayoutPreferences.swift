@@ -7,6 +7,7 @@
 
 enum ExerciseCompositionPreset: String, CaseIterable, Equatable, Hashable, Sendable {
     case staffToFretboard
+    case staffToPiano
     case targetPromptToFretboard
     case fretboardToNaturalNoteStrip
     case fretboardSelfAnswer
@@ -67,5 +68,15 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         self.isNaturalNoteStripVisible = isNaturalNoteStripVisible
         self.isPianoAccessoryVisible = isPianoAccessoryVisible
         self.isAccessoryExpanded = isAccessoryExpanded
+    }
+}
+
+extension ExerciseCompositionPreset {
+    var usesMainNaturalNoteStripAnswerSurface: Bool {
+        self == .fretboardToNaturalNoteStrip
+    }
+
+    var usesMainPianoAnswerSurface: Bool {
+        self == .staffToPiano
     }
 }

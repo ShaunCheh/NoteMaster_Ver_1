@@ -20,8 +20,11 @@ extension ExerciseCompositionPolicy {
             normalized.isAccessoryExpanded = true
         }
 
-        if normalized.compositionPreset == .fretboardToNaturalNoteStrip {
+        if normalized.compositionPreset.usesMainNaturalNoteStripAnswerSurface {
             normalized.isNaturalNoteStripVisible = true
+        }
+        if normalized.compositionPreset.usesMainPianoAnswerSurface {
+            normalized.isPianoAccessoryVisible = false
         }
 
         return normalized
@@ -31,12 +34,10 @@ extension ExerciseCompositionPolicy {
         _ preset: ExerciseCompositionPreset,
         for exerciseMode: TrainerExerciseMode
     ) -> Bool {
-        // Stage 0 only reserves SR modes. Until `staffToPiano` lands, keep them
-        // on the existing sequence-compatible normalization envelope.
         switch exerciseMode {
         case .single, .sequence, .sr1, .sr2:
             switch preset {
-            case .staffToFretboard, .targetPromptToFretboard:
+            case .staffToFretboard, .staffToPiano, .targetPromptToFretboard:
                 return true
             case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
                 return false
@@ -45,7 +46,7 @@ extension ExerciseCompositionPolicy {
             switch preset {
             case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
                 return true
-            case .staffToFretboard, .targetPromptToFretboard:
+            case .staffToFretboard, .staffToPiano, .targetPromptToFretboard:
                 return false
             }
         }
@@ -88,6 +89,7 @@ private extension ExerciseCompositionPolicy {
 
         switch compositionPreset {
         case .staffToFretboard,
+             .staffToPiano,
              .targetPromptToFretboard,
              .fretboardToNaturalNoteStrip:
             return .stacked
@@ -102,6 +104,7 @@ private extension ExerciseCompositionPolicy {
     ) -> Bool {
         switch compositionPreset {
         case .staffToFretboard,
+             .staffToPiano,
              .targetPromptToFretboard,
              .fretboardToNaturalNoteStrip:
             return isMultiSurfaceLayoutSupported(preset)

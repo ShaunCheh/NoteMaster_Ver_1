@@ -2013,6 +2013,159 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateStaffToPianoScenePromotesMainPianoAnswerSurface()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "staff_to_piano_scene_promotes_main_piano_answer_surface"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let rawScene = ExerciseCompositionPolicy.makeScene(
+            preferences: ExerciseLayoutPreferences(
+                compositionPreset: .staffToPiano,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: false,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: true
+            )
+        )
+        let rawSurfaceIDs = rawScene.surfaceNodes.map(\.id)
+        if rawSurfaceIDs.count != 2
+            || Set(rawSurfaceIDs) != Set([.staff, .piano]) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` scene 应只保留主 `staff` 与主 `piano`，不应再把 accessory piano 混进来。"
+                )
+            )
+        }
+        if !ExerciseSceneValidator.validate(rawScene).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` scene 在请求显示 piano accessory 时仍应生成合法 scene。"
+                )
+            )
+        }
+        switch rawScene.root {
+        case let .split(axis, children):
+            if axis != .vertical
+                || children.count != 2
+                || children[0].mainAxisSizing != .fitContent
+                || children[1].mainAxisSizing != .weighted(1) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "`staffToPiano` 的 stacked scene 应保持上方 staff fitContent、下方 piano weighted(1)。"
+                    )
+                )
+            }
+            guard
+                children.count == 2,
+                case let .surface(topSurface) = children[0].node,
+                case let .surface(bottomSurface) = children[1].node
+            else {
+                break
+            }
+            if topSurface.id != .staff
+                || !topSurface.isPromptSurface
+                || topSurface.isAnswerSurface {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "`staffToPiano` 的上方 surface 应保持 prompt-only 的 `staff`。"
+                    )
+                )
+            }
+            if bottomSurface.id != .piano
+                || bottomSurface.isPromptSurface
+                || !bottomSurface.isAnswerSurface
+                || bottomSurface.isAuxiliarySurface {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "`staffToPiano` 的下方 surface 应提升为 answer-only 的主 `piano`。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的主 scene 应投影成 vertical split。"
+                )
+            )
+        }
+
+        let presentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: PianoPanelState(isVisible: true),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToPiano,
+                    layoutPreset: .stacked,
+                    accessoryPresentation: .docked,
+                    isNaturalNoteStripVisible: false,
+                    isPianoAccessoryVisible: true,
+                    isAccessoryExpanded: true
+                )
+            )
+        )
+        if presentation.resolvedLayoutPreferences.compositionPreset != .staffToPiano {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 在 shared composition policy 中不应被错误降级回旧 preset。"
+                )
+            )
+        }
+        if presentation.resolvedLayoutPreferences.isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 在 makePresentation 中应强制关闭 piano accessory，避免 duplicate `.piano` surface。"
+                )
+            )
+        }
+        if presentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的主 scene 不应被误标记为 legacy page 可直接投影。"
+                )
+            )
+        }
+        if presentation.projectedSurfaceState(for: .staff) != .promptOnly {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 中的 `staff` 应继续暴露 prompt-only surface state。"
+                )
+            )
+        }
+        if presentation.projectedSurfaceState(for: .piano) != .answerOnly {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 中的主 `piano` 应暴露 answer-only surface state。"
+                )
+            )
+        }
+        if presentation.containsSurface(.fretboard)
+            || presentation.containsSurface(.naturalNoteStrip) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` scene 不应混入 `fretboard` 或 `natural note strip`。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateSharedSurfaceStateDefaultsFollowSurfaceRoles()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "shared_surface_state_defaults_follow_surface_roles"

@@ -216,8 +216,16 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateCompositionPolicyProjectsSupportedPresetsToExpectedScenes
             ),
             ExerciseCompositionValidationFixture(
+                name: "staff_to_piano_scene_promotes_main_piano_answer_surface",
+                validate: validateStaffToPianoScenePromotesMainPianoAnswerSurface
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "accessory_scene_nodes_follow_presentation_strategy",
                 validate: validateAccessorySceneNodesFollowPresentationStrategy
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "staff_to_piano_skips_legacy_back_projection",
+                validate: validateStaffToPianoSkipsLegacyBackProjection
             ),
             ExerciseCompositionValidationFixture(
                 name: "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model",

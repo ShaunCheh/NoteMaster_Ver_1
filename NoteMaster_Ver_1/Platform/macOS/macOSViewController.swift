@@ -948,25 +948,25 @@ final class macOSViewController: NSViewController {
         staffView: staffView,
         targetNotePromptView: targetNotePromptView,
         naturalNoteStripView: naturalNoteStripView,
-        pianoAccessoryView: pianoAccessorySurfaceView,
+        pianoSurfaceView: pianoSurfaceView,
         fretboardView: fretboardView
     )
 
-    private lazy var pianoAccessorySurfaceView: macOSPianoSurfaceView = {
-        let pianoAccessorySurfaceView = macOSPianoSurfaceView(
+    private lazy var pianoSurfaceView: macOSPianoSurfaceView = {
+        let pianoSurfaceView = macOSPianoSurfaceView(
             chromeStyle: .card,
             panelState: pianoPanelState
         )
-        pianoAccessorySurfaceView.onPreviewStarted = { [weak self] preview in
+        pianoSurfaceView.onPreviewStarted = { [weak self] preview in
             self?.handlePianoSemanticEvent(.previewStarted(preview))
         }
-        pianoAccessorySurfaceView.onPreviewChanged = { [weak self] preview in
+        pianoSurfaceView.onPreviewChanged = { [weak self] preview in
             self?.handlePianoSemanticEvent(.previewChanged(preview))
         }
-        pianoAccessorySurfaceView.onPreviewEnded = { [weak self] preview in
+        pianoSurfaceView.onPreviewEnded = { [weak self] preview in
             self?.handlePianoSemanticEvent(.previewEnded(preview))
         }
-        return pianoAccessorySurfaceView
+        return pianoSurfaceView
     }()
 
     override func loadView() {
@@ -1046,7 +1046,7 @@ final class macOSViewController: NSViewController {
             return
         }
 
-        pianoAccessorySurfaceView.interruptActiveInteraction()
+        pianoSurfaceView.interruptActiveInteraction()
         playbackCoordinator?.forceStop(reason: reason)
     }
 
@@ -1916,10 +1916,10 @@ final class macOSViewController: NSViewController {
     }
 
     private func applyPianoDemoState() {
-        pianoAccessorySurfaceView.applySharedSettings(
+        pianoSurfaceView.applySharedSettings(
             pianoPanelState.settingsSlice
         )
-        pianoAccessorySurfaceView.showsComponentBoundsOverlay = false
+        pianoSurfaceView.showsComponentBoundsOverlay = false
     }
 
     private func handlePianoSemanticEvent(_ event: PianoSemanticEvent) {

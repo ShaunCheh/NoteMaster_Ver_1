@@ -53,12 +53,22 @@ enum LegacyPageLayoutAdapter {
         from preferences: ExerciseLayoutPreferences,
         trainerDisplayState: TrainerDisplayState
     ) -> PageDisplayState {
+        let resolvedPreferences = normalizedPreferences(
+            preferences,
+            trainerDisplayState: trainerDisplayState
+        )
+        if resolvedPreferences.compositionPreset == .staffToPiano {
+            return fallbackPageDisplayState(
+                for: trainerDisplayState.exerciseMode
+            )
+        }
+
         let presentationState = ExerciseCompositionPolicy
             .makeLegacyCompatiblePresentation(
                 from: policyInput(
                     trainerDisplayState: trainerDisplayState,
                     pianoPanelState: .init(),
-                    layoutPreferences: preferences
+                    layoutPreferences: resolvedPreferences
                 )
             )
 
@@ -66,12 +76,7 @@ enum LegacyPageLayoutAdapter {
             return legacyPageDisplayState
         }
 
-        switch trainerDisplayState.exerciseMode {
-        case .single, .sequence, .sr1, .sr2:
-            return .default
-        case .positionPrompt:
-            return .positionPrompt
-        }
+        return fallbackPageDisplayState(for: trainerDisplayState.exerciseMode)
     }
 
     static func isCompositionPresetSupported(
@@ -148,5 +153,16 @@ enum LegacyPageLayoutAdapter {
             pianoPanelState: pianoPanelState,
             layoutPreferences: layoutPreferences
         )
+    }
+
+    private static func fallbackPageDisplayState(
+        for exerciseMode: TrainerExerciseMode
+    ) -> PageDisplayState {
+        switch exerciseMode {
+        case .single, .sequence, .sr1, .sr2:
+            return .default
+        case .positionPrompt:
+            return .positionPrompt
+        }
     }
 }

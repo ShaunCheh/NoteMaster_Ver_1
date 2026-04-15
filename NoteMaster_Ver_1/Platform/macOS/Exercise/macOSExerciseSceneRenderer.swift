@@ -197,7 +197,7 @@ final class macOSExerciseSceneRenderer {
     private let staffView: macOSStaffView
     private let targetNotePromptView: macOSTargetNotePromptView
     private let naturalNoteStripView: macOSNaturalNoteStripView
-    private let pianoAccessoryView: NSView
+    private let pianoSurfaceView: NSView
     private let fretboardView: macOSFretboardView
 
     private var currentPresentationState: ExercisePresentationState?
@@ -221,7 +221,7 @@ final class macOSExerciseSceneRenderer {
         staffView: macOSStaffView,
         targetNotePromptView: macOSTargetNotePromptView,
         naturalNoteStripView: macOSNaturalNoteStripView,
-        pianoAccessoryView: NSView,
+        pianoSurfaceView: NSView,
         fretboardView: macOSFretboardView
     ) {
         self.safeAreaHeightAnchor = safeAreaHeightAnchor
@@ -230,7 +230,7 @@ final class macOSExerciseSceneRenderer {
         self.staffView = staffView
         self.targetNotePromptView = targetNotePromptView
         self.naturalNoteStripView = naturalNoteStripView
-        self.pianoAccessoryView = pianoAccessoryView
+        self.pianoSurfaceView = pianoSurfaceView
         self.fretboardView = fretboardView
 
         sceneHostViews[.root] = rootHostView
@@ -290,7 +290,7 @@ final class macOSExerciseSceneRenderer {
         staffView.translatesAutoresizingMaskIntoConstraints = false
         targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
         naturalNoteStripView.translatesAutoresizingMaskIntoConstraints = false
-        pianoAccessoryView.translatesAutoresizingMaskIntoConstraints = false
+        pianoSurfaceView.translatesAutoresizingMaskIntoConstraints = false
         sequenceRegenerateButton.translatesAutoresizingMaskIntoConstraints = false
 
         fretboardViewportScrollView.drawsBackground = false
@@ -1021,7 +1021,7 @@ final class macOSExerciseSceneRenderer {
         case .naturalNoteStrip:
             naturalNoteStripView.isHidden = isHidden
         case .piano:
-            pianoAccessoryView.isHidden = isHidden
+            pianoSurfaceView.isHidden = isHidden
         }
     }
 
@@ -1036,7 +1036,7 @@ final class macOSExerciseSceneRenderer {
         case .naturalNoteStrip:
             return naturalNoteStripView
         case .piano:
-            return pianoAccessoryView
+            return pianoSurfaceView
         }
     }
 

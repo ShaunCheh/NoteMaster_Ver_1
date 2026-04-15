@@ -972,6 +972,131 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateStaffToPianoSkipsLegacyBackProjection()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "staff_to_piano_skips_legacy_back_projection"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let trainerDisplayState = TrainerDisplayState(exerciseMode: .single)
+        let requestedPreferences = ExerciseLayoutPreferences(
+            compositionPreset: .staffToPiano,
+            layoutPreset: .stacked,
+            accessoryPresentation: .docked,
+            isNaturalNoteStripVisible: false,
+            isPianoAccessoryVisible: true,
+            isAccessoryExpanded: true
+        )
+        let normalizedPreferences = LegacyPageLayoutAdapter.normalizedPreferences(
+            requestedPreferences,
+            trainerDisplayState: trainerDisplayState
+        )
+        if normalizedPreferences.compositionPreset != .staffToPiano {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 在 legacy adapter 的 normalize 阶段不应被提前改写成 legacy preset。"
+                )
+            )
+        }
+        if normalizedPreferences.isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 在 legacy adapter 的 normalize 阶段应强制关闭 piano accessory。"
+                )
+            )
+        }
+
+        let projectedPageDisplayState = LegacyPageLayoutAdapter
+            .projectedPageDisplayState(
+                from: requestedPreferences,
+                trainerDisplayState: trainerDisplayState
+            )
+        if projectedPageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 在 legacy adapter 中应直接回落到默认 legacy page，而不是伪造新的 page 投影。"
+                )
+            )
+        }
+
+        var stateContext = SettingsPanelStateContext(
+            pageDisplayState: .default,
+            exerciseLayoutPreferences: requestedPreferences,
+            trainerDisplayState: trainerDisplayState,
+            pianoPanelState: PianoPanelState(isVisible: true)
+        )
+        LegacyPageLayoutAdapter.reconcile(&stateContext)
+        if stateContext.exerciseLayoutPreferences.compositionPreset != .staffToPiano
+            || stateContext.exerciseLayoutPreferences.isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "settings bridge 在回写 `staffToPiano` 时应保留该 preset，并继续压平 piano accessory。"
+                )
+            )
+        }
+        if stateContext.pageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "settings bridge 不应尝试把 `staffToPiano` 反投影成新的 legacy page 组合。"
+                )
+            )
+        }
+        if stateContext.pianoPanelState.isVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的 settings reconcile 应同步清掉 accessory piano 的显隐状态。"
+                )
+            )
+        }
+
+        let legacyCompatiblePresentation = ExerciseCompositionPolicy
+            .makeLegacyCompatiblePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: trainerDisplayState,
+                    fretboardTrainerState: .init(),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: PianoPanelState(isVisible: true),
+                    layoutPreferences: requestedPreferences
+                )
+            )
+        if legacyCompatiblePresentation.resolvedLayoutPreferences.compositionPreset
+            != .staffToFretboard
+            || legacyCompatiblePresentation.resolvedLayoutPreferences.layoutPreset
+            != .stacked {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "显式请求 legacy-compatible presentation 时，`staffToPiano` 应回退到 legacy 可表达的 `staffToFretboard + stacked`。"
+                )
+            )
+        }
+        if legacyCompatiblePresentation.resolvedLayoutPreferences
+            .isPianoAccessoryVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "legacy-compatible fallback 不应把 piano accessory 带回 legacy scene。"
+                )
+            )
+        }
+        if legacyCompatiblePresentation.legacyPageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的 legacy-compatible fallback 应继续回投影到默认 legacy page。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model"

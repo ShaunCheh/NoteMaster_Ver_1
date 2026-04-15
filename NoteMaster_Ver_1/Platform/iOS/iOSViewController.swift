@@ -688,25 +688,25 @@ final class iOSViewController: UIViewController {
         staffView: staffView,
         targetNotePromptView: targetNotePromptView,
         naturalNoteStripView: naturalNoteStripView,
-        pianoAccessoryView: pianoAccessorySurfaceView,
+        pianoSurfaceView: pianoSurfaceView,
         fretboardView: fretboardView
     )
 
-    private lazy var pianoAccessorySurfaceView: iOSPianoSurfaceView = {
-        let pianoAccessorySurfaceView = iOSPianoSurfaceView(
+    private lazy var pianoSurfaceView: iOSPianoSurfaceView = {
+        let pianoSurfaceView = iOSPianoSurfaceView(
             chromeStyle: .card,
             panelState: pianoPanelState
         )
-        pianoAccessorySurfaceView.onPreviewStarted = { [weak self] preview in
+        pianoSurfaceView.onPreviewStarted = { [weak self] preview in
             self?.handlePianoSemanticEvent(.previewStarted(preview))
         }
-        pianoAccessorySurfaceView.onPreviewChanged = { [weak self] preview in
+        pianoSurfaceView.onPreviewChanged = { [weak self] preview in
             self?.handlePianoSemanticEvent(.previewChanged(preview))
         }
-        pianoAccessorySurfaceView.onPreviewEnded = { [weak self] preview in
+        pianoSurfaceView.onPreviewEnded = { [weak self] preview in
             self?.handlePianoSemanticEvent(.previewEnded(preview))
         }
-        return pianoAccessorySurfaceView
+        return pianoSurfaceView
     }()
 
     override func viewDidLoad() {
@@ -768,7 +768,7 @@ final class iOSViewController: UIViewController {
             return
         }
 
-        pianoAccessorySurfaceView.interruptActiveInteraction()
+        pianoSurfaceView.interruptActiveInteraction()
         playbackCoordinator?.forceStop(reason: reason)
     }
 
@@ -1548,10 +1548,10 @@ final class iOSViewController: UIViewController {
     }
 
     private func applyPianoAccessoryState() {
-        pianoAccessorySurfaceView.applySharedSettings(
+        pianoSurfaceView.applySharedSettings(
             pianoPanelState.settingsSlice
         )
-        pianoAccessorySurfaceView.showsComponentBoundsOverlay = false
+        pianoSurfaceView.showsComponentBoundsOverlay = false
         updateLayoutIfNeeded()
         exerciseSceneRenderer.handleLayoutPass()
     }
