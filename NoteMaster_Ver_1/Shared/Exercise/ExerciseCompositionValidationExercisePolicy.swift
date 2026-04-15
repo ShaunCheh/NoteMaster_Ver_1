@@ -1761,6 +1761,57 @@ extension ExerciseCompositionValidationRunner {
             )
         }
 
+        let sr0TrainerDisplayState = TrainerDisplayState(exerciseMode: .sr0)
+        let stackedSR0Presentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: sr0TrainerDisplayState,
+                fretboardTrainerState: .init(
+                    quarterNoteSequenceSpec: sr0TrainerDisplayState
+                        .resolvedSequenceConfiguration
+                        .quarterNoteSequenceSpec
+                ),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .srNoteStripAnswer
+            )
+        )
+        if ExerciseAnswerRouter.route(
+            naturalNoteStripEvent,
+            presentationState: stackedSR0Presentation,
+            trainerDisplayState: sr0TrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .routed(
+            .quarterNoteSequence(
+                event: naturalNoteStripEvent,
+                answer: ResolvedSequenceAnswer(
+                    pitchClass: .e,
+                    notePitch: nil,
+                    surfaceID: .naturalNoteStrip
+                )
+            )
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的双行 natural note strip 点击应继续路由到 quarterNoteSequence，并保持 pitchClass-only 的 sequence 答案载体。"
+                )
+            )
+        }
+        if ExerciseAnswerRouter.route(
+            fretboardCellEvent,
+            presentationState: stackedSR0Presentation,
+            trainerDisplayState: sr0TrainerDisplayState,
+            fretboardConfiguration: fretboardConfiguration
+        ) != .ignored(.surfaceUnavailable(.fretboard)) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 主场景不包含 fretboard 时，fretboardCell 事件应继续被判定为 surfaceUnavailable，而不是误路由到 sequence 答题链。"
+                )
+            )
+        }
+
         let selfAnswerPresentation = ExerciseCompositionPolicy.makePresentation(
             from: ExerciseCompositionPolicyInput(
                 trainerDisplayState: positionPromptTrainerDisplayState,

@@ -108,7 +108,7 @@ enum ExerciseAnswerRouter {
                     cell: cell
                 )
             )
-        case .sequence, .sr1, .sr2:
+        case .sequence, .sr0, .sr1, .sr2:
             guard let answer = FretboardNaturalNoteTrainerState
                 .resolvedSequenceAnswer(
                     from: event,
@@ -134,13 +134,6 @@ enum ExerciseAnswerRouter {
                 .quarterNoteSequence(
                     event: event,
                     answer: answer
-                )
-            )
-        case .sr0:
-            return .ignored(
-                .unsupportedPayload(
-                    event.payload,
-                    trainerDisplayState.exerciseMode
                 )
             )
         case .positionPrompt:
