@@ -24,7 +24,11 @@ enum AppSurfaceKind: String, CaseIterable, Equatable, Hashable, Sendable {
 enum AppSurfacePresentationStyle: String, CaseIterable, Equatable, Hashable,
     Sendable {
     case standard
+    // Reserved for bottom strip scenes. Scheme 1 freezes this style as a
+    // horizontal two-row strip: accidentals on top, naturals on bottom.
     case horizontalStrip
+    // Reserved for side rail scenes and keeps the existing staggered
+    // two-column semantics: accidentals on the left, naturals on the right.
     case verticalRail
 }
 

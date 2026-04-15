@@ -160,6 +160,11 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateSharedSceneContractExposesPresentationStylesAndMainAxisSizing
             ),
             ExerciseCompositionValidationFixture(
+                name: "scheme_one_horizontal_strip_semantic_boundary_stays_distinct_from_vertical_rail",
+                validate:
+                    validateSchemeOneHorizontalStripSemanticBoundaryStaysDistinctFromVerticalRail
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "natural_note_strip_rail_contract_freezes_scope_and_geometry_defaults",
                 validate: validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults
             ),
@@ -265,9 +270,9 @@ extension ExerciseCompositionValidationRunner {
     ) -> [String] {
         var checklist = [
             "确认 `single` 与 `sequence` 继续使用上方 `staff`、下方 `fretboard` 的主视觉组合。",
-            "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合。",
+            "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合；其中底部 `horizontalStrip` 合同在方案一中固定对应“上半音、下自然音”的双行语义。",
             "确认把 `Layout Preset` 切到 `Side` 后，主视觉立即切成左右双栏，而不是被自动打回 `Stacked`。",
-            "确认 `positionPrompt + Side` 在 `fretboardToNaturalNoteStrip` 组合下呈现为左 `fretboard`、右竖排 `natural note strip`，并且左右两块保持同高。",
+            "确认 `positionPrompt + Side` 在 `fretboardToNaturalNoteStrip` 组合下呈现为左 `fretboard`、右竖排 `natural note strip`；右侧 strip 继续走 `verticalRail` 语义，不会被底部 `horizontalStrip` 合同覆盖。",
             "确认在 `positionPrompt` 里切到 `Composition Preset = Self` 后，页面收敛为单 `fretboard`，并且 settings 重新打开后该选择仍然保留。",
             "确认 stacked/side 的 `positionPrompt` 里，只有当前 answer surface 会响应答题；prompt-only 的 `fretboard` 点击不会误触发答题。",
             "确认单 `fretboard` 自答时，点击同音位置会走统一 answer router，并在正确反馈结束后推进到下一题。",
@@ -275,7 +280,7 @@ extension ExerciseCompositionValidationRunner {
             "确认关闭 settings 后页面恢复到关闭前的 prompt/answer 组合，不会闪回 `PageDisplayState.default`。",
             "确认 `positionPrompt` 下方的 `natural note strip` 不再被拉伸到超出首屏；无需向下滚动就能看见按钮文字。",
             "确认右侧 rail 场景下，首屏无需额外滚动就能同时看到完整 `fretboard` 高度与竖排 `natural note strip` 按钮列。",
-            "确认切回 stacked 后，`natural note strip` 仍保持底部横条形态，不会被错误保留成竖排 rail。",
+            "确认切回 stacked 后，`natural note strip` 仍保持底部 `horizontalStrip` 合同，不会被错误保留成右侧 `verticalRail`。",
             "确认右侧 rail 场景中的 `natural note strip` 继续可以答题，答对/答错反馈和题目推进逻辑不变。",
             "确认 `Piano Accessory Visible` 默认关闭；打开后会按当前 `Accessory Presentation` 进入 docked / floating / collapsible scene，关闭后主 prompt/answer 组合不发生漂移。",
             "确认在 `single/sequence` 下打开 `Natural Strip Visible` 时，strip 会作为 accessory surface 参与布局，但不会抢走 answer surface 角色。",

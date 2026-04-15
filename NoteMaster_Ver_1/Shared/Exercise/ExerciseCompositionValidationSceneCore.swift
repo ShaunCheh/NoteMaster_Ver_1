@@ -253,6 +253,198 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateSchemeOneHorizontalStripSemanticBoundaryStaysDistinctFromVerticalRail()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "scheme_one_horizontal_strip_semantic_boundary_stays_distinct_from_vertical_rail"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let expectedAccidentals: [PitchClass] = [
+            .cSharp,
+            .dSharp,
+            .fSharp,
+            .gSharp,
+            .aSharp
+        ]
+        if PitchClass.accidentalCasesInOrder != expectedAccidentals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 应把 horizontalStrip 的顶行来源冻结为 C#-D#-F#-G#-A#，对应上方半音按钮。"
+                )
+            )
+        }
+        if !PitchClass.accidentalCasesInOrder.allSatisfy(\.isAccidental) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 不应把自然音混进 horizontalStrip 的顶行 accidental source。"
+                )
+            )
+        }
+
+        let expectedNaturals: [PitchClass] = [.c, .d, .e, .f, .g, .a, .b]
+        if PitchClass.naturalCasesInOrder != expectedNaturals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 应把 horizontalStrip 的底行来源冻结为 C-D-E-F-G-A-B，对应下方自然音按钮。"
+                )
+            )
+        }
+        if !PitchClass.naturalCasesInOrder.allSatisfy(\.isNatural) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 不应把半音混进 horizontalStrip 的底行 natural source。"
+                )
+            )
+        }
+
+        let horizontalStripPitchSet = Set(
+            PitchClass.accidentalCasesInOrder + PitchClass.naturalCasesInOrder
+        )
+        if horizontalStripPitchSet.count != PitchClass.allCases.count
+            || horizontalStripPitchSet != Set(PitchClass.allCases) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 应让 horizontalStrip 的上下两行合起来恰好覆盖 12 个 PitchClass，避免遗漏或重复。"
+                )
+            )
+        }
+        if !Set(PitchClass.accidentalCasesInOrder).isDisjoint(
+            with: Set(PitchClass.naturalCasesInOrder)
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 应保证 horizontalStrip 的顶行与底行语义彼此正交，不共享 PitchClass。"
+                )
+            )
+        }
+
+        let stackedPositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .stacked
+                    )
+                )
+            )
+        switch stackedPositionPromptPresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .vertical {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 的 stacked strip 场景应继续保持 vertical split，明确它属于底部 horizontalStrip 语境。"
+                    )
+                )
+            }
+            guard
+                children.count == 2,
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(answerSurface) = children[1].node
+            else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 的 stacked strip 场景应继续稳定投影为上 prompt、下 answer 的双 surface 结构。"
+                    )
+                )
+                break
+            }
+            if promptSurface.id != .fretboard
+                || promptSurface.presentationStyle != .standard
+                || answerSurface.id != .naturalNoteStrip
+                || answerSurface.presentationStyle != .horizontalStrip {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 应把 stacked 的 fretboard -> strip 场景冻结为上方 standard fretboard、下方 horizontalStrip；该 horizontalStrip 的产品语义固定为上半音、下自然音。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 的 stacked strip 场景应继续落成 split scene，而不是退化为单 surface 或 overlay。"
+                )
+            )
+        }
+
+        let sidePositionPromptPresentation = ExerciseCompositionPolicy
+            .makePresentation(
+                from: ExerciseCompositionPolicyInput(
+                    trainerDisplayState: TrainerDisplayState(
+                        exerciseMode: .positionPrompt
+                    ),
+                    fretboardTrainerState: .init(positionPromptMode: ()),
+                    fretboardDisplayState: .default,
+                    staffDisplayState: .default,
+                    pianoPanelState: .init(),
+                    layoutPreferences: ExerciseLayoutPreferences(
+                        compositionPreset: .fretboardToNaturalNoteStrip,
+                        layoutPreset: .sideBySide
+                    )
+                )
+            )
+        switch sidePositionPromptPresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 的 side strip 场景应继续保持 horizontal split，明确它属于右侧 verticalRail 语境。"
+                    )
+                )
+            }
+            guard
+                children.count == 2,
+                case let .surface(promptSurface) = children[0].node,
+                case let .surface(answerSurface) = children[1].node
+            else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 的 side strip 场景应继续稳定投影为左 prompt、右 answer 的双 surface 结构。"
+                    )
+                )
+                break
+            }
+            if promptSurface.id != .fretboard
+                || promptSurface.presentationStyle != .standard
+                || answerSurface.id != .naturalNoteStrip
+                || answerSurface.presentationStyle != .verticalRail {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "阶段 0 应继续把 side 的 fretboard -> strip 场景冻结为左侧 standard fretboard、右侧 verticalRail，防止方案一误伤既有 rail 语义。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 0 的 side strip 场景应继续落成 split scene，而不是被 horizontalStrip 语义吞并。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateNaturalNoteStripRailContractFreezesScopeAndGeometryDefaults()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "natural_note_strip_rail_contract_freezes_scope_and_geometry_defaults"
