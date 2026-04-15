@@ -2204,13 +2204,34 @@ private extension FretboardValidationRunner {
             )
         }
 
-        logStage("naturalPrompt")
-        let naturalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
-            clef: .treble,
-            noteCount: 7,
-            includesAccidentals: false,
-            answerPolicy: .pitchClass
+        logStage("modePolicySeam")
+        let sr1DisplayState = TrainerDisplayState(
+            exerciseMode: .sr1,
+            sequenceConfiguration: TrainerSequenceConfiguration(
+                clef: .bass,
+                noteCount: 7,
+                includesAccidentals: false,
+                answerPolicy: .exactNote
+            )
         )
+        let sr1ResolvedSequenceConfiguration = sr1DisplayState
+            .resolvedSequenceConfiguration
+        if !sr1DisplayState.usesQuarterNoteSequenceKernel {
+            record("SR-1 display state 应继续复用 quarter-note sequence kernel。")
+        }
+        if sr1ResolvedSequenceConfiguration.clef != .treble {
+            record("SR-1 的 resolvedSequenceConfiguration 应强制锁定 treble clef。")
+        }
+        if sr1ResolvedSequenceConfiguration.answerPolicy != .pitchClass {
+            record("SR-1 的 resolvedSequenceConfiguration.answerPolicy 应固定为 .pitchClass。")
+        }
+        if sr1ResolvedSequenceConfiguration.noteCount != 7
+            || sr1ResolvedSequenceConfiguration.includesAccidentals {
+            record("SR-1 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
+        }
+
+        logStage("naturalPrompt")
+        let naturalSpec = sr1ResolvedSequenceConfiguration.quarterNoteSequenceSpec
         var naturalTrainer = FretboardNaturalNoteTrainerState(
             quarterNoteSequenceSpec: naturalSpec
         )
@@ -2379,13 +2400,33 @@ private extension FretboardValidationRunner {
             record("shared sequence comparator 未把 C6 对 C6 的 exactNote 比较判为正确。")
         }
 
-        logStage("exactNoteFlow")
-        let exactSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
-            clef: .treble,
-            noteCount: 1,
-            includesAccidentals: false,
-            answerPolicy: .exactNote
+        let sr2DisplayState = TrainerDisplayState(
+            exerciseMode: .sr2,
+            sequenceConfiguration: TrainerSequenceConfiguration(
+                clef: .bass,
+                noteCount: 1,
+                includesAccidentals: false,
+                answerPolicy: .pitchClass
+            )
         )
+        let sr2ResolvedSequenceConfiguration = sr2DisplayState
+            .resolvedSequenceConfiguration
+        if !sr2DisplayState.usesQuarterNoteSequenceKernel {
+            record("SR-2 display state 应继续复用 quarter-note sequence kernel。")
+        }
+        if sr2ResolvedSequenceConfiguration.clef != .treble {
+            record("SR-2 的 resolvedSequenceConfiguration 应强制锁定 treble clef。")
+        }
+        if sr2ResolvedSequenceConfiguration.answerPolicy != .exactNote {
+            record("SR-2 的 resolvedSequenceConfiguration.answerPolicy 应固定为 .exactNote。")
+        }
+        if sr2ResolvedSequenceConfiguration.noteCount != 1
+            || sr2ResolvedSequenceConfiguration.includesAccidentals {
+            record("SR-2 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
+        }
+
+        logStage("exactNoteFlow")
+        let exactSpec = sr2ResolvedSequenceConfiguration.quarterNoteSequenceSpec
         var exactTrainer = FretboardNaturalNoteTrainerState(
             quarterNoteSequenceSpec: exactSpec
         )

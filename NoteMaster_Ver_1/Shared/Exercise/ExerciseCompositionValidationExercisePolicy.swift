@@ -1097,6 +1097,134 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateSRModesFreezeStaffToPianoPolicyContracts()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "sr_modes_freeze_staff_to_piano_policy_contracts"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        func validateMode(
+            _ exerciseMode: TrainerExerciseMode,
+            requestedAnswerPolicy: TrainerSequenceAnswerPolicy,
+            expectedAnswerPolicy: TrainerSequenceAnswerPolicy
+        ) {
+            let trainerDisplayState = TrainerDisplayState(
+                exerciseMode: exerciseMode,
+                sequenceConfiguration: TrainerSequenceConfiguration(
+                    clef: .bass,
+                    noteCount: 5,
+                    includesAccidentals: true,
+                    answerPolicy: requestedAnswerPolicy
+                )
+            )
+            let requestedPreferences = ExerciseLayoutPreferences(
+                compositionPreset: .targetPromptToFretboard,
+                layoutPreset: .sideBySide,
+                accessoryPresentation: .floating,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: false
+            )
+            let modeDebugName = String(describing: exerciseMode)
+            let resolvedSequenceConfiguration = trainerDisplayState
+                .resolvedSequenceConfiguration
+            let normalizedPreferences = ExerciseCompositionPolicy
+                .normalizedPreferences(
+                    requestedPreferences,
+                    trainerDisplayState: trainerDisplayState
+                )
+            let normalizedLegacyPreferences = LegacyPageLayoutAdapter
+                .normalizedPreferences(
+                    requestedPreferences,
+                    trainerDisplayState: trainerDisplayState
+                )
+
+            if !trainerDisplayState.usesQuarterNoteSequenceKernel {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 应继续复用 quarter-note sequence kernel，而不是退回 single/position prompt 路径。"
+                    )
+                )
+            }
+            if resolvedSequenceConfiguration.clef != .treble {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 resolvedSequenceConfiguration 应强制锁定 treble clef。"
+                    )
+                )
+            }
+            if resolvedSequenceConfiguration.answerPolicy != expectedAnswerPolicy {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 resolvedSequenceConfiguration.answerPolicy 应固定为 \(expectedAnswerPolicy)，而不是沿用请求值 \(requestedAnswerPolicy)。"
+                    )
+                )
+            }
+            if resolvedSequenceConfiguration.noteCount != 5
+                || !resolvedSequenceConfiguration.includesAccidentals {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 只应钳制 clef / answerPolicy；noteCount 与 includesAccidentals 应继续保留用户配置。"
+                    )
+                )
+            }
+            if normalizedPreferences != .srPianoAnswer {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 shared normalization 应统一收敛到固定的 SR staff-to-piano layout。"
+                    )
+                )
+            }
+            if normalizedLegacyPreferences != .srPianoAnswer {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 settings / legacy bridge normalization 也应与 shared normalization 对齐到同一份 SR layout 常量。"
+                    )
+                )
+            }
+            if !ExerciseCompositionPolicy.isCompositionPresetSupported(
+                .staffToPiano,
+                for: exerciseMode
+            ) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 应显式支持 `staffToPiano` composition preset。"
+                    )
+                )
+            }
+            if ExerciseCompositionPolicy.isCompositionPresetSupported(
+                .staffToFretboard,
+                for: exerciseMode
+            ) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 不应再把 `staffToFretboard` 暴露成可选主场景，避免 SR seam 漂回 legacy 组合。"
+                    )
+                )
+            }
+        }
+
+        validateMode(
+            .sr1,
+            requestedAnswerPolicy: .exactNote,
+            expectedAnswerPolicy: .pitchClass
+        )
+        validateMode(
+            .sr2,
+            requestedAnswerPolicy: .pitchClass,
+            expectedAnswerPolicy: .exactNote
+        )
+
+        return issues
+    }
+
     static func validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model"

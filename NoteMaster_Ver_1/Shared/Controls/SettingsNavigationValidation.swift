@@ -146,6 +146,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateRootModeSwitchPreservesExerciseTreeAndState
             ),
             SettingsNavigationValidationFixture(
+                name: "sr1_root_tree_drops_invalid_exercise_and_accessory_routes",
+                validate: validateSR1RootTreeDropsInvalidExerciseAndAccessoryRoutes
+            ),
+            SettingsNavigationValidationFixture(
                 name: "position_prompt_section_visibility_tracks_exercise_mode",
                 validate: validatePositionPromptSectionVisibilityTracksExerciseMode
             ),
@@ -174,6 +178,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateExerciseLayoutRouteRemainsStableAcrossChoiceUpdates
             ),
             SettingsNavigationValidationFixture(
+                name: "sr1_settings_state_freezes_fixed_presentation_options",
+                validate: validateSR1SettingsStateFreezesFixedPresentationOptions
+            ),
+            SettingsNavigationValidationFixture(
                 name: "reserved_route_titles_remain_stable",
                 validate: validateReservedRouteTitlesRemainStable
             ),
@@ -198,6 +206,8 @@ private extension SettingsNavigationValidationRunner {
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
+            "确认切到 `SR-1` 后，settings root 会移除 `Accessories` 分区，`Exercise` 也只保留有效的 `Mode` 入口，不再暴露会被 fixed normalization 强拉回的子页。",
+            "确认 `SR-1` 下 `Staff > Clef`、`Piano > Rows and movement` 中被固定的选项会消失，但 `Piano > Appearance` 与 `Snap Drag` 仍可继续访问。",
             "确认 `Debug` 分区包含 `Component Bounds` 与 `Side Container Borders` 两个开关；切换 `Side Container Borders` 时 side 布局的红/蓝容器边框会立即显示或隐藏。",
             "停留在 `Exercise > Layout` 子页时直接切换 `Stacked / Side / Single`，确认当前页不会闪跳、不会被重建回上一层，且选中态立即更新。",
             "确认切到 `play` mode 的 settings 后，root 只保留 `Mode / Piano` 分区，不再暴露 `Exercise / Accessories / Fretboard / Staff / Debug`。",

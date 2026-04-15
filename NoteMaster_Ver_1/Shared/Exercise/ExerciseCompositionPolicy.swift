@@ -52,6 +52,10 @@ enum ExerciseCompositionPolicy {
         legacyCompatibleInput.layoutPreferences = legacyCompatiblePreferences(
             from: input
         )
+        legacyCompatibleInput.trainerDisplayState = legacyCompatibleTrainerDisplayState(
+            input.trainerDisplayState
+        )
+        legacyCompatibleInput.pianoPanelState.isVisible = false
         return makePresentation(from: legacyCompatibleInput)
     }
 
@@ -405,5 +409,20 @@ enum ExerciseCompositionPolicy {
                 isAccessoryExpanded: true
             )
         }
+    }
+
+    private static func legacyCompatibleTrainerDisplayState(
+        _ trainerDisplayState: TrainerDisplayState
+    ) -> TrainerDisplayState {
+        var legacyCompatibleState = trainerDisplayState
+        switch legacyCompatibleState.exerciseMode {
+        case .sr1, .sr2:
+            // Explicit legacy fallback should render through a layout-compatible
+            // host mode instead of being re-normalized back to staffToPiano.
+            legacyCompatibleState.exerciseMode = .sequence
+        case .single, .sequence, .positionPrompt:
+            break
+        }
+        return legacyCompatibleState
     }
 }

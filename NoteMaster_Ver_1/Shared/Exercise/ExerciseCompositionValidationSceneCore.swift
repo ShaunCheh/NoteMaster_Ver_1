@@ -2029,6 +2029,9 @@ extension ExerciseCompositionValidationRunner {
             )
         )
         let rawSurfaceIDs = rawScene.surfaceNodes.map(\.id)
+        let rawPianoSurfaceCount = rawScene.surfaceNodes.filter {
+            $0.id == .piano
+        }.count
         if rawSurfaceIDs.count != 2
             || Set(rawSurfaceIDs) != Set([.staff, .piano]) {
             issues.append(
@@ -2043,6 +2046,22 @@ extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "`staffToPiano` scene 在请求显示 piano accessory 时仍应生成合法 scene。"
+                )
+            )
+        }
+        if rawPianoSurfaceCount != 1 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的 raw scene 里只允许存在一个逻辑 `.piano` surface，避免 main piano 与 accessory piano 同场共存。"
+                )
+            )
+        }
+        if ExerciseSceneValidator.legacyPageDisplayState(for: rawScene) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的 raw scene 应被视为合法但不可投影到 legacy page 的新场景，而不是伪装成旧 page 结构。"
                 )
             )
         }
@@ -2113,6 +2132,9 @@ extension ExerciseCompositionValidationRunner {
                 )
             )
         )
+        let presentationPianoSurfaceCount = presentation.scene.surfaceNodes.filter {
+            $0.id == .piano
+        }.count
         if presentation.resolvedLayoutPreferences.compositionPreset != .staffToPiano {
             issues.append(
                 issue(
@@ -2134,6 +2156,22 @@ extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "`staffToPiano` 的主 scene 不应被误标记为 legacy page 可直接投影。"
+                )
+            )
+        }
+        if ExerciseSceneValidator.legacyPageDisplayState(for: presentation.scene) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的 presentation.scene 应继续被 scene validator 视为 non-legacy；`legacyPageDisplayState == nil` 在 SR-1 下是预期结果。"
+                )
+            )
+        }
+        if presentationPianoSurfaceCount != 1 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToPiano` 的最终 presentation.scene 只允许保留一个主 `.piano` surface。"
                 )
             )
         }

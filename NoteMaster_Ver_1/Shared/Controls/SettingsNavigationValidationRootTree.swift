@@ -9,6 +9,149 @@ import Foundation
 
 @MainActor
 extension SettingsNavigationValidationRunner {
+    static func validateSR1RootTreeDropsInvalidExerciseAndAccessoryRoutes()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "sr1_root_tree_drops_invalid_exercise_and_accessory_routes"
+        let stateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardSelfAnswer,
+                layoutPreset: .singleSurface,
+                accessoryPresentation: .collapsible,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: false
+            ),
+            trainerDisplayState: TrainerDisplayState(
+                exerciseMode: .sr1,
+                sequenceConfiguration: TrainerSequenceConfiguration(
+                    clef: .bass,
+                    noteCount: 5,
+                    includesAccidentals: true,
+                    answerPolicy: .exactNote
+                )
+            ),
+            pianoPanelState: PianoPanelState(
+                isVisible: true,
+                rowCount: 6,
+                movementScope: .cascade
+            )
+        )
+        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
+        let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: stateContext
+        )
+        let expectedRootSectionIDs: [SettingsSectionID] = [
+            .mode,
+            .exercise,
+            .fretboard,
+            .staff,
+            .piano,
+            .debug
+        ]
+        var issues: [SettingsNavigationValidationIssue] = []
+
+        if panelModel.sections.map(\.id) != expectedRootSectionIDs {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 root tree 应裁掉 Accessories 分区，只保留 Mode / Exercise / Fretboard / Staff / Piano / Debug。"
+                )
+            )
+        }
+
+        guard let rootPage = navigationModel.rootPage,
+              let rootRouteItems = rootPage.content.routeItems else {
+            issues.append(
+                issue(fixtureName, "SR-1 state 应继续生成可用的 settings root page。")
+            )
+            return issues
+        }
+
+        let expectedRootRoutes = expectedRootSectionIDs.map(SettingsRouteID.section)
+        if rootRouteItems.map(\.route) != expectedRootRoutes {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 root route items 应与收敛后的 section 顺序完全一致。"
+                )
+            )
+        }
+        if rootRouteItems.contains(where: { $0.route == .section(.accessories) }) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 root page 不应再暴露 Accessories section 入口。"
+                )
+            )
+        }
+
+        guard let exercisePage = navigationModel.page(for: .section(.exercise)),
+              let exerciseSection = exercisePage.content.sections?.first else {
+            issues.append(
+                issue(fixtureName, "SR-1 root tree 应继续保留 Exercise section page。")
+            )
+            return issues
+        }
+
+        if exerciseSection.rows.map(\.id) != [.choice(.exerciseMode)] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 的 Exercise section page 应折叠成只包含 Exercise Mode 的单页表单。"
+                )
+            )
+        }
+        if navigationModel.page(for: .exerciseMode) != nil
+            || navigationModel.page(for: .exerciseComposition) != nil
+            || navigationModel.page(for: .exerciseLayout) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 下不应继续保留 Exercise 的深层 Mode / Composition / Layout 子页。"
+                )
+            )
+        }
+        if navigationModel.page(for: .section(.accessories)) != nil
+            || navigationModel.page(for: .accessoryVisibility) != nil
+            || navigationModel.page(for: .accessoryPresentation) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 下不应继续生成 Accessories section 或其深层子页。"
+                )
+            )
+        }
+        if navigationModel.reconciledPath([
+            .root,
+            .section(.exercise),
+            .exerciseLayout
+        ]) != [
+            .root,
+            .section(.exercise)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 下请求失效的 Exercise 深层 route 时，应回退到仍然有效的 Exercise section。"
+                )
+            )
+        }
+        if navigationModel.reconciledPath([
+            .root,
+            .section(.accessories),
+            .accessoryVisibility
+        ]) != [.root] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 下请求已移除的 Accessories route 时，应直接回退到 root。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateRootRouteItemsMatchPanelSections()
         -> [SettingsNavigationValidationIssue] {
         let fixtureName = "root_route_items_match_panel_sections"

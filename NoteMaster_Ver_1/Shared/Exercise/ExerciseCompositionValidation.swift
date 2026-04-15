@@ -228,6 +228,10 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateStaffToPianoSkipsLegacyBackProjection
             ),
             ExerciseCompositionValidationFixture(
+                name: "sr_modes_freeze_staff_to_piano_policy_contracts",
+                validate: validateSRModesFreezeStaffToPianoPolicyContracts
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model",
                 validate: validateLegacyCompatiblePolicyFallsBackWhenSceneExceedsPageModel
             ),
@@ -277,7 +281,9 @@ extension ExerciseCompositionValidationRunner {
             "确认在 `single/sequence` 下打开 `Natural Strip Visible` 时，strip 会作为 accessory surface 参与布局，但不会抢走 answer surface 角色。",
             "确认 `Collapsible` accessory 收起时，隐藏的 accessory 不可见也不可交互；重新展开后恢复到原来的 surface。",
             "确认 `single/sequence + Side` 未投影 `natural note strip` 时，scene membership 仍为 absent，而 renderer/controller/router 只把它当作有效 `.hidden`，不会误判为混入布局。",
-            "确认 `stacked + vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 或 `side` 后该滑块消失，切回 `stacked + vertical` 后沿用上次值。"
+            "确认 `stacked + vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 或 `side` 后该滑块消失，切回 `stacked + vertical` 后沿用上次值。",
+            "确认切到 `SR-1` 后主视觉稳定收敛到 `treble staff + 单行 piano`，不会再把 `piano accessory` 或 legacy page 投影混回主场景。",
+            "确认 `SR-1` 下钢琴答错会给五线谱错误反馈、答对会推进到下一题；随后切回非 SR 模式时不会残留 sequence 高亮或钢琴答题缓存。"
         ]
 
         switch platform {

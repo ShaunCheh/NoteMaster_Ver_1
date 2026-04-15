@@ -935,4 +935,221 @@ extension SettingsNavigationValidationRunner {
 
         return issues
     }
+
+    static func validateSR1SettingsStateFreezesFixedPresentationOptions()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "sr1_settings_state_freezes_fixed_presentation_options"
+        var issues: [SettingsNavigationValidationIssue] = []
+        var stateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardSelfAnswer,
+                layoutPreset: .singleSurface,
+                accessoryPresentation: .collapsible,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: false
+            ),
+            trainerDisplayState: TrainerDisplayState(
+                exerciseMode: .single,
+                sequenceConfiguration: TrainerSequenceConfiguration(
+                    clef: .bass,
+                    noteCount: 5,
+                    includesAccidentals: true,
+                    answerPolicy: .exactNote
+                )
+            ),
+            pianoPanelState: PianoPanelState(
+                isVisible: true,
+                rowCount: 6,
+                movementScope: .cascade
+            )
+        )
+        SettingsPanelEvent.triggerAction(.setExerciseModeSr1).apply(
+            to: &stateContext
+        )
+
+        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
+        let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: stateContext
+        )
+        let resolvedSequenceConfiguration = stateContext.trainerDisplayState
+            .resolvedSequenceConfiguration
+
+        if stateContext.trainerDisplayState.exerciseMode != .sr1 {
+            issues.append(
+                issue(fixtureName, "触发 setExerciseModeSr1 后，trainerDisplayState.exerciseMode 应切到 .sr1。")
+            )
+        }
+        if stateContext.exerciseLayoutPreferences != .srPianoAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 的 settings writeback 应把 exerciseLayoutPreferences 固定收敛到 `staffToPiano + stacked`。"
+                )
+            )
+        }
+        if stateContext.pageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 的 settings state 仍应保留 legacy 默认 pageState 作为后台兼容值，而不是伪造新的 legacy 组合。"
+                )
+            )
+        }
+        if stateContext.pianoPanelState.isVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 的 settings writeback 应同步清掉 accessory piano 显隐状态。"
+                )
+            )
+        }
+        if resolvedSequenceConfiguration.clef != .treble
+            || resolvedSequenceConfiguration.answerPolicy != .pitchClass {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 的 resolvedSequenceConfiguration 应强制固定为 treble + pitchClass。"
+                )
+            )
+        }
+        if resolvedSequenceConfiguration.noteCount != 5
+            || !resolvedSequenceConfiguration.includesAccidentals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 只应钳制 clef / answerPolicy；其余 sequence 配置仍应保留。"
+                )
+            )
+        }
+
+        guard let exerciseModeRow = panelModel.choiceRow(for: .exerciseMode) else {
+            issues.append(
+                issue(fixtureName, "SR-1 state 应继续暴露 Exercise Mode row。")
+            )
+            return issues
+        }
+
+        if exerciseModeRow.choices.map(\.id) != [
+            .setExerciseModeSingle,
+            .setExerciseModeSequence,
+            .setExerciseModeSr1,
+            .setExerciseModePositionPrompt
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / SR-1 / Position。"
+                )
+            )
+        }
+        if exerciseModeRow.choices.filter(\.isSelected).map(\.id) != [
+            .setExerciseModeSr1
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下 Exercise Mode row 应只选中 SR-1。"
+                )
+            )
+        }
+        if panelModel.choiceRow(for: .compositionPreset) != nil
+            || panelModel.choiceRow(for: .layoutPreset) != nil
+            || panelModel.choiceRow(for: .accessoryPresentation) != nil
+            || panelModel.toggleRow(for: .naturalStripVisible) != nil
+            || panelModel.toggleRow(for: .pianoAccessoryVisible) != nil
+            || panelModel.toggleRow(for: .accessoryExpanded) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下所有会被 fixed presentation 强拉回的 Exercise / Accessories 行都应从 panel snapshot 中隐藏。"
+                )
+            )
+        }
+        if panelModel.choiceRow(for: .clef) != nil
+            || panelModel.sliderRow(for: .pianoRowCount) != nil
+            || panelModel.choiceRow(for: .pianoMovementScope) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下固定的 Clef / Piano Rows / Piano Movement Scope 行都应被隐藏。"
+                )
+            )
+        }
+        if resolveSection(.accessories, in: panelModel) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下 Accessories section 应整体消失，而不是保留一个空分区。"
+                )
+            )
+        }
+
+        guard let pianoSection = resolveSection(.piano, in: panelModel) else {
+            issues.append(
+                issue(fixtureName, "SR-1 state 下仍应保留 Piano section。")
+            )
+            return issues
+        }
+
+        if pianoSection.rows.map(\.id) != [
+            .choice(.pianoWhiteKeyStyle),
+            .toggle(.pianoSnapEnabled)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下 Piano section 应只保留 White Key Style 与 Snap Drag。"
+                )
+            )
+        }
+
+        guard let pianoBehaviorPage = navigationModel.page(for: .pianoBehavior),
+              let pianoBehaviorSection = pianoBehaviorPage.content.sections?.first else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下仍应生成 Piano Behavior page，以保留 Snap Drag。"
+                )
+            )
+            return issues
+        }
+
+        if pianoBehaviorSection.rows.map(\.id) != [
+            .toggle(.pianoSnapEnabled)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下 Piano Behavior page 应收敛为只包含 Snap Drag。"
+                )
+            )
+        }
+        if navigationModel.page(for: .pianoAppearance) == nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下仍应保留 Piano Appearance page。"
+                )
+            )
+        }
+        if navigationModel.reconciledPath([
+            .root,
+            .section(.piano),
+            .pianoBehavior
+        ]) != [
+            .root,
+            .section(.piano),
+            .pianoBehavior
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 state 下 Piano > Behavior 路径仍应保持可达。"
+                )
+            )
+        }
+
+        return issues
+    }
 }

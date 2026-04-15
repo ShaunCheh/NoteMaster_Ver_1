@@ -53,7 +53,34 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
         self.window = window
 
         #if DEBUG
-        if RuntimeSmokeScenario.shouldRunLayoutPresetRegression {
+        if RuntimeSmokeScenario.shouldRunSR1PianoAnswerSmoke {
+            print("[RuntimeSmoke][iOS] scheduled scenario=sr1_piano_answer")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard
+                    let self,
+                    let window = self.window,
+                    let rootViewController = window.rootViewController
+                    as? iOSRootViewController,
+                    let viewController = rootViewController.activeExerciseViewController
+                else {
+                    let summary =
+                        "[RuntimeSmoke][iOS] FAIL scenario=sr1_piano_answer reason=missing_window_or_view_controller"
+                    print(summary)
+                    fatalError(summary)
+                }
+
+                viewController.runSR1PianoAnswerSmokeTest(
+                    in: window
+                ) { passed, summary in
+                    print(summary)
+                    if passed {
+                        exit(0)
+                    } else {
+                        fatalError(summary)
+                    }
+                }
+            }
+        } else if RuntimeSmokeScenario.shouldRunLayoutPresetRegression {
             print("[RuntimeSmoke][iOS] scheduled scenario=layout_preset_regression")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
                 guard
@@ -91,8 +118,14 @@ final class iOSAppDelegate: UIResponder, UIApplicationDelegate {
 #if DEBUG
 private enum RuntimeSmokeScenario {
     static let environmentKey = "NOTE_MASTER_RUNTIME_SMOKE_TEST"
+    static let sr1PianoAnswerValue = "sr1-piano-answer"
     static let layoutPresetRegressionValue = "layout-preset-regression"
     static let startupValidationValue = "startup-validation"
+
+    static var shouldRunSR1PianoAnswerSmoke: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == sr1PianoAnswerValue
+    }
 
     static var shouldRunLayoutPresetRegression: Bool {
         ProcessInfo.processInfo.environment[environmentKey]
