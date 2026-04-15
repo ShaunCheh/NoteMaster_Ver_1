@@ -519,6 +519,7 @@ final class iOSExerciseSceneRenderer {
 
         naturalNoteStripView.applyConfiguration(
             presentationStyle: surface.presentationStyle,
+            horizontalLayout: currentPresentationState?.naturalNoteStripHorizontalLayout,
             railLayout: currentPresentationState?.naturalNoteStripRailLayout
         )
     }

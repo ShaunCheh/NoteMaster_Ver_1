@@ -849,9 +849,11 @@ final class macOSExerciseSceneRenderer {
             return
         }
 
-        naturalNoteStripView.applyPresentationStyle(surface.presentationStyle)
-        naturalNoteStripView.applyRailLayout(
-            currentPresentationState?.naturalNoteStripRailLayout
+        naturalNoteStripView.applyConfiguration(
+            presentationStyle: surface.presentationStyle,
+            horizontalLayout:
+                currentPresentationState?.naturalNoteStripHorizontalLayout,
+            railLayout: currentPresentationState?.naturalNoteStripRailLayout
         )
     }
 

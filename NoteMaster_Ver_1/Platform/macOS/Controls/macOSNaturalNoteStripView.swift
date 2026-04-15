@@ -1,6 +1,17 @@
 #if os(macOS)
 import AppKit
 
+private let defaultNaturalNoteStripHorizontalLayout =
+    ExerciseNaturalNoteStripHorizontalLayoutContext(
+        appliesToSurface: .naturalNoteStrip,
+        titleDisplayPolicy:
+            ExerciseNaturalNoteStripHorizontalLayoutContext
+            .defaultTitleDisplayPolicy,
+        geometry: .defaultTwoRowHorizontalStrip(),
+        accidentalPitchClasses: PitchClass.accidentalCasesInOrder,
+        naturalPitchClasses: PitchClass.naturalCasesInOrder
+    ).resolvedLayout
+
 private let defaultNaturalNoteStripRailLayout =
     ExerciseNaturalNoteStripRailContract.defaultSideBySideAnswerRail
         .defaultLayoutContext
@@ -18,33 +29,18 @@ final class macOSNaturalNoteStripView: NSView {
             updateButtonEnabledState()
         }
     }
-    var layoutMode: LayoutMode = .horizontalStrip {
-        didSet {
-            guard oldValue != layoutMode else {
-                return
-            }
-            applyLayoutMode()
-        }
-    }
-
+    private var layoutMode: LayoutMode = .horizontalStrip
+    private var horizontalLayout: ExerciseNaturalNoteStripHorizontalLayout =
+        defaultNaturalNoteStripHorizontalLayout
     private var railLayout: ExerciseNaturalNoteStripRailLayout =
-        defaultNaturalNoteStripRailLayout {
-        didSet {
-            guard oldValue != railLayout else {
-                return
-            }
-            applyLayoutMode()
-        }
-    }
+        defaultNaturalNoteStripRailLayout
 
     override var intrinsicContentSize: NSSize {
         switch layoutMode {
         case .horizontalStrip:
             return NSSize(
                 width: NSView.noIntrinsicMetric,
-                height: Style.contentInsets.top
-                    + tallestButtonIntrinsicHeight
-                    + Style.contentInsets.bottom
+                height: horizontalStripIntrinsicHeight
             )
         case .verticalRail:
             return NSSize(
@@ -55,16 +51,23 @@ final class macOSNaturalNoteStripView: NSView {
     }
 
     private let stackView = NSStackView()
+    private let accidentalRowStackView = NSStackView()
+    private let naturalRowStackView = NSStackView()
     private let railCanvasView = RailCanvasView()
     private lazy var buttons: [NaturalNoteButton] = {
         PitchClass.allCases.map { pitchClass in
             makeButton(for: pitchClass)
         }
     }()
-    private var tallestButtonIntrinsicHeight: CGFloat {
-        buttons.reduce(0) { partialResult, button in
-            max(partialResult, button.intrinsicContentSize.height)
-        }
+    private var stackViewLeadingConstraint: NSLayoutConstraint?
+    private var stackViewTrailingConstraint: NSLayoutConstraint?
+    private var stackViewTopConstraint: NSLayoutConstraint?
+    private var stackViewBottomConstraint: NSLayoutConstraint?
+    private var activeHorizontalLayout: ExerciseNaturalNoteStripHorizontalLayout {
+        horizontalLayout
+    }
+    private var horizontalStripIntrinsicHeight: CGFloat {
+        CGFloat(activeHorizontalLayout.contentSize.height)
     }
     private var activeRailLayout: ExerciseNaturalNoteStripRailLayout {
         railLayout
@@ -91,19 +94,27 @@ final class macOSNaturalNoteStripView: NSView {
         configureView()
     }
 
-    func applyPresentationStyle(
-        _ presentationStyle: ExerciseSurfacePresentationStyle
+    func applyConfiguration(
+        presentationStyle: ExerciseSurfacePresentationStyle,
+        horizontalLayout: ExerciseNaturalNoteStripHorizontalLayout?,
+        railLayout: ExerciseNaturalNoteStripRailLayout?
     ) {
-        switch presentationStyle {
-        case .verticalRail:
-            layoutMode = .verticalRail
-        case .standard, .horizontalStrip:
-            layoutMode = .horizontalStrip
+        let nextLayoutMode = resolvedLayoutMode(for: presentationStyle)
+        let nextHorizontalLayout =
+            horizontalLayout ?? defaultNaturalNoteStripHorizontalLayout
+        let nextRailLayout = railLayout ?? defaultNaturalNoteStripRailLayout
+        guard
+            layoutMode != nextLayoutMode
+                || self.horizontalLayout != nextHorizontalLayout
+                || self.railLayout != nextRailLayout
+        else {
+            return
         }
-    }
 
-    func applyRailLayout(_ railLayout: ExerciseNaturalNoteStripRailLayout?) {
-        self.railLayout = railLayout ?? defaultNaturalNoteStripRailLayout
+        layoutMode = nextLayoutMode
+        self.horizontalLayout = nextHorizontalLayout
+        self.railLayout = nextRailLayout
+        applyLayoutMode()
     }
 
     private func configureView() {
@@ -115,34 +126,77 @@ final class macOSNaturalNoteStripView: NSView {
         layer?.borderColor = NSColor.separatorColor.withAlphaComponent(
             Style.borderOpacity
         ).cgColor
-        stackView.spacing = Style.itemSpacing
         stackView.translatesAutoresizingMaskIntoConstraints = false
         railCanvasView.isHidden = true
+        configureHorizontalStripContainer()
 
         addSubview(stackView)
         addSubview(railCanvasView)
         updateButtonEnabledState()
 
-        NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(
-                equalTo: leadingAnchor,
-                constant: Style.contentInsets.left
-            ),
-            stackView.trailingAnchor.constraint(
-                equalTo: trailingAnchor,
-                constant: -Style.contentInsets.right
-            ),
-            stackView.topAnchor.constraint(
-                equalTo: topAnchor,
-                constant: Style.contentInsets.top
-            ),
-            stackView.bottomAnchor.constraint(
-                equalTo: bottomAnchor,
-                constant: -Style.contentInsets.bottom
-            )
-        ])
+        stackViewLeadingConstraint = stackView.leadingAnchor.constraint(
+            equalTo: leadingAnchor,
+            constant: Style.contentInsets.left
+        )
+        stackViewTrailingConstraint = stackView.trailingAnchor.constraint(
+            equalTo: trailingAnchor,
+            constant: -Style.contentInsets.right
+        )
+        stackViewTopConstraint = stackView.topAnchor.constraint(
+            equalTo: topAnchor,
+            constant: Style.contentInsets.top
+        )
+        stackViewBottomConstraint = stackView.bottomAnchor.constraint(
+            equalTo: bottomAnchor,
+            constant: -Style.contentInsets.bottom
+        )
+
+        NSLayoutConstraint.activate(
+            [
+                stackViewLeadingConstraint,
+                stackViewTrailingConstraint,
+                stackViewTopConstraint,
+                stackViewBottomConstraint
+            ].compactMap { $0 }
+        )
 
         applyLayoutMode()
+    }
+
+    private func configureHorizontalStripContainer() {
+        stackView.orientation = .vertical
+        stackView.alignment = .width
+        stackView.distribution = .fillEqually
+        stackView.spacing = Style.itemSpacing
+
+        accidentalRowStackView.orientation = .horizontal
+        accidentalRowStackView.alignment = .height
+        accidentalRowStackView.distribution = .fillEqually
+
+        naturalRowStackView.orientation = .horizontal
+        naturalRowStackView.alignment = .height
+        naturalRowStackView.distribution = .fillEqually
+
+        stackView.addArrangedSubview(accidentalRowStackView)
+        stackView.addArrangedSubview(naturalRowStackView)
+    }
+
+    private func updateHorizontalStripInsets() {
+        let contentInsets = resolvedHorizontalLayoutInsets()
+        stackViewLeadingConstraint?.constant = contentInsets.left
+        stackViewTrailingConstraint?.constant = -contentInsets.right
+        stackViewTopConstraint?.constant = contentInsets.top
+        stackViewBottomConstraint?.constant = -contentInsets.bottom
+    }
+
+    private func resolvedHorizontalLayoutInsets() -> NSEdgeInsets {
+        let contentInsets = activeHorizontalLayout.context.geometry.contentInsets
+        return NSEdgeInsets(
+            top: CGFloat(contentInsets.top),
+            left: CGFloat(contentInsets.leading),
+            bottom: CGFloat(contentInsets.bottom),
+            right: CGFloat(contentInsets.trailing)
+        )
     }
 
     private func makeButton(for pitchClass: PitchClass) -> NaturalNoteButton {
@@ -170,17 +224,22 @@ final class macOSNaturalNoteStripView: NSView {
     private func applyLayoutMode() {
         switch layoutMode {
         case .horizontalStrip:
-            stackView.orientation = .horizontal
-            stackView.alignment = .centerY
+            updateHorizontalStripInsets()
+            stackView.orientation = .vertical
+            stackView.alignment = .width
             stackView.distribution = .fillEqually
+            stackView.spacing = resolvedHorizontalRowSpacing
+            accidentalRowStackView.spacing = resolvedHorizontalColumnSpacing
+            naturalRowStackView.spacing = resolvedHorizontalColumnSpacing
             setContentHuggingPriority(.defaultLow, for: .horizontal)
             setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             setContentHuggingPriority(.required, for: .vertical)
             setContentCompressionResistancePriority(.required, for: .vertical)
         case .verticalRail:
-            stackView.orientation = .vertical
-            stackView.alignment = .centerX
-            stackView.distribution = .fill
+            stackViewLeadingConstraint?.constant = Style.contentInsets.left
+            stackViewTrailingConstraint?.constant = -Style.contentInsets.right
+            stackViewTopConstraint?.constant = Style.contentInsets.top
+            stackViewBottomConstraint?.constant = -Style.contentInsets.bottom
             setContentHuggingPriority(.required, for: .horizontal)
             setContentCompressionResistancePriority(.required, for: .horizontal)
             setContentHuggingPriority(.required, for: .vertical)
@@ -203,10 +262,7 @@ final class macOSNaturalNoteStripView: NSView {
         case .horizontalStrip:
             stackView.isHidden = false
             railCanvasView.isHidden = true
-            buttons.forEach { button in
-                detachButtonFromCurrentContainer(button)
-                stackView.addArrangedSubview(button)
-            }
+            syncHorizontalStripRows()
         case .verticalRail:
             stackView.isHidden = true
             railCanvasView.isHidden = false
@@ -218,10 +274,28 @@ final class macOSNaturalNoteStripView: NSView {
     }
 
     private func detachButtonFromCurrentContainer(_ button: NaturalNoteButton) {
-        if stackView.arrangedSubviews.contains(button) {
-            stackView.removeArrangedSubview(button)
+        for rowStackView in [accidentalRowStackView, naturalRowStackView] {
+            if rowStackView.arrangedSubviews.contains(button) {
+                rowStackView.removeArrangedSubview(button)
+            }
         }
         button.removeFromSuperview()
+    }
+
+    private func syncHorizontalStripRows() {
+        buttons.forEach { button in
+            detachButtonFromCurrentContainer(button)
+            button.isHidden = true
+        }
+
+        resolvedHorizontalButtons(for: .accidentalsTop).forEach { button in
+            button.isHidden = false
+            accidentalRowStackView.addArrangedSubview(button)
+        }
+        resolvedHorizontalButtons(for: .naturalsBottom).forEach { button in
+            button.isHidden = false
+            naturalRowStackView.addArrangedSubview(button)
+        }
     }
 
     private func resolvedVisibleTitle(for pitchClass: PitchClass?) -> String {
@@ -231,7 +305,10 @@ final class macOSNaturalNoteStripView: NSView {
 
         switch layoutMode {
         case .horizontalStrip:
-            return pitchClass.stripVisibleTitle
+            return pitchClass.stripVisibleTitle(
+                showsTitle: horizontalPlacement(for: pitchClass)?.showsTitle
+                    ?? false
+            )
         case .verticalRail:
             return pitchClass.stripVisibleTitle(
                 showsTitle: railPlacement(for: pitchClass)?.showsTitle ?? false
@@ -239,10 +316,37 @@ final class macOSNaturalNoteStripView: NSView {
         }
     }
 
+    private func horizontalPlacement(
+        for pitchClass: PitchClass
+    ) -> ExerciseNaturalNoteStripHorizontalPlacement? {
+        activeHorizontalLayout.placementsInDisplayOrder.first {
+            $0.pitchClass == pitchClass
+        }
+    }
+
     private func railPlacement(
         for pitchClass: PitchClass
     ) -> ExerciseNaturalNoteStripRailPlacement? {
         activeRailLayout.placements.first { $0.pitchClass == pitchClass }
+    }
+
+    private func resolvedHorizontalButtons(
+        for row: ExerciseNaturalNoteStripHorizontalRow
+    ) -> [NaturalNoteButton] {
+        buttons
+            .compactMap { button -> (Int, NaturalNoteButton)? in
+                guard
+                    let pitchClass = button.pitchClass,
+                    let placement = horizontalPlacement(for: pitchClass),
+                    placement.row == row
+                else {
+                    return nil
+                }
+
+                return (placement.columnIndex, button)
+            }
+            .sorted { $0.0 < $1.0 }
+            .map(\.1)
     }
 
     private func layoutRailCanvasIfNeeded() {
@@ -275,6 +379,25 @@ final class macOSNaturalNoteStripView: NSView {
             button.isHidden = false
             button.frame = placement.frame
         }
+    }
+
+    private func resolvedLayoutMode(
+        for presentationStyle: ExerciseSurfacePresentationStyle
+    ) -> LayoutMode {
+        switch presentationStyle {
+        case .verticalRail:
+            return .verticalRail
+        case .standard, .horizontalStrip:
+            return .horizontalStrip
+        }
+    }
+
+    private var resolvedHorizontalRowSpacing: CGFloat {
+        CGFloat(activeHorizontalLayout.context.geometry.resolvedRowSpacing)
+    }
+
+    private var resolvedHorizontalColumnSpacing: CGFloat {
+        CGFloat(activeHorizontalLayout.context.geometry.resolvedColumnSpacing)
     }
 }
 
