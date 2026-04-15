@@ -34,6 +34,11 @@ struct GeneratedNoteSequenceItem: Equatable, Hashable, Sendable {
             duration: .quarter
         )
     }
+
+    // Expose the full expected note without changing the generated answer model.
+    var expectedNotePitch: NotePitch {
+        writtenPitch.notePitch
+    }
 }
 
 struct GeneratedNoteSequence: Equatable, Sendable {

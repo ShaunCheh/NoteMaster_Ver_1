@@ -2192,6 +2192,18 @@ private extension FretboardValidationRunner {
             print("[FretboardValidation][fixture=\(fixture.name)][validateQuarterNoteSequenceTrainer] stage=\(name)")
         }
 
+        func sequenceAnswer(
+            _ pitchClass: PitchClass,
+            notePitch: NotePitch? = nil,
+            surfaceID: ExerciseSurfaceID = .naturalNoteStrip
+        ) -> ResolvedSequenceAnswer {
+            ResolvedSequenceAnswer(
+                pitchClass: pitchClass,
+                notePitch: notePitch,
+                surfaceID: surfaceID
+            )
+        }
+
         logStage("naturalPrompt")
         let naturalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: .treble,
@@ -2323,6 +2335,138 @@ private extension FretboardValidationRunner {
             record("quarter-note trainer 阶段 2 验证缺少可解析为 NotePitch 的 fretboard cell。")
         }
 
+        logStage("policyComparator")
+        let c6ExpectedItem = GeneratedNoteSequenceItem(
+            writtenPitch: StaffPitch(letter: .c, octave: 6)
+        )
+        let cPitchClassAnswer = sequenceAnswer(.c)
+        let c3Answer = sequenceAnswer(
+            .c,
+            notePitch: NotePitch(pitchClass: .c, octave: 3),
+            surfaceID: .fretboard
+        )
+        let c6Answer = sequenceAnswer(
+            .c,
+            notePitch: NotePitch(pitchClass: .c, octave: 6),
+            surfaceID: .piano
+        )
+        if !FretboardNaturalNoteTrainerState.sequenceAnswerIsCorrect(
+            cPitchClassAnswer,
+            expectedItem: c6ExpectedItem,
+            comparisonPolicy: .pitchClass
+        ) {
+            record("shared sequence comparator 未把 C6 对 C 的 pitchClass 比较判为正确。")
+        }
+        if !FretboardNaturalNoteTrainerState.sequenceAnswerIsCorrect(
+            c3Answer,
+            expectedItem: c6ExpectedItem,
+            comparisonPolicy: .pitchClass
+        ) {
+            record("shared sequence comparator 未把 C6 对 C3 的 pitchClass 比较判为正确。")
+        }
+        if FretboardNaturalNoteTrainerState.sequenceAnswerIsCorrect(
+            c3Answer,
+            expectedItem: c6ExpectedItem,
+            comparisonPolicy: .exactNote
+        ) {
+            record("shared sequence comparator 错把 C6 对 C3 的 exactNote 比较判为正确。")
+        }
+        if !FretboardNaturalNoteTrainerState.sequenceAnswerIsCorrect(
+            c6Answer,
+            expectedItem: c6ExpectedItem,
+            comparisonPolicy: .exactNote
+        ) {
+            record("shared sequence comparator 未把 C6 对 C6 的 exactNote 比较判为正确。")
+        }
+
+        logStage("exactNoteFlow")
+        let exactSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
+            clef: .treble,
+            noteCount: 1,
+            includesAccidentals: false,
+            answerPolicy: .exactNote
+        )
+        var exactTrainer = FretboardNaturalNoteTrainerState(
+            quarterNoteSequenceSpec: exactSpec
+        )
+        let exactPrompt = exactTrainer.generateQuarterNoteSequencePrompt()
+        var exactWrongSession = exactTrainer.makeQuarterNoteSequenceSession()
+        guard let exactExpectedItem = exactWrongSession.currentItem else {
+            record("exact-note quarter-note trainer 缺少首个 expected item。")
+            return
+        }
+        let exactExpectedNotePitch = exactExpectedItem.expectedNotePitch
+        let exactWrongAnswer = sequenceAnswer(
+            exactExpectedNotePitch.pitchClass,
+            notePitch: NotePitch(
+                pitchClass: exactExpectedNotePitch.pitchClass,
+                octave: exactExpectedNotePitch.octave + 1
+            ),
+            surfaceID: .piano
+        )
+        switch exactTrainer.handleQuarterNoteSequenceAnswer(
+            exactWrongAnswer,
+            session: &exactWrongSession
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.comparisonPolicy != .exactNote {
+                record("exact-note quarter-note trainer 错误作答时 comparisonPolicy 应为 .exactNote。")
+            }
+            if evaluation.expectedNotePitch != exactExpectedNotePitch {
+                record("exact-note quarter-note trainer 错误作答时 expectedNotePitch 未对齐 expected item。")
+            }
+            if evaluation.answeredNotePitch != exactWrongAnswer.notePitch {
+                record("exact-note quarter-note trainer 错误作答时 answeredNotePitch 未保留完整输入。")
+            }
+            if evaluation.isCorrect {
+                record("exact-note quarter-note trainer 错把同音名不同八度输入判为正确。")
+            }
+            if evaluation.didAdvanceIndex || exactWrongSession.currentIndex != 0 {
+                record("exact-note quarter-note trainer 错误作答后不应推进 session.currentIndex。")
+            }
+            if !evaluation.debugSummary().contains("policy=exactNote") {
+                record("exact-note quarter-note trainer 的 debugSummary 应输出 policy=exactNote。")
+            }
+        default:
+            record("exact-note quarter-note trainer 错误作答未返回 evaluated 结果。")
+        }
+        if exactPrompt.generatedSequence != exactWrongSession.generatedSequence {
+            record("exact-note quarter-note trainer 错误作答 session sequence 未对齐当前 prompt。")
+        }
+
+        var exactCorrectSession = exactTrainer.makeQuarterNoteSequenceSession()
+        let exactCorrectAnswer = sequenceAnswer(
+            exactExpectedNotePitch.pitchClass,
+            notePitch: exactExpectedNotePitch,
+            surfaceID: .piano
+        )
+        switch exactTrainer.handleQuarterNoteSequenceAnswer(
+            exactCorrectAnswer,
+            session: &exactCorrectSession
+        ) {
+        case let .evaluated(evaluation):
+            if evaluation.comparisonPolicy != .exactNote {
+                record("exact-note quarter-note trainer 正确作答时 comparisonPolicy 应为 .exactNote。")
+            }
+            if evaluation.answeredNotePitch != exactCorrectAnswer.notePitch {
+                record("exact-note quarter-note trainer 正确作答时 answeredNotePitch 未保留完整输入。")
+            }
+            if !evaluation.isCorrect {
+                record("exact-note quarter-note trainer 未把完全匹配的 NotePitch 判为正确。")
+            }
+            if !evaluation.didAdvanceIndex || exactCorrectSession.currentIndex != 1 {
+                record("exact-note quarter-note trainer 正确作答后应推进 session.currentIndex。")
+            }
+            if !evaluation.isSequenceCompleted {
+                record("exact-note quarter-note trainer 单题正确作答后应进入 completed 状态。")
+            }
+            if !evaluation.debugSummary().contains("policy=exactNote") {
+                record("exact-note quarter-note trainer 的 debugSummary 应输出 policy=exactNote。")
+            }
+        default:
+            record("exact-note quarter-note trainer 正确作答未返回 evaluated 结果。")
+        }
+
         guard let firstExpectedPitchClass = naturalPrompt.generatedSequence.answerPitchClasses.first else {
             record("quarter-note trainer natural prompt 缺少首个 expectedPitchClass。")
             return
@@ -2339,7 +2483,7 @@ private extension FretboardValidationRunner {
         logStage("incorrectAnswer")
         var incorrectSession = naturalSession
         switch naturalTrainer.handleQuarterNoteSequenceAnswer(
-            incorrectPitchClass,
+            sequenceAnswer(incorrectPitchClass),
             session: &incorrectSession
         ) {
         case let .evaluated(evaluation):
@@ -2354,6 +2498,9 @@ private extension FretboardValidationRunner {
             }
             if evaluation.answeredPitchClass != incorrectPitchClass {
                 record("quarter-note trainer 错误作答时返回的 answeredPitchClass 不一致。")
+            }
+            if evaluation.answeredNotePitch != nil {
+                record("quarter-note trainer pitch-class 错误作答时 answeredNotePitch 应保持为空。")
             }
             if evaluation.isCorrect {
                 record("quarter-note trainer 把错误答案误判成了正确。")
@@ -2382,6 +2529,9 @@ private extension FretboardValidationRunner {
             } else {
                 record("quarter-note trainer 错误作答后的 staff sequence presentation 不应为 nil。")
             }
+            if !evaluation.debugSummary().contains("policy=pitchClass") {
+                record("quarter-note trainer pitch-class 错误作答的 debugSummary 应输出 policy=pitchClass。")
+            }
         default:
             record("quarter-note trainer 错误作答未返回 evaluated 结果。")
         }
@@ -2401,7 +2551,7 @@ private extension FretboardValidationRunner {
         var completedSession = naturalSession
         for (index, expectedPitchClass) in naturalPrompt.generatedSequence.answerPitchClasses.enumerated() {
             switch naturalTrainer.handleQuarterNoteSequenceAnswer(
-                expectedPitchClass,
+                sequenceAnswer(expectedPitchClass),
                 session: &completedSession
             ) {
             case let .evaluated(evaluation):
@@ -2418,6 +2568,9 @@ private extension FretboardValidationRunner {
                 }
                 if evaluation.answeredPitchClass != expectedPitchClass {
                     record("quarter-note trainer 正确作答时返回的 answeredPitchClass 不一致。")
+                }
+                if evaluation.answeredNotePitch != nil {
+                    record("quarter-note trainer pitch-class 正确作答时 answeredNotePitch 应保持为空。")
                 }
                 if !evaluation.isCorrect {
                     record("quarter-note trainer 未把正确答案判定为 correct。")
@@ -2456,6 +2609,9 @@ private extension FretboardValidationRunner {
                 } else {
                     record("quarter-note trainer 正确作答后的 staff sequence presentation 不应为 nil。")
                 }
+                if !evaluation.debugSummary().contains("policy=pitchClass") {
+                    record("quarter-note trainer pitch-class 正确作答的 debugSummary 应输出 policy=pitchClass。")
+                }
             default:
                 record("quarter-note trainer 正确作答未返回 evaluated 结果。")
                 return
@@ -2483,7 +2639,7 @@ private extension FretboardValidationRunner {
             record("quarter-note trainer 完成序列后 currentExpectedPitchClass 应为空。")
         }
         if naturalTrainer.handleQuarterNoteSequenceAnswer(
-            firstExpectedPitchClass,
+            sequenceAnswer(firstExpectedPitchClass),
             session: &completedSession
         ) != .ignored(.completedSession) {
             record("quarter-note trainer 完成序列后继续作答应返回 ignored(.completedSession)。")

@@ -1540,7 +1540,7 @@ final class macOSViewController: NSViewController {
         }
 
         let answerResult = fretboardTrainerState.handleQuarterNoteSequenceAnswer(
-            answer.pitchClass,
+            answer,
             session: &quarterNoteSequenceSession
         )
         self.quarterNoteSequenceSession = quarterNoteSequenceSession

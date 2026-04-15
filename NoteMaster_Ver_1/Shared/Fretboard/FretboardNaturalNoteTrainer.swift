@@ -454,6 +454,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     struct QuarterNoteSequenceEvaluation: Equatable, Sendable {
         var expectedItem: GeneratedNoteSequenceItem
         var answeredPitchClass: PitchClass
+        var answeredNotePitch: NotePitch?
         var answeredIndex: Int
         var nextIndex: Int
         var totalCount: Int
@@ -466,7 +467,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         // Keep the full `NotePitch` projection available so later exact-note
         // comparison can stay in the evaluator instead of reshaping the content model.
         var expectedNotePitch: NotePitch {
-            expectedWrittenPitch.notePitch
+            expectedItem.expectedNotePitch
         }
 
         // Keep the full written pitch available so future exact-note judging can
@@ -476,7 +477,12 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         var isCorrect: Bool {
-            answeredPitchClass == expectedPitchClass
+            switch comparisonPolicy {
+            case .pitchClass:
+                return answeredPitchClass == expectedPitchClass
+            case .exactNote:
+                return answeredNotePitch == expectedNotePitch
+            }
         }
 
         var didAdvanceIndex: Bool {
@@ -492,9 +498,11 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         func debugSummary() -> String {
+            let policyText = comparisonPolicy.debugName
             let resultText = isCorrect ? "correct" : "wrong"
             let stateText = isSequenceCompleted ? "completed" : "inProgress"
-            return "[QuarterNoteSequence] step=\(answeredIndex + 1)/\(totalCount) expected=\(expectedPitchClass.displayText()) written=\(expectedWrittenPitch.scientificName) answered=\(answeredPitchClass.displayText()) result=\(resultText) nextIndex=\(nextIndex) remaining=\(remainingCount) state=\(stateText)"
+            let answeredNoteText = answeredNotePitch?.displayText() ?? "nil"
+            return "[QuarterNoteSequence] policy=\(policyText) step=\(answeredIndex + 1)/\(totalCount) expectedClass=\(expectedPitchClass.displayText()) expectedNote=\(expectedNotePitch.displayText()) written=\(expectedWrittenPitch.scientificName) answeredClass=\(answeredPitchClass.displayText()) answeredNote=\(answeredNoteText) result=\(resultText) nextIndex=\(nextIndex) remaining=\(remainingCount) state=\(stateText)"
         }
     }
 
@@ -810,8 +818,26 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
+    static func sequenceAnswerIsCorrect(
+        _ answer: ResolvedSequenceAnswer,
+        expectedItem: GeneratedNoteSequenceItem,
+        comparisonPolicy: TrainerSequenceAnswerPolicy
+    ) -> Bool {
+        precondition(
+            answer.notePitch?.pitchClass == answer.pitchClass || answer.notePitch == nil,
+            "Resolved sequence answer note pitch must match its pitch class."
+        )
+
+        switch comparisonPolicy {
+        case .pitchClass:
+            return answer.pitchClass == expectedItem.answerPitchClass
+        case .exactNote:
+            return answer.notePitch == expectedItem.expectedNotePitch
+        }
+    }
+
     mutating func handleQuarterNoteSequenceAnswer(
-        _ pitchClass: PitchClass,
+        _ answer: ResolvedSequenceAnswer,
         session: inout QuarterNoteSequenceSession
     ) -> QuarterNoteSequenceAnswerResult {
         let generatedSequence = requireCurrentQuarterNoteSequence()
@@ -826,8 +852,11 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         let answeredIndex = session.currentIndex
-        let expectedPitchClass = expectedItem.answerPitchClass
-        let isCorrect = pitchClass == expectedPitchClass
+        let isCorrect = Self.sequenceAnswerIsCorrect(
+            answer,
+            expectedItem: expectedItem,
+            comparisonPolicy: comparisonPolicy
+        )
         let nextIndex = isCorrect ? answeredIndex + 1 : answeredIndex
         if isCorrect {
             session.currentIndex = nextIndex
@@ -836,7 +865,8 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         return .evaluated(
             QuarterNoteSequenceEvaluation(
                 expectedItem: expectedItem,
-                answeredPitchClass: pitchClass,
+                answeredPitchClass: answer.pitchClass,
+                answeredNotePitch: answer.notePitch,
                 answeredIndex: answeredIndex,
                 nextIndex: nextIndex,
                 totalCount: session.totalCount,
@@ -1659,6 +1689,17 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         }
 
         return generatedQuarterNoteSequence
+    }
+}
+
+private extension TrainerSequenceAnswerPolicy {
+    var debugName: String {
+        switch self {
+        case .pitchClass:
+            return "pitchClass"
+        case .exactNote:
+            return "exactNote"
+        }
     }
 }
 
