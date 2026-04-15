@@ -9,6 +9,7 @@ enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case single
     case sequence
     case positionPrompt
+    case sr0
     case sr1
     case sr2
 }
@@ -23,7 +24,7 @@ enum TrainerSequenceAnswerPolicy: Equatable, Hashable, Sendable {
 extension TrainerExerciseMode {
     var fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy? {
         switch self {
-        case .sr1:
+        case .sr0, .sr1:
             return .pitchClass
         case .sr2:
             return .exactNote
@@ -34,7 +35,7 @@ extension TrainerExerciseMode {
 
     var fixedSequenceClef: StaffClef? {
         switch self {
-        case .sr1, .sr2:
+        case .sr0, .sr1, .sr2:
             return .treble
         case .single, .sequence, .positionPrompt:
             return nil
@@ -43,6 +44,8 @@ extension TrainerExerciseMode {
 
     var fixedExerciseLayoutPreferences: ExerciseLayoutPreferences? {
         switch self {
+        case .sr0:
+            return .srNoteStripAnswer
         case .sr1, .sr2:
             return .srPianoAnswer
         case .single, .sequence, .positionPrompt:
@@ -54,7 +57,7 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return 1
-        case .single, .sequence, .positionPrompt:
+        case .single, .sequence, .positionPrompt, .sr0:
             return nil
         }
     }
@@ -63,7 +66,7 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return .rowOnly
-        case .single, .sequence, .positionPrompt:
+        case .single, .sequence, .positionPrompt, .sr0:
             return nil
         }
     }
@@ -430,7 +433,7 @@ struct TrainerDisplayState: Equatable, Sendable {
     // trainer kernel, independent from which UI mode is currently selected.
     var usesQuarterNoteSequenceKernel: Bool {
         switch exerciseMode {
-        case .sequence, .sr1, .sr2:
+        case .sequence, .sr0, .sr1, .sr2:
             return true
         case .single, .positionPrompt:
             return false

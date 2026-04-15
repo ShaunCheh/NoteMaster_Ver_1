@@ -44,16 +44,24 @@ extension ExerciseCompositionPolicy {
             switch preset {
             case .staffToFretboard, .targetPromptToFretboard:
                 return true
-            case .staffToPiano, .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
+            case .staffToPiano,
+                 .staffToNaturalNoteStrip,
+                 .fretboardToNaturalNoteStrip,
+                 .fretboardSelfAnswer:
                 return false
             }
+        case .sr0:
+            return preset == .staffToNaturalNoteStrip
         case .sr1, .sr2:
             return preset == .staffToPiano
         case .positionPrompt:
             switch preset {
             case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
                 return true
-            case .staffToFretboard, .staffToPiano, .targetPromptToFretboard:
+            case .staffToFretboard,
+                 .staffToPiano,
+                 .staffToNaturalNoteStrip,
+                 .targetPromptToFretboard:
                 return false
             }
         }
@@ -78,6 +86,8 @@ private extension ExerciseCompositionPolicy {
             switch exerciseMode {
             case .single, .sequence:
                 return .staffToFretboard
+            case .sr0:
+                return .staffToNaturalNoteStrip
             case .sr1, .sr2:
                 return .staffToPiano
             case .positionPrompt:
@@ -99,6 +109,7 @@ private extension ExerciseCompositionPolicy {
         switch compositionPreset {
         case .staffToFretboard,
              .staffToPiano,
+             .staffToNaturalNoteStrip,
              .targetPromptToFretboard,
              .fretboardToNaturalNoteStrip:
             return .stacked
@@ -114,6 +125,7 @@ private extension ExerciseCompositionPolicy {
         switch compositionPreset {
         case .staffToFretboard,
              .staffToPiano,
+             .staffToNaturalNoteStrip,
              .targetPromptToFretboard,
              .fretboardToNaturalNoteStrip:
             return isMultiSurfaceLayoutSupported(preset)

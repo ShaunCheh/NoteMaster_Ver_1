@@ -75,7 +75,7 @@ enum ExerciseCompositionPolicy {
         legacyCompatiblePreferences.isAccessoryExpanded = true
 
         switch input.trainerDisplayState.exerciseMode {
-        case .single, .sequence, .sr1, .sr2:
+        case .single, .sequence, .sr0, .sr1, .sr2:
             if legacyCompatiblePreferences.compositionPreset
                 != .targetPromptToFretboard,
                legacyCompatiblePreferences.compositionPreset
@@ -144,6 +144,8 @@ enum ExerciseCompositionPolicy {
             return (.staffPrompt, .fretboardAnswer)
         case .staffToPiano:
             return (.staffPrompt, .pianoAnswer)
+        case .staffToNaturalNoteStrip:
+            return (.staffPrompt, .naturalNoteStripAnswer)
         case .targetPromptToFretboard:
             return (.targetPrompt, .fretboardAnswer)
         case .fretboardToNaturalNoteStrip:
@@ -220,7 +222,7 @@ enum ExerciseCompositionPolicy {
         preferences: ExerciseLayoutPreferences
     ) -> ExerciseSceneNode {
         switch preferences.compositionPreset {
-        case .fretboardToNaturalNoteStrip:
+        case .fretboardToNaturalNoteStrip, .staffToNaturalNoteStrip:
             return .makeSplit(
                 axis: .horizontal,
                 children: [
@@ -390,7 +392,7 @@ enum ExerciseCompositionPolicy {
         isPianoAccessoryVisible _: Bool
     ) -> ExerciseLayoutPreferences {
         switch exerciseMode {
-        case .single, .sequence, .sr1, .sr2:
+        case .single, .sequence, .sr0, .sr1, .sr2:
             return ExerciseLayoutPreferences(
                 compositionPreset: .staffToFretboard,
                 layoutPreset: .stacked,
@@ -416,9 +418,9 @@ enum ExerciseCompositionPolicy {
     ) -> TrainerDisplayState {
         var legacyCompatibleState = trainerDisplayState
         switch legacyCompatibleState.exerciseMode {
-        case .sr1, .sr2:
+        case .sr0, .sr1, .sr2:
             // Explicit legacy fallback should render through a layout-compatible
-            // host mode instead of being re-normalized back to staffToPiano.
+            // host mode instead of being re-normalized back to fixed SR scenes.
             legacyCompatibleState.exerciseMode = .sequence
         case .single, .sequence, .positionPrompt:
             break

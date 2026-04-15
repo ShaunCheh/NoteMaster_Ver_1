@@ -240,6 +240,11 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateStaffToPianoScenePromotesMainPianoAnswerSurface
             ),
             ExerciseCompositionValidationFixture(
+                name: "staff_to_natural_note_strip_scene_promotes_main_natural_note_strip_answer_surface",
+                validate:
+                    validateStaffToNaturalNoteStripScenePromotesMainNaturalNoteStripAnswerSurface
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "accessory_scene_nodes_follow_presentation_strategy",
                 validate: validateAccessorySceneNodesFollowPresentationStrategy
             ),
@@ -250,6 +255,11 @@ fileprivate extension ExerciseCompositionValidationRunner {
             ExerciseCompositionValidationFixture(
                 name: "sr_modes_freeze_staff_to_piano_policy_contracts",
                 validate: validateSRModesFreezeStaffToPianoPolicyContracts
+            ),
+            ExerciseCompositionValidationFixture(
+                name: "sr0_mode_freezes_staff_to_natural_note_strip_policy_contracts",
+                validate:
+                    validateSR0ModeFreezesStaffToNaturalNoteStripPolicyContracts
             ),
             ExerciseCompositionValidationFixture(
                 name: "legacy_compatible_policy_falls_back_when_scene_exceeds_page_model",

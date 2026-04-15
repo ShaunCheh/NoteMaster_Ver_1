@@ -72,7 +72,7 @@ extension ExerciseCompositionValidationRunner {
         }
 
         switch exerciseMode {
-        case .single, .sequence, .sr1, .sr2:
+        case .single, .sequence, .sr0, .sr1, .sr2:
             if exerciseSection.rows.map(\.id) != [
                 .choice(.exerciseMode),
                 .choice(.compositionPreset),
@@ -1221,6 +1221,130 @@ extension ExerciseCompositionValidationRunner {
             requestedAnswerPolicy: .pitchClass,
             expectedAnswerPolicy: .exactNote
         )
+
+        return issues
+    }
+
+    static func validateSR0ModeFreezesStaffToNaturalNoteStripPolicyContracts()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName = "sr0_mode_freezes_staff_to_natural_note_strip_policy_contracts"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        let trainerDisplayState = TrainerDisplayState(
+            exerciseMode: .sr0,
+            sequenceConfiguration: TrainerSequenceConfiguration(
+                clef: .bass,
+                noteCount: 5,
+                includesAccidentals: true,
+                answerPolicy: .exactNote
+            )
+        )
+        let requestedPreferences = ExerciseLayoutPreferences(
+            compositionPreset: .targetPromptToFretboard,
+            layoutPreset: .sideBySide,
+            accessoryPresentation: .floating,
+            isNaturalNoteStripVisible: false,
+            isPianoAccessoryVisible: true,
+            isAccessoryExpanded: false
+        )
+        let resolvedSequenceConfiguration = trainerDisplayState
+            .resolvedSequenceConfiguration
+        let normalizedPreferences = ExerciseCompositionPolicy
+            .normalizedPreferences(
+                requestedPreferences,
+                trainerDisplayState: trainerDisplayState
+            )
+        let normalizedLegacyPreferences = LegacyPageLayoutAdapter
+            .normalizedPreferences(
+                requestedPreferences,
+                trainerDisplayState: trainerDisplayState
+            )
+
+        if !trainerDisplayState.usesQuarterNoteSequenceKernel {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 应继续复用 quarter-note sequence kernel，而不是退回 single/position prompt 路径。"
+                )
+            )
+        }
+        if resolvedSequenceConfiguration.clef != .treble {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的 resolvedSequenceConfiguration 应强制锁定 treble clef。"
+                )
+            )
+        }
+        if resolvedSequenceConfiguration.answerPolicy != .pitchClass {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的 resolvedSequenceConfiguration.answerPolicy 应固定为 .pitchClass。"
+                )
+            )
+        }
+        if resolvedSequenceConfiguration.noteCount != 5
+            || !resolvedSequenceConfiguration.includesAccidentals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 mode constraint 只应钳制 clef / answerPolicy；noteCount 与 includesAccidentals 应继续保留用户配置。"
+                )
+            )
+        }
+        if normalizedPreferences != .srNoteStripAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的 shared normalization 应统一收敛到固定的 SR staff-to-natural-note-strip layout。"
+                )
+            )
+        }
+        if normalizedLegacyPreferences != .srNoteStripAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的 settings / legacy bridge normalization 也应与 shared normalization 对齐到同一份 SR layout 常量。"
+                )
+            )
+        }
+        if !ExerciseCompositionPolicy.isCompositionPresetSupported(
+            .staffToNaturalNoteStrip,
+            for: .sr0
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 应显式支持 `staffToNaturalNoteStrip` composition preset。"
+                )
+            )
+        }
+        if ExerciseCompositionPolicy.isCompositionPresetSupported(
+            .staffToFretboard,
+            for: .sr0
+        ) || ExerciseCompositionPolicy.isCompositionPresetSupported(
+            .staffToPiano,
+            for: .sr0
+        ) || ExerciseCompositionPolicy.isCompositionPresetSupported(
+            .fretboardToNaturalNoteStrip,
+            for: .sr0
+        ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 不应暴露 `staffToFretboard` / `staffToPiano` / `fretboardToNaturalNoteStrip` 等其它主场景 preset，避免模式语义漂移。"
+                )
+            )
+        }
+        if trainerDisplayState.exerciseMode.fixedPianoRowCount != nil
+            || trainerDisplayState.exerciseMode.fixedPianoMovementScope != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 不应继承 SR-1/SR-2 的 piano 固定行数或 movement scope 约束。"
+                )
+            )
+        }
 
         return issues
     }

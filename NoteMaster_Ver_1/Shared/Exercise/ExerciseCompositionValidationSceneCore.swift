@@ -2767,6 +2767,193 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
+    static func validateStaffToNaturalNoteStripScenePromotesMainNaturalNoteStripAnswerSurface()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "staff_to_natural_note_strip_scene_promotes_main_natural_note_strip_answer_surface"
+        var issues: [ExerciseCompositionValidationIssue] = []
+
+        let rawScene = ExerciseCompositionPolicy.makeScene(
+            preferences: ExerciseLayoutPreferences(
+                compositionPreset: .staffToNaturalNoteStrip,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            )
+        )
+        let rawSurfaceIDs = rawScene.surfaceNodes.map(\.id)
+        let rawStripSurfaceCount = rawScene.surfaceNodes.filter {
+            $0.id == .naturalNoteStrip
+        }.count
+        if rawSurfaceIDs.count != 2
+            || Set(rawSurfaceIDs) != Set([.staff, .naturalNoteStrip]) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` scene 应只保留主 `staff` 与主 `natural note strip`，不应混入 fretboard / piano 或 duplicate strip。"
+                )
+            )
+        }
+        if !ExerciseSceneValidator.validate(rawScene).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` scene 应生成合法 scene。"
+                )
+            )
+        }
+        if rawStripSurfaceCount != 1 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的 raw scene 里只允许存在一个逻辑 `.naturalNoteStrip` surface。"
+                )
+            )
+        }
+        if ExerciseSceneValidator.legacyPageDisplayState(for: rawScene) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的 raw scene 应被视为 non-legacy 新场景，而不是回投影成旧 page 结构。"
+                )
+            )
+        }
+        switch rawScene.root {
+        case let .split(axis, children):
+            if axis != .vertical
+                || children.count != 2
+                || children[0].mainAxisSizing != .fitContent
+                || children[1].mainAxisSizing != .fitContent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "`staffToNaturalNoteStrip` 的 stacked scene 应保持上方 staff fitContent、下方 natural note strip fitContent。"
+                    )
+                )
+            }
+            guard
+                children.count == 2,
+                case let .surface(topSurface) = children[0].node,
+                case let .surface(bottomSurface) = children[1].node
+            else {
+                break
+            }
+            if topSurface.id != .staff
+                || !topSurface.isPromptSurface
+                || topSurface.isAnswerSurface {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "`staffToNaturalNoteStrip` 的上方 surface 应保持 prompt-only 的 `staff`。"
+                    )
+                )
+            }
+            if bottomSurface.id != .naturalNoteStrip
+                || bottomSurface.isPromptSurface
+                || !bottomSurface.isAnswerSurface
+                || bottomSurface.isAuxiliarySurface
+                || bottomSurface.presentationStyle != .horizontalStrip {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "`staffToNaturalNoteStrip` 的下方 surface 应提升为 answer-only 的主 `natural note strip`，并保持 `horizontalStrip` presentation style。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的主 scene 应投影成 vertical split。"
+                )
+            )
+        }
+
+        let presentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .sr0),
+                fretboardTrainerState: .init(),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: PianoPanelState(isVisible: true),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .targetPromptToFretboard,
+                    layoutPreset: .sideBySide,
+                    accessoryPresentation: .floating,
+                    isNaturalNoteStripVisible: false,
+                    isPianoAccessoryVisible: true,
+                    isAccessoryExpanded: false
+                )
+            )
+        )
+        let presentationStripSurfaceCount = presentation.scene.surfaceNodes.filter {
+            $0.id == .naturalNoteStrip
+        }.count
+        if presentation.resolvedLayoutPreferences != .srNoteStripAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的 makePresentation 应固定收敛到 `srNoteStripAnswer`，而不是沿用请求的自由组合。"
+                )
+            )
+        }
+        if presentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的 presentation.scene 不应被误标记为 legacy page 可直接投影。"
+                )
+            )
+        }
+        if ExerciseSceneValidator.legacyPageDisplayState(for: presentation.scene)
+            != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的 presentation.scene 应继续被 scene validator 视为 non-legacy；`legacyPageDisplayState == nil` 在 SR-0 下是预期结果。"
+                )
+            )
+        }
+        if presentationStripSurfaceCount != 1 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 的最终 presentation.scene 只允许保留一个主 `.naturalNoteStrip` surface。"
+                )
+            )
+        }
+        if presentation.projectedSurfaceState(for: .staff) != .promptOnly {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 中的 `staff` 应继续暴露 prompt-only surface state。"
+                )
+            )
+        }
+        if presentation.projectedSurfaceState(for: .naturalNoteStrip)
+            != .answerOnly {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` 中的主 `natural note strip` 应暴露 answer-only surface state。"
+                )
+            )
+        }
+        if presentation.containsSurface(.fretboard)
+            || presentation.containsSurface(.piano) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "`staffToNaturalNoteStrip` scene 不应混入 `fretboard` 或 `piano`。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateSharedSurfaceStateDefaultsFollowSurfaceRoles()
         -> [ExerciseCompositionValidationIssue] {
         let fixtureName = "shared_surface_state_defaults_follow_surface_roles"

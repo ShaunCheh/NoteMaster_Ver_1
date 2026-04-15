@@ -44,6 +44,8 @@ enum ExerciseAnswerRouteIgnoreReason: Equatable, Sendable {
             return "sequence"
         case .positionPrompt:
             return "positionPrompt"
+        case .sr0:
+            return "sr0"
         case .sr1:
             return "sr1"
         case .sr2:
@@ -132,6 +134,13 @@ enum ExerciseAnswerRouter {
                 .quarterNoteSequence(
                     event: event,
                     answer: answer
+                )
+            )
+        case .sr0:
+            return .ignored(
+                .unsupportedPayload(
+                    event.payload,
+                    trainerDisplayState.exerciseMode
                 )
             )
         case .positionPrompt:
