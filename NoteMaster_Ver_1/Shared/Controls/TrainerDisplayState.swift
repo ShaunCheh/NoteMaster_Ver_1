@@ -332,17 +332,20 @@ struct TrainerSequenceConfiguration: Equatable, Sendable {
     var clef: StaffClef
     var noteCount: Int
     var includesAccidentals: Bool
+    var answerPolicy: TrainerSequenceAnswerPolicy
 
     static let `default` = TrainerSequenceConfiguration(
         clef: .treble,
         noteCount: 7,
-        includesAccidentals: false
+        includesAccidentals: false,
+        answerPolicy: .pitchClass
     )
 
     init(
         clef: StaffClef = .treble,
         noteCount: Int = 7,
-        includesAccidentals: Bool = false
+        includesAccidentals: Bool = false,
+        answerPolicy: TrainerSequenceAnswerPolicy
     ) {
         precondition(
             noteCount > 0,
@@ -351,6 +354,7 @@ struct TrainerSequenceConfiguration: Equatable, Sendable {
         self.clef = clef
         self.noteCount = noteCount
         self.includesAccidentals = includesAccidentals
+        self.answerPolicy = answerPolicy
     }
 }
 
@@ -463,7 +467,8 @@ extension TrainerSequenceConfiguration {
         self.init(
             clef: quarterNoteSequenceSpec.clef,
             noteCount: quarterNoteSequenceSpec.noteCount,
-            includesAccidentals: quarterNoteSequenceSpec.includesAccidentals
+            includesAccidentals: quarterNoteSequenceSpec.includesAccidentals,
+            answerPolicy: quarterNoteSequenceSpec.answerPolicy
         )
     }
 
@@ -471,7 +476,8 @@ extension TrainerSequenceConfiguration {
         FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: clef,
             noteCount: noteCount,
-            includesAccidentals: includesAccidentals
+            includesAccidentals: includesAccidentals,
+            answerPolicy: answerPolicy
         )
     }
 }

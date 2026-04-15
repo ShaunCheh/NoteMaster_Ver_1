@@ -321,18 +321,20 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     }
 
     // Sequence content generation and judging policy stay decoupled.
-    // Stage 0 only freezes the seam here; later phases will thread
-    // `TrainerSequenceAnswerPolicy` through this spec instead of embedding it
-    // into `GeneratedNoteSequence`.
+    // The spec carries the judging policy so later evaluator changes can switch
+    // between pitch-class and exact-note comparison without reshaping
+    // `GeneratedNoteSequence`.
     struct QuarterNoteSequenceSpec: Equatable, Sendable {
         var clef: StaffClef
         var noteCount: Int
         var includesAccidentals: Bool
+        var answerPolicy: TrainerSequenceAnswerPolicy
 
         init(
             clef: StaffClef,
             noteCount: Int,
-            includesAccidentals: Bool
+            includesAccidentals: Bool,
+            answerPolicy: TrainerSequenceAnswerPolicy
         ) {
             precondition(
                 noteCount > 0,
@@ -341,6 +343,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             self.clef = clef
             self.noteCount = noteCount
             self.includesAccidentals = includesAccidentals
+            self.answerPolicy = answerPolicy
         }
     }
 
@@ -454,9 +457,16 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         var answeredIndex: Int
         var nextIndex: Int
         var totalCount: Int
+        var comparisonPolicy: TrainerSequenceAnswerPolicy
 
         var expectedPitchClass: PitchClass {
             expectedItem.answerPitchClass
+        }
+
+        // Keep the full `NotePitch` projection available so later exact-note
+        // comparison can stay in the evaluator instead of reshaping the content model.
+        var expectedNotePitch: NotePitch {
+            expectedWrittenPitch.notePitch
         }
 
         // Keep the full written pitch available so future exact-note judging can
@@ -805,6 +815,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         session: inout QuarterNoteSequenceSession
     ) -> QuarterNoteSequenceAnswerResult {
         let generatedSequence = requireCurrentQuarterNoteSequence()
+        let comparisonPolicy = requireQuarterNoteSequenceSpec().answerPolicy
         precondition(
             session.generatedSequence == generatedSequence,
             "Quarter-note sequence session sequence must match the current trainer sequence."
@@ -828,7 +839,8 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
                 answeredPitchClass: pitchClass,
                 answeredIndex: answeredIndex,
                 nextIndex: nextIndex,
-                totalCount: session.totalCount
+                totalCount: session.totalCount,
+                comparisonPolicy: comparisonPolicy
             )
         )
     }

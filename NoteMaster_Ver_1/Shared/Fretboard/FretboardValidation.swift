@@ -2196,7 +2196,8 @@ private extension FretboardValidationRunner {
         let naturalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: .treble,
             noteCount: 7,
-            includesAccidentals: false
+            includesAccidentals: false,
+            answerPolicy: .pitchClass
         )
         var naturalTrainer = FretboardNaturalNoteTrainerState(
             quarterNoteSequenceSpec: naturalSpec
@@ -2282,6 +2283,12 @@ private extension FretboardValidationRunner {
             if evaluation.expectedPitchClass != firstExpectedPitchClass {
                 record("quarter-note trainer 错误作答时返回的 expectedPitchClass 与 session 首题不一致。")
             }
+            if evaluation.comparisonPolicy != naturalSpec.answerPolicy {
+                record("quarter-note trainer 错误作答时返回的 comparisonPolicy 未对齐当前 spec.answerPolicy。")
+            }
+            if evaluation.expectedNotePitch != evaluation.expectedWrittenPitch.notePitch {
+                record("quarter-note trainer 错误作答时返回的 expectedNotePitch 未正确投影自 expectedWrittenPitch.notePitch。")
+            }
             if evaluation.answeredPitchClass != incorrectPitchClass {
                 record("quarter-note trainer 错误作答时返回的 answeredPitchClass 不一致。")
             }
@@ -2339,6 +2346,12 @@ private extension FretboardValidationRunner {
                 let shouldComplete = expectedNextIndex == naturalPrompt.generatedSequence.noteCount
                 if evaluation.expectedPitchClass != expectedPitchClass {
                     record("quarter-note trainer 正确作答时返回的 expectedPitchClass 与当前题目不一致。")
+                }
+                if evaluation.comparisonPolicy != naturalSpec.answerPolicy {
+                    record("quarter-note trainer 正确作答时返回的 comparisonPolicy 未对齐当前 spec.answerPolicy。")
+                }
+                if evaluation.expectedNotePitch != evaluation.expectedWrittenPitch.notePitch {
+                    record("quarter-note trainer 正确作答时返回的 expectedNotePitch 未正确投影自 expectedWrittenPitch.notePitch。")
                 }
                 if evaluation.answeredPitchClass != expectedPitchClass {
                     record("quarter-note trainer 正确作答时返回的 answeredPitchClass 不一致。")
@@ -2417,7 +2430,8 @@ private extension FretboardValidationRunner {
         let accidentalSpec = FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec(
             clef: .bass,
             noteCount: 128,
-            includesAccidentals: true
+            includesAccidentals: true,
+            answerPolicy: .pitchClass
         )
         var accidentalTrainer = FretboardNaturalNoteTrainerState(targetPitchClass: .c)
         let accidentalPrompt = accidentalTrainer.generateQuarterNoteSequencePrompt(
