@@ -1231,9 +1231,26 @@ extension ExerciseCompositionValidationRunner {
 
         func validateMode(
             _ exerciseMode: TrainerExerciseMode,
-            requestedAnswerPolicy: TrainerSequenceAnswerPolicy,
-            expectedAnswerPolicy: TrainerSequenceAnswerPolicy
+            requestedAnswerPolicy: TrainerSequenceAnswerPolicy
         ) {
+            guard exerciseMode.isSRPianoReadingMode else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(String(describing: exerciseMode)) 应被标记为统一的 SR piano reading family 成员。"
+                    )
+                )
+                return
+            }
+            guard let contract = exerciseMode.srPianoReadingContract else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(String(describing: exerciseMode)) 应暴露集中式 SR piano reading contract，避免固定矩阵继续散落在多个 switch 分支。"
+                    )
+                )
+                return
+            }
             let trainerDisplayState = TrainerDisplayState(
                 exerciseMode: exerciseMode,
                 sequenceConfiguration: TrainerSequenceConfiguration(
@@ -1273,19 +1290,37 @@ extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
-            if resolvedSequenceConfiguration.clef != .treble {
+            if exerciseMode.fixedSequenceClef != contract.fixedSequenceClef {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 resolvedSequenceConfiguration 应强制锁定 treble clef。"
+                        "\(modeDebugName) 的 fixedSequenceClef 应直接来自 SR piano reading contract。"
                     )
                 )
             }
-            if resolvedSequenceConfiguration.answerPolicy != expectedAnswerPolicy {
+            if resolvedSequenceConfiguration.clef != contract.fixedSequenceClef {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 resolvedSequenceConfiguration.answerPolicy 应固定为 \(expectedAnswerPolicy)，而不是沿用请求值 \(requestedAnswerPolicy)。"
+                        "\(modeDebugName) 的 resolvedSequenceConfiguration.clef 应与集中 contract 对齐。"
+                    )
+                )
+            }
+            if exerciseMode.fixedSequenceAnswerPolicy
+                != contract.fixedSequenceAnswerPolicy {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 fixedSequenceAnswerPolicy 应直接来自 SR piano reading contract。"
+                    )
+                )
+            }
+            if resolvedSequenceConfiguration.answerPolicy
+                != contract.fixedSequenceAnswerPolicy {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 resolvedSequenceConfiguration.answerPolicy 应固定为 \(contract.fixedSequenceAnswerPolicy)，而不是沿用请求值 \(requestedAnswerPolicy)。"
                     )
                 )
             }
@@ -1298,7 +1333,16 @@ extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
-            if normalizedPreferences != .srPianoAnswer {
+            if exerciseMode.fixedExerciseLayoutPreferences
+                != contract.fixedExerciseLayoutPreferences {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 fixedExerciseLayoutPreferences 应直接来自 SR piano reading contract。"
+                    )
+                )
+            }
+            if normalizedPreferences != contract.fixedExerciseLayoutPreferences {
                 issues.append(
                     issue(
                         fixtureName,
@@ -1306,11 +1350,28 @@ extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
-            if normalizedLegacyPreferences != .srPianoAnswer {
+            if normalizedLegacyPreferences != contract.fixedExerciseLayoutPreferences {
                 issues.append(
                     issue(
                         fixtureName,
                         "\(modeDebugName) 的 settings / legacy bridge normalization 也应与 shared normalization 对齐到同一份 SR layout 常量。"
+                    )
+                )
+            }
+            if exerciseMode.fixedPianoRowCount != contract.fixedPianoRowCount {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 fixedPianoRowCount 应直接来自 SR piano reading contract。"
+                    )
+                )
+            }
+            if exerciseMode.fixedPianoMovementScope
+                != contract.fixedPianoMovementScope {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 fixedPianoMovementScope 应直接来自 SR piano reading contract。"
                     )
                 )
             }
@@ -1340,14 +1401,51 @@ extension ExerciseCompositionValidationRunner {
 
         validateMode(
             .sr1,
-            requestedAnswerPolicy: .exactNote,
-            expectedAnswerPolicy: .pitchClass
+            requestedAnswerPolicy: .exactNote
         )
         validateMode(
             .sr2,
-            requestedAnswerPolicy: .pitchClass,
-            expectedAnswerPolicy: .exactNote
+            requestedAnswerPolicy: .pitchClass
         )
+
+        guard let sr1Contract = TrainerExerciseMode.sr1.srPianoReadingContract,
+              let sr2Contract = TrainerExerciseMode.sr2.srPianoReadingContract else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 / SR-2 应共享可读取的 SR piano reading contract。"
+                )
+            )
+            return issues
+        }
+        if sr1Contract.fixedSequenceClef != sr2Contract.fixedSequenceClef
+            || sr1Contract.fixedExerciseLayoutPreferences
+            != sr2Contract.fixedExerciseLayoutPreferences {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 / SR-2 的 family 基线应继续共享同一份 treble + srPianoAnswer 合同。"
+                )
+            )
+        }
+        if sr1Contract.fixedPianoMovementScope
+            != sr2Contract.fixedPianoMovementScope {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 / SR-2 的 movementScope 如需分叉，也应只通过集中 contract 修改；当前不应在其它分支偷跑分裂。"
+                )
+            )
+        }
+        if sr1Contract.fixedSequenceAnswerPolicy
+            == sr2Contract.fixedSequenceAnswerPolicy {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 / SR-2 的集中 contract 至少应在 answerPolicy 上保留差异矩阵。"
+                )
+            )
+        }
 
         return issues
     }

@@ -21,13 +21,74 @@ enum TrainerSequenceAnswerPolicy: Equatable, Hashable, Sendable {
     case exactNote
 }
 
+enum TrainerSRPianoReadingMode: Equatable, Hashable, Sendable {
+    case sr1
+    case sr2
+
+    var contract: TrainerSRPianoReadingContract {
+        switch self {
+        case .sr1:
+            return TrainerSRPianoReadingContract(
+                answerPolicy: .pitchClass,
+                pianoRowCount: 1,
+                pianoMovementScope: .rowOnly
+            )
+        case .sr2:
+            return TrainerSRPianoReadingContract(
+                answerPolicy: .exactNote,
+                pianoRowCount: 1,
+                pianoMovementScope: .rowOnly
+            )
+        }
+    }
+}
+
+struct TrainerSRPianoReadingContract: Equatable, Sendable {
+    let fixedSequenceClef: StaffClef
+    let fixedExerciseLayoutPreferences: ExerciseLayoutPreferences
+    let fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy
+    let fixedPianoRowCount: Int
+    let fixedPianoMovementScope: PianoMovementScope
+
+    init(
+        answerPolicy: TrainerSequenceAnswerPolicy,
+        pianoRowCount: Int,
+        pianoMovementScope: PianoMovementScope
+    ) {
+        fixedSequenceClef = .treble
+        fixedExerciseLayoutPreferences = .srPianoAnswer
+        fixedSequenceAnswerPolicy = answerPolicy
+        fixedPianoRowCount = pianoRowCount
+        fixedPianoMovementScope = pianoMovementScope
+    }
+}
+
 extension TrainerExerciseMode {
+    var srPianoReadingMode: TrainerSRPianoReadingMode? {
+        switch self {
+        case .sr1:
+            return .sr1
+        case .sr2:
+            return .sr2
+        case .single, .sequence, .positionPrompt, .sr0:
+            return nil
+        }
+    }
+
+    var isSRPianoReadingMode: Bool {
+        srPianoReadingMode != nil
+    }
+
+    var srPianoReadingContract: TrainerSRPianoReadingContract? {
+        srPianoReadingMode?.contract
+    }
+
     var fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy? {
         switch self {
-        case .sr0, .sr1:
+        case .sr1, .sr2:
+            return srPianoReadingContract?.fixedSequenceAnswerPolicy
+        case .sr0:
             return .pitchClass
-        case .sr2:
-            return .exactNote
         case .single, .sequence, .positionPrompt:
             return nil
         }
@@ -35,7 +96,9 @@ extension TrainerExerciseMode {
 
     var fixedSequenceClef: StaffClef? {
         switch self {
-        case .sr0, .sr1, .sr2:
+        case .sr1, .sr2:
+            return srPianoReadingContract?.fixedSequenceClef
+        case .sr0:
             return .treble
         case .single, .sequence, .positionPrompt:
             return nil
@@ -44,10 +107,10 @@ extension TrainerExerciseMode {
 
     var fixedExerciseLayoutPreferences: ExerciseLayoutPreferences? {
         switch self {
+        case .sr1, .sr2:
+            return srPianoReadingContract?.fixedExerciseLayoutPreferences
         case .sr0:
             return .srNoteStripAnswer
-        case .sr1, .sr2:
-            return .srPianoAnswer
         case .single, .sequence, .positionPrompt:
             return nil
         }
@@ -56,7 +119,7 @@ extension TrainerExerciseMode {
     var fixedPianoRowCount: Int? {
         switch self {
         case .sr1, .sr2:
-            return 1
+            return srPianoReadingContract?.fixedPianoRowCount
         case .single, .sequence, .positionPrompt, .sr0:
             return nil
         }
@@ -65,7 +128,7 @@ extension TrainerExerciseMode {
     var fixedPianoMovementScope: PianoMovementScope? {
         switch self {
         case .sr1, .sr2:
-            return .rowOnly
+            return srPianoReadingContract?.fixedPianoMovementScope
         case .single, .sequence, .positionPrompt, .sr0:
             return nil
         }

@@ -2205,6 +2205,56 @@ private extension FretboardValidationRunner {
         }
 
         logStage("modePolicySeam")
+        if !TrainerExerciseMode.sr1.isSRPianoReadingMode
+            || !TrainerExerciseMode.sr2.isSRPianoReadingMode {
+            record("SR-1 / SR-2 应共享统一的 SR piano reading family 入口。")
+        }
+        if TrainerExerciseMode.sr0.isSRPianoReadingMode {
+            record("SR-0 不应混入 SR piano reading family。")
+        }
+        let sr1ModeContract = TrainerExerciseMode.sr1.srPianoReadingContract
+            ?? TrainerSRPianoReadingMode.sr1.contract
+        let sr2ModeContract = TrainerExerciseMode.sr2.srPianoReadingContract
+            ?? TrainerSRPianoReadingMode.sr2.contract
+        if TrainerExerciseMode.sr1.srPianoReadingContract == nil
+            || TrainerExerciseMode.sr2.srPianoReadingContract == nil {
+            record("SR-1 / SR-2 应暴露集中式 SR piano reading contract。")
+        }
+        if sr1ModeContract.fixedSequenceClef != sr2ModeContract.fixedSequenceClef
+            || sr1ModeContract.fixedExerciseLayoutPreferences
+            != sr2ModeContract.fixedExerciseLayoutPreferences {
+            record("SR-1 / SR-2 的 family 基线应继续共享同一份 treble + srPianoAnswer 合同。")
+        }
+        if sr1ModeContract.fixedPianoMovementScope
+            != sr2ModeContract.fixedPianoMovementScope {
+            record("SR-1 / SR-2 的 movementScope 如需分叉，也应只改集中 contract，而不是重新散落到多个 switch。")
+        }
+        if sr1ModeContract.fixedSequenceAnswerPolicy != .pitchClass
+            || sr2ModeContract.fixedSequenceAnswerPolicy != .exactNote {
+            record("SR piano reading contract 应继续保留 SR-1 pitchClass / SR-2 exactNote 的判题差异。")
+        }
+        if TrainerExerciseMode.sr1.fixedSequenceClef
+            != sr1ModeContract.fixedSequenceClef
+            || TrainerExerciseMode.sr2.fixedSequenceClef
+            != sr2ModeContract.fixedSequenceClef
+            || TrainerExerciseMode.sr1.fixedExerciseLayoutPreferences
+            != sr1ModeContract.fixedExerciseLayoutPreferences
+            || TrainerExerciseMode.sr2.fixedExerciseLayoutPreferences
+            != sr2ModeContract.fixedExerciseLayoutPreferences
+            || TrainerExerciseMode.sr1.fixedSequenceAnswerPolicy
+            != sr1ModeContract.fixedSequenceAnswerPolicy
+            || TrainerExerciseMode.sr2.fixedSequenceAnswerPolicy
+            != sr2ModeContract.fixedSequenceAnswerPolicy
+            || TrainerExerciseMode.sr1.fixedPianoRowCount
+            != sr1ModeContract.fixedPianoRowCount
+            || TrainerExerciseMode.sr2.fixedPianoRowCount
+            != sr2ModeContract.fixedPianoRowCount
+            || TrainerExerciseMode.sr1.fixedPianoMovementScope
+            != sr1ModeContract.fixedPianoMovementScope
+            || TrainerExerciseMode.sr2.fixedPianoMovementScope
+            != sr2ModeContract.fixedPianoMovementScope {
+            record("SR-1 / SR-2 的固定 accessors 应全部委托到集中式 SR piano reading contract。")
+        }
         let sr0DisplayState = TrainerDisplayState(
             exerciseMode: .sr0,
             sequenceConfiguration: TrainerSequenceConfiguration(
@@ -2244,11 +2294,12 @@ private extension FretboardValidationRunner {
         if !sr1DisplayState.usesQuarterNoteSequenceKernel {
             record("SR-1 display state 应继续复用 quarter-note sequence kernel。")
         }
-        if sr1ResolvedSequenceConfiguration.clef != .treble {
-            record("SR-1 的 resolvedSequenceConfiguration 应强制锁定 treble clef。")
+        if sr1ResolvedSequenceConfiguration.clef != sr1ModeContract.fixedSequenceClef {
+            record("SR-1 的 resolvedSequenceConfiguration.clef 应与集中 contract 对齐。")
         }
-        if sr1ResolvedSequenceConfiguration.answerPolicy != .pitchClass {
-            record("SR-1 的 resolvedSequenceConfiguration.answerPolicy 应固定为 .pitchClass。")
+        if sr1ResolvedSequenceConfiguration.answerPolicy
+            != sr1ModeContract.fixedSequenceAnswerPolicy {
+            record("SR-1 的 resolvedSequenceConfiguration.answerPolicy 应与集中 contract 对齐。")
         }
         if sr1ResolvedSequenceConfiguration.noteCount != 7
             || sr1ResolvedSequenceConfiguration.includesAccidentals {
@@ -2439,11 +2490,12 @@ private extension FretboardValidationRunner {
         if !sr2DisplayState.usesQuarterNoteSequenceKernel {
             record("SR-2 display state 应继续复用 quarter-note sequence kernel。")
         }
-        if sr2ResolvedSequenceConfiguration.clef != .treble {
-            record("SR-2 的 resolvedSequenceConfiguration 应强制锁定 treble clef。")
+        if sr2ResolvedSequenceConfiguration.clef != sr2ModeContract.fixedSequenceClef {
+            record("SR-2 的 resolvedSequenceConfiguration.clef 应与集中 contract 对齐。")
         }
-        if sr2ResolvedSequenceConfiguration.answerPolicy != .exactNote {
-            record("SR-2 的 resolvedSequenceConfiguration.answerPolicy 应固定为 .exactNote。")
+        if sr2ResolvedSequenceConfiguration.answerPolicy
+            != sr2ModeContract.fixedSequenceAnswerPolicy {
+            record("SR-2 的 resolvedSequenceConfiguration.answerPolicy 应与集中 contract 对齐。")
         }
         if sr2ResolvedSequenceConfiguration.noteCount != 1
             || sr2ResolvedSequenceConfiguration.includesAccidentals {
