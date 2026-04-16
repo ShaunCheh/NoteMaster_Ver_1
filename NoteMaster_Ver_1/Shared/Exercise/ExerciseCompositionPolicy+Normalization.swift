@@ -39,6 +39,10 @@ extension ExerciseCompositionPolicy {
         _ preset: ExerciseCompositionPreset,
         for exerciseMode: TrainerExerciseMode
     ) -> Bool {
+        if let fixedCompositionPreset = exerciseMode.fixedCompositionPreset {
+            return preset == fixedCompositionPreset
+        }
+
         switch exerciseMode {
         case .single, .sequence:
             switch preset {
@@ -50,10 +54,8 @@ extension ExerciseCompositionPolicy {
                  .fretboardSelfAnswer:
                 return false
             }
-        case .sr0:
-            return preset == .staffToNaturalNoteStrip
-        case .sr1, .sr2:
-            return preset == .staffToPiano
+        case .sr0, .sr1, .sr2:
+            return false
         case .positionPrompt:
             switch preset {
             case .fretboardToNaturalNoteStrip, .fretboardSelfAnswer:
@@ -82,14 +84,16 @@ private extension ExerciseCompositionPolicy {
         _ preset: ExerciseCompositionPreset,
         for exerciseMode: TrainerExerciseMode
     ) -> ExerciseCompositionPreset {
+        if let fixedCompositionPreset = exerciseMode.fixedCompositionPreset {
+            return fixedCompositionPreset
+        }
+
         guard isCompositionPresetSupported(preset, for: exerciseMode) else {
             switch exerciseMode {
             case .single, .sequence:
                 return .staffToFretboard
-            case .sr0:
-                return .staffToNaturalNoteStrip
-            case .sr1, .sr2:
-                return .staffToPiano
+            case .sr0, .sr1, .sr2:
+                return exerciseMode.fixedCompositionPreset ?? preset
             case .positionPrompt:
                 return .fretboardToNaturalNoteStrip
             }

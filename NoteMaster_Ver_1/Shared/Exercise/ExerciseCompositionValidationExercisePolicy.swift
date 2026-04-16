@@ -1281,12 +1281,37 @@ extension ExerciseCompositionValidationRunner {
                     requestedPreferences,
                     trainerDisplayState: trainerDisplayState
                 )
+            let requestedPianoSettingsSlice = PianoPanelSettingsSlice(
+                rowCount: 4,
+                movementScope: .cascade,
+                whiteKeyStyle: .borderlessSeparatedByGaps,
+                snapEnabled: false
+            )
+            let resolvedPianoSettingsSlice = exerciseMode
+                .applyingFixedPianoSettings(to: requestedPianoSettingsSlice)
 
             if !trainerDisplayState.usesQuarterNoteSequenceKernel {
                 issues.append(
                     issue(
                         fixtureName,
                         "\(modeDebugName) 应继续复用 quarter-note sequence kernel，而不是退回 single/position prompt 路径。"
+                    )
+                )
+            }
+            if exerciseMode.fixedCompositionPreset
+                != contract.fixedExerciseLayoutPreferences.compositionPreset {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 fixedCompositionPreset 应与集中 SR layout contract 对齐。"
+                    )
+                )
+            }
+            if exerciseMode.allowsAccessoryPianoPromotion {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 作为 fixed SR piano reading mode，不应允许 accessory piano promotion。"
                     )
                 )
             }
@@ -1372,6 +1397,27 @@ extension ExerciseCompositionValidationRunner {
                     issue(
                         fixtureName,
                         "\(modeDebugName) 的 fixedPianoMovementScope 应直接来自 SR piano reading contract。"
+                    )
+                )
+            }
+            if resolvedPianoSettingsSlice.rowCount != contract.fixedPianoRowCount
+                || resolvedPianoSettingsSlice.movementScope
+                != contract.fixedPianoMovementScope {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 resolvedPianoSettingsSlice 应通过共享 helper 收敛到 contract 指定的行数与 movementScope。"
+                    )
+                )
+            }
+            if resolvedPianoSettingsSlice.whiteKeyStyle
+                != requestedPianoSettingsSlice.whiteKeyStyle
+                || resolvedPianoSettingsSlice.snapEnabled
+                != requestedPianoSettingsSlice.snapEnabled {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeDebugName) 的 piano settings helper 只应覆盖 fixed 行数/移动策略，不应篡改其它 piano panel 设置。"
                     )
                 )
             }
@@ -1483,12 +1529,37 @@ extension ExerciseCompositionValidationRunner {
                 requestedPreferences,
                 trainerDisplayState: trainerDisplayState
             )
+        let requestedPianoSettingsSlice = PianoPanelSettingsSlice(
+            rowCount: 4,
+            movementScope: .cascade,
+            whiteKeyStyle: .borderlessSeparatedByGaps,
+            snapEnabled: false
+        )
+        let resolvedPianoSettingsSlice = trainerDisplayState.exerciseMode
+            .applyingFixedPianoSettings(to: requestedPianoSettingsSlice)
 
         if !trainerDisplayState.usesQuarterNoteSequenceKernel {
             issues.append(
                 issue(
                     fixtureName,
                     "SR-0 应继续复用 quarter-note sequence kernel，而不是退回 single/position prompt 路径。"
+                )
+            )
+        }
+        if trainerDisplayState.exerciseMode.fixedCompositionPreset
+            != .staffToNaturalNoteStrip {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 的 fixedCompositionPreset 应固定为 `staffToNaturalNoteStrip`。"
+                )
+            )
+        }
+        if trainerDisplayState.exerciseMode.allowsAccessoryPianoPromotion {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 作为 fixed layout mode，不应允许 accessory piano promotion。"
                 )
             )
         }
@@ -1514,6 +1585,14 @@ extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "SR-0 mode constraint 只应钳制 clef / answerPolicy；noteCount 与 includesAccidentals 应继续保留用户配置。"
+                )
+            )
+        }
+        if resolvedPianoSettingsSlice != requestedPianoSettingsSlice {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-0 不应继承 SR piano reading family 的固定 piano settings helper；其 piano panel 设置应保持原样。"
                 )
             )
         }

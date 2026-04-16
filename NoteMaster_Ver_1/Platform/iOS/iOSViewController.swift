@@ -511,15 +511,9 @@ final class iOSViewController: UIViewController {
     }
 
     private var resolvedPianoSettingsSlice: PianoPanelSettingsSlice {
-        var settingsSlice = pianoPanelState.settingsSlice
-        if let fixedRowCount = trainerDisplayState.exerciseMode.fixedPianoRowCount {
-            settingsSlice.rowCount = fixedRowCount
-        }
-        if let fixedMovementScope = trainerDisplayState.exerciseMode
-            .fixedPianoMovementScope {
-            settingsSlice.movementScope = fixedMovementScope
-        }
-        return settingsSlice
+        trainerDisplayState.resolvedPianoSettingsSlice(
+            from: pianoPanelState.settingsSlice
+        )
     }
 
     private var canRoutePianoPreviewAnswers: Bool {
@@ -1269,13 +1263,12 @@ final class iOSViewController: UIViewController {
 
     private func synchronizeTrainerPresentationState(reason: String) {
         logLifecycle("synchronizeTrainerPresentationState reason=\(reason)")
-        switch trainerDisplayState.exerciseMode {
-        case .single:
-            synchronizeSingleTrainerPresentation(reason: reason)
-        case .sequence, .sr0, .sr1, .sr2:
+        if trainerDisplayState.usesQuarterNoteSequenceKernel {
             synchronizeQuarterNoteSequencePresentation(reason: reason)
-        case .positionPrompt:
+        } else if trainerDisplayState.isPositionPromptMode {
             synchronizePositionPromptPresentation(reason: reason)
+        } else {
+            synchronizeSingleTrainerPresentation(reason: reason)
         }
     }
 

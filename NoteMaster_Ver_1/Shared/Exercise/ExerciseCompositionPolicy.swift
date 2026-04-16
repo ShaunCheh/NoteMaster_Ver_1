@@ -23,13 +23,11 @@ enum ExerciseCompositionPolicy {
                 input.layoutPreferences,
                 trainerDisplayState: input.trainerDisplayState
             )
-        let allowsAccessoryPianoPromotion =
-            input.trainerDisplayState.exerciseMode.fixedExerciseLayoutPreferences
-            == nil
         resolvedLayoutPreferences.isPianoAccessoryVisible =
             resolvedLayoutPreferences.isPianoAccessoryVisible
             || (
-                allowsAccessoryPianoPromotion
+                input.trainerDisplayState.exerciseMode
+                    .allowsAccessoryPianoPromotion
                     && input.pianoPanelState.isVisible
                     && !resolvedLayoutPreferences.compositionPreset
                     .usesMainPianoAnswerSurface
@@ -81,18 +79,17 @@ enum ExerciseCompositionPolicy {
         legacyCompatiblePreferences.isPianoAccessoryVisible = false
         legacyCompatiblePreferences.isAccessoryExpanded = true
 
-        switch input.trainerDisplayState.exerciseMode {
-        case .single, .sequence, .sr0, .sr1, .sr2:
+        if input.trainerDisplayState.isPositionPromptMode {
+            if legacyCompatiblePreferences.compositionPreset
+                != .fretboardToNaturalNoteStrip {
+                legacyCompatiblePreferences.compositionPreset = .fretboardToNaturalNoteStrip
+            }
+        } else {
             if legacyCompatiblePreferences.compositionPreset
                 != .targetPromptToFretboard,
                legacyCompatiblePreferences.compositionPreset
                 != .staffToFretboard {
                 legacyCompatiblePreferences.compositionPreset = .staffToFretboard
-            }
-        case .positionPrompt:
-            if legacyCompatiblePreferences.compositionPreset
-                != .fretboardToNaturalNoteStrip {
-                legacyCompatiblePreferences.compositionPreset = .fretboardToNaturalNoteStrip
             }
         }
 
@@ -398,17 +395,7 @@ enum ExerciseCompositionPolicy {
         for exerciseMode: TrainerExerciseMode,
         isPianoAccessoryVisible _: Bool
     ) -> ExerciseLayoutPreferences {
-        switch exerciseMode {
-        case .single, .sequence, .sr0, .sr1, .sr2:
-            return ExerciseLayoutPreferences(
-                compositionPreset: .staffToFretboard,
-                layoutPreset: .stacked,
-                accessoryPresentation: .docked,
-                isNaturalNoteStripVisible: false,
-                isPianoAccessoryVisible: false,
-                isAccessoryExpanded: true
-            )
-        case .positionPrompt:
+        if exerciseMode == .positionPrompt {
             return ExerciseLayoutPreferences(
                 compositionPreset: .fretboardToNaturalNoteStrip,
                 layoutPreset: .stacked,
@@ -418,19 +405,26 @@ enum ExerciseCompositionPolicy {
                 isAccessoryExpanded: true
             )
         }
+
+        return ExerciseLayoutPreferences(
+            compositionPreset: .staffToFretboard,
+            layoutPreset: .stacked,
+            accessoryPresentation: .docked,
+            isNaturalNoteStripVisible: false,
+            isPianoAccessoryVisible: false,
+            isAccessoryExpanded: true
+        )
     }
 
     private static func legacyCompatibleTrainerDisplayState(
         _ trainerDisplayState: TrainerDisplayState
     ) -> TrainerDisplayState {
         var legacyCompatibleState = trainerDisplayState
-        switch legacyCompatibleState.exerciseMode {
-        case .sr0, .sr1, .sr2:
+        if legacyCompatibleState.exerciseMode.usesQuarterNoteSequenceKernel,
+           legacyCompatibleState.exerciseMode != .sequence {
             // Explicit legacy fallback should render through a layout-compatible
             // host mode instead of being re-normalized back to fixed SR scenes.
             legacyCompatibleState.exerciseMode = .sequence
-        case .single, .sequence, .positionPrompt:
-            break
         }
         return legacyCompatibleState
     }

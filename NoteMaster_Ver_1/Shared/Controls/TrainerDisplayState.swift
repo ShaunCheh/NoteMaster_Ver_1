@@ -83,6 +83,14 @@ extension TrainerExerciseMode {
         srPianoReadingMode?.contract
     }
 
+    var fixedCompositionPreset: ExerciseCompositionPreset? {
+        fixedExerciseLayoutPreferences?.compositionPreset
+    }
+
+    var allowsAccessoryPianoPromotion: Bool {
+        fixedExerciseLayoutPreferences == nil
+    }
+
     var fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy? {
         switch self {
         case .sr1, .sr2:
@@ -132,6 +140,28 @@ extension TrainerExerciseMode {
         case .single, .sequence, .positionPrompt, .sr0:
             return nil
         }
+    }
+
+    var usesQuarterNoteSequenceKernel: Bool {
+        switch self {
+        case .sequence, .sr0, .sr1, .sr2:
+            return true
+        case .single, .positionPrompt:
+            return false
+        }
+    }
+
+    func applyingFixedPianoSettings(
+        to settingsSlice: PianoPanelSettingsSlice
+    ) -> PianoPanelSettingsSlice {
+        var resolvedSettingsSlice = settingsSlice
+        if let fixedRowCount = fixedPianoRowCount {
+            resolvedSettingsSlice.rowCount = fixedRowCount
+        }
+        if let fixedMovementScope = fixedPianoMovementScope {
+            resolvedSettingsSlice.movementScope = fixedMovementScope
+        }
+        return resolvedSettingsSlice
     }
 }
 
@@ -495,12 +525,7 @@ struct TrainerDisplayState: Equatable, Sendable {
     // This is the shared seam for modes that reuse the quarter-note sequence
     // trainer kernel, independent from which UI mode is currently selected.
     var usesQuarterNoteSequenceKernel: Bool {
-        switch exerciseMode {
-        case .sequence, .sr0, .sr1, .sr2:
-            return true
-        case .single, .positionPrompt:
-            return false
-        }
+        exerciseMode.usesQuarterNoteSequenceKernel
     }
 
     var positionPromptAnswerRule: PositionPromptAnswerRule {
@@ -600,5 +625,11 @@ extension TrainerSequenceConfiguration {
 extension TrainerDisplayState {
     var resolvedSequenceConfiguration: TrainerSequenceConfiguration {
         sequenceConfiguration.applyingModeConstraints(exerciseMode)
+    }
+
+    func resolvedPianoSettingsSlice(
+        from settingsSlice: PianoPanelSettingsSlice
+    ) -> PianoPanelSettingsSlice {
+        exerciseMode.applyingFixedPianoSettings(to: settingsSlice)
     }
 }
