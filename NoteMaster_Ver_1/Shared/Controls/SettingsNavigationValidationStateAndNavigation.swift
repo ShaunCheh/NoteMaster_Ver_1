@@ -944,7 +944,10 @@ extension SettingsNavigationValidationRunner {
             modeTitle: "SR-0",
             fixtureName: "sr0_settings_state_freezes_fixed_presentation_options",
             expectedLayoutPreferences: .srNoteStripAnswer,
-            hidesPianoRowsAndMovement: false
+            hidesPianoRowsAndMovement: false,
+            expectedSequenceAnswerPolicy: .pitchClass,
+            expectedResolvedPianoRowCount: 6,
+            expectedResolvedPianoMovementScope: .cascade
         )
     }
 
@@ -956,7 +959,25 @@ extension SettingsNavigationValidationRunner {
             modeTitle: "SR-1",
             fixtureName: "sr1_settings_state_freezes_fixed_presentation_options",
             expectedLayoutPreferences: .srPianoAnswer,
-            hidesPianoRowsAndMovement: true
+            hidesPianoRowsAndMovement: true,
+            expectedSequenceAnswerPolicy: .pitchClass,
+            expectedResolvedPianoRowCount: 1,
+            expectedResolvedPianoMovementScope: .rowOnly
+        )
+    }
+
+    static func validateSR2SettingsStateFreezesFixedPresentationOptions()
+        -> [SettingsNavigationValidationIssue] {
+        validateSRFixedSettingsState(
+            triggerAction: .setExerciseModeSr2,
+            expectedExerciseMode: .sr2,
+            modeTitle: "SR-2",
+            fixtureName: "sr2_settings_state_freezes_fixed_presentation_options",
+            expectedLayoutPreferences: .srPianoAnswer,
+            hidesPianoRowsAndMovement: true,
+            expectedSequenceAnswerPolicy: .exactNote,
+            expectedResolvedPianoRowCount: 2,
+            expectedResolvedPianoMovementScope: .rowOnly
         )
     }
 
@@ -966,7 +987,10 @@ extension SettingsNavigationValidationRunner {
         modeTitle: String,
         fixtureName: String,
         expectedLayoutPreferences: ExerciseLayoutPreferences,
-        hidesPianoRowsAndMovement: Bool
+        hidesPianoRowsAndMovement: Bool,
+        expectedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy,
+        expectedResolvedPianoRowCount: Int,
+        expectedResolvedPianoMovementScope: PianoMovementScope
     ) -> [SettingsNavigationValidationIssue] {
         var issues: [SettingsNavigationValidationIssue] = []
         var stateContext = SettingsPanelStateContext(
@@ -1001,12 +1025,23 @@ extension SettingsNavigationValidationRunner {
         )
         let resolvedSequenceConfiguration = stateContext.trainerDisplayState
             .resolvedSequenceConfiguration
+        let resolvedPianoSettingsSlice = stateContext.trainerDisplayState
+            .resolvedPianoSettingsSlice(from: stateContext.pianoPanelState.settingsSlice)
         let expectedExerciseModeChoices: [SettingsActionID] = [
             .setExerciseModeSingle,
             .setExerciseModeSequence,
             .setExerciseModeSr0,
             .setExerciseModeSr1,
+            .setExerciseModeSr2,
             .setExerciseModePositionPrompt
+        ]
+        let expectedExerciseModeTitles = [
+            "Single",
+            "Sequence",
+            "SR-0",
+            "SR-1",
+            "SR-2",
+            "Position"
         ]
         let expectedStaffSectionRowIDs: [SettingsRowID] = [
             .slider(.clefScale),
@@ -1067,11 +1102,12 @@ extension SettingsNavigationValidationRunner {
             )
         }
         if resolvedSequenceConfiguration.clef != .treble
-            || resolvedSequenceConfiguration.answerPolicy != .pitchClass {
+            || resolvedSequenceConfiguration.answerPolicy
+            != expectedSequenceAnswerPolicy {
             issues.append(
                 issue(
                     fixtureName,
-                    "\(modeTitle) 的 resolvedSequenceConfiguration 应强制固定为 treble + pitchClass。"
+                    "\(modeTitle) 的 resolvedSequenceConfiguration 应强制固定为 treble + \(expectedSequenceAnswerPolicy)。"
                 )
             )
         }
@@ -1081,6 +1117,16 @@ extension SettingsNavigationValidationRunner {
                 issue(
                     fixtureName,
                     "\(modeTitle) 只应钳制 clef / answerPolicy；其余 sequence 配置仍应保留。"
+                )
+            )
+        }
+        if resolvedPianoSettingsSlice.rowCount != expectedResolvedPianoRowCount
+            || resolvedPianoSettingsSlice.movementScope
+            != expectedResolvedPianoMovementScope {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "\(modeTitle) 的 settings state 应通过 shared helper 收敛到 rowCount=\(expectedResolvedPianoRowCount) / movementScope=\(expectedResolvedPianoMovementScope)。"
                 )
             )
         }
@@ -1096,7 +1142,15 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / SR-0 / SR-1 / Position。"
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / SR-0 / SR-1 / SR-2 / Position。"
+                )
+            )
+        }
+        if exerciseModeRow.choices.map(\.title) != expectedExerciseModeTitles {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / SR-0 / SR-1 / SR-2 / Position。"
                 )
             )
         }
@@ -1105,6 +1159,34 @@ extension SettingsNavigationValidationRunner {
                 issue(
                     fixtureName,
                     "\(modeTitle) state 下 Exercise Mode row 应只选中 \(modeTitle)。"
+                )
+            )
+        }
+        guard let sr2Choice = exerciseModeRow.choices.first(where: { choice in
+            choice.id == .setExerciseModeSr2
+        }) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 应正式暴露 `SR-2` 选项，而不是只存在于内部 contract。"
+                )
+            )
+            return issues
+        }
+        if sr2Choice.title != "SR-2" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 中 `SR-2` 选项的标题应保持为 `SR-2`。"
+                )
+            )
+        }
+        if sr2Choice.accessibilityLabel
+            != "Train treble staff reading with a two-row piano answer surface and exact-note matching" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 中 `SR-2` 选项的 accessibility label 应明确表达 two-row piano + exact-note matching。"
                 )
             )
         }

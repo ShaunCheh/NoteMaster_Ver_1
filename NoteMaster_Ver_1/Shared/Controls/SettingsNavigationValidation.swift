@@ -154,6 +154,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateSR1RootTreeDropsInvalidExerciseAndAccessoryRoutes
             ),
             SettingsNavigationValidationFixture(
+                name: "sr2_root_tree_drops_invalid_exercise_and_accessory_routes",
+                validate: validateSR2RootTreeDropsInvalidExerciseAndAccessoryRoutes
+            ),
+            SettingsNavigationValidationFixture(
                 name: "position_prompt_section_visibility_tracks_exercise_mode",
                 validate: validatePositionPromptSectionVisibilityTracksExerciseMode
             ),
@@ -188,6 +192,10 @@ private extension SettingsNavigationValidationRunner {
             SettingsNavigationValidationFixture(
                 name: "sr1_settings_state_freezes_fixed_presentation_options",
                 validate: validateSR1SettingsStateFreezesFixedPresentationOptions
+            ),
+            SettingsNavigationValidationFixture(
+                name: "sr2_settings_state_freezes_fixed_presentation_options",
+                validate: validateSR2SettingsStateFreezesFixedPresentationOptions
             ),
             SettingsNavigationValidationFixture(
                 name: "reserved_route_titles_remain_stable",

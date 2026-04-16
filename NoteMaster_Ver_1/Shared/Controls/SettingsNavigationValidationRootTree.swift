@@ -27,6 +27,15 @@ extension SettingsNavigationValidationRunner {
         )
     }
 
+    static func validateSR2RootTreeDropsInvalidExerciseAndAccessoryRoutes()
+        -> [SettingsNavigationValidationIssue] {
+        validateSRFixedRootTreeDropsInvalidExerciseAndAccessoryRoutes(
+            exerciseMode: .sr2,
+            modeTitle: "SR-2",
+            fixtureName: "sr2_root_tree_drops_invalid_exercise_and_accessory_routes"
+        )
+    }
+
     private static func validateSRFixedRootTreeDropsInvalidExerciseAndAccessoryRoutes(
         exerciseMode: TrainerExerciseMode,
         modeTitle: String,
@@ -346,7 +355,7 @@ extension SettingsNavigationValidationRunner {
             expectedRouteItems: [
                 SettingsRouteItem(
                     title: SettingsRouteID.exerciseMode.fallbackTitle,
-                    subtitle: "Single, sequence, SR-0, SR-1, or position",
+                    subtitle: "Single, sequence, SR-0, SR-1, SR-2, or position",
                     route: .exerciseMode
                 ),
                 SettingsRouteItem(
