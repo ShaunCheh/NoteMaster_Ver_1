@@ -127,6 +127,33 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
             }
+        } else if RuntimeSmokeScenario.shouldRunSR2PianoAnswerSmoke {
+            print("[RuntimeSmoke][macOS] scheduled scenario=sr2_piano_answer")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard
+                    let self,
+                    let window = self.window,
+                    let rootViewController = window.contentViewController
+                    as? macOSRootViewController,
+                    let viewController = rootViewController.activeExerciseViewController
+                else {
+                    let summary =
+                        "[RuntimeSmoke][macOS] FAIL scenario=sr2_piano_answer reason=missing_window_or_view_controller"
+                    print(summary)
+                    fatalError(summary)
+                }
+
+                viewController.runSR2PianoAnswerSmokeTest(
+                    in: window
+                ) { passed, summary in
+                    print(summary)
+                    if passed {
+                        NSApp.terminate(nil)
+                    } else {
+                        fatalError(summary)
+                    }
+                }
+            }
         } else if RuntimeSmokeScenario.shouldRunLayoutPresetRegression {
             print(
                 "[RuntimeSmoke][macOS] scheduled scenario=layout_preset_regression"
@@ -172,6 +199,7 @@ private enum RuntimeSmokeScenario {
     static let environmentKey = "NOTE_MASTER_RUNTIME_SMOKE_TEST"
     static let sr0NoteStripAnswerValue = "sr0-note-strip-answer"
     static let sr1PianoAnswerValue = "sr1-piano-answer"
+    static let sr2PianoAnswerValue = "sr2-piano-answer"
     static let layoutPresetRegressionValue = "layout-preset-regression"
     static let startupValidationValue = "startup-validation"
 
@@ -183,6 +211,11 @@ private enum RuntimeSmokeScenario {
     static var shouldRunSR1PianoAnswerSmoke: Bool {
         ProcessInfo.processInfo.environment[environmentKey]
             == sr1PianoAnswerValue
+    }
+
+    static var shouldRunSR2PianoAnswerSmoke: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == sr2PianoAnswerValue
     }
 
     static var shouldRunLayoutPresetRegression: Bool {

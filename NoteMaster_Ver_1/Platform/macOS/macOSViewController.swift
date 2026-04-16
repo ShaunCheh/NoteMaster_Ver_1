@@ -2155,13 +2155,116 @@ extension macOSViewController {
         in window: NSWindow,
         completion: @escaping (Bool, String) -> Void
     ) {
+        runSRPianoAnswerSmokeTest(
+            in: window,
+            scenarioName: "sr1_piano_answer",
+            switchStepName: "switch_to_sr1",
+            switchAction: .setExerciseModeSr1,
+            expectedMode: .sr1,
+            expectedAnswerPolicy: .pitchClass,
+            expectedPianoRowCount: 1,
+            wrongStepName: "wrong_piano_preview",
+            makeWrongPreview: { expectedNote in
+                PianoPreviewState(
+                    rowIndex: 0,
+                    note: expectedNote.advanced(by: 1)
+                )
+            },
+            validateWrongPreviewSelection: { expectedNote, preview in
+                guard preview.note.pitchClass != expectedNote.pitchClass else {
+                    return "reason=wrong_preview_not_outside_pitch_class answered=\(preview.note.displayText()) expected=\(expectedNote.displayText())"
+                }
+                return nil
+            },
+            correctStepName: "correct_piano_preview",
+            makeCorrectPreview: { expectedNote in
+                PianoPreviewState(
+                    rowIndex: 0,
+                    note: NotePitch(
+                        pitchClass: expectedNote.pitchClass,
+                        octave: expectedNote.octave + 1
+                    )
+                )
+            },
+            validateCorrectPreviewSelection: { expectedNote, preview in
+                guard preview.note.pitchClass == expectedNote.pitchClass,
+                      preview.note != expectedNote else {
+                    return "reason=correct_preview_not_pitch_class_only answered=\(preview.note.displayText()) expected=\(expectedNote.displayText())"
+                }
+                return nil
+            },
+            completion: completion
+        )
+    }
+
+    func runSR2PianoAnswerSmokeTest(
+        in window: NSWindow,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        runSRPianoAnswerSmokeTest(
+            in: window,
+            scenarioName: "sr2_piano_answer",
+            switchStepName: "switch_to_sr2",
+            switchAction: .setExerciseModeSr2,
+            expectedMode: .sr2,
+            expectedAnswerPolicy: .exactNote,
+            expectedPianoRowCount: 2,
+            wrongStepName: "wrong_exact_note",
+            makeWrongPreview: { expectedNote in
+                PianoPreviewState(
+                    rowIndex: 1,
+                    note: expectedNote.advanced(by: 12)
+                )
+            },
+            validateWrongPreviewSelection: { expectedNote, preview in
+                guard preview.note.pitchClass == expectedNote.pitchClass,
+                      preview.note != expectedNote else {
+                    return "reason=wrong_preview_not_same_class_different_octave answered=\(preview.note.displayText()) expected=\(expectedNote.displayText())"
+                }
+                return nil
+            },
+            correctStepName: "correct_exact_note",
+            makeCorrectPreview: { expectedNote in
+                PianoPreviewState(
+                    rowIndex: 1,
+                    note: expectedNote
+                )
+            },
+            validateCorrectPreviewSelection: { expectedNote, preview in
+                guard preview.note == expectedNote else {
+                    return "reason=correct_preview_not_exact_note answered=\(preview.note.displayText()) expected=\(expectedNote.displayText())"
+                }
+                return nil
+            },
+            completion: completion
+        )
+    }
+
+    private func runSRPianoAnswerSmokeTest(
+        in window: NSWindow,
+        scenarioName: String,
+        switchStepName: String,
+        switchAction: SettingsActionID,
+        expectedMode: TrainerExerciseMode,
+        expectedAnswerPolicy: TrainerSequenceAnswerPolicy,
+        expectedPianoRowCount: Int,
+        wrongStepName: String,
+        makeWrongPreview: @escaping (NotePitch) -> PianoPreviewState,
+        validateWrongPreviewSelection: @escaping (NotePitch, PianoPreviewState) -> String?,
+        correctStepName: String,
+        makeCorrectPreview: @escaping (NotePitch) -> PianoPreviewState,
+        validateCorrectPreviewSelection: @escaping (NotePitch, PianoPreviewState) -> String?,
+        completion: @escaping (Bool, String) -> Void
+    ) {
         typealias SmokeStep = (
             name: String,
             action: () -> Void,
             validate: () -> String?
         )
         var wrongPreview: PianoPreviewState?
+        var wrongExpectedNote: NotePitch?
         var correctPreview: PianoPreviewState?
+        var correctExpectedNote: NotePitch?
 
         func currentExpectedNotePitch() -> NotePitch? {
             if let currentItem = quarterNoteSequenceSession?.currentItem {
@@ -2177,21 +2280,32 @@ extension macOSViewController {
 
         let steps: [SmokeStep] = [
             (
-                name: "switch_to_sr1",
+                name: switchStepName,
                 action: {
                     self.handleSettingsPanelEvent(
-                        .triggerAction(.setExerciseModeSr1)
+                        .triggerAction(switchAction)
                     )
                 },
                 validate: {
-                    guard self.trainerDisplayState.exerciseMode == .sr1 else {
-                        return "reason=mode_not_sr1 resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode))"
+                    guard self.trainerDisplayState.exerciseMode == expectedMode else {
+                        return "reason=mode_not_expected resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode)) expectedMode=\(String(describing: expectedMode))"
                     }
                     guard self.exerciseLayoutPreferences == .srPianoAnswer else {
                         return "reason=layout_not_fixed resolvedLayout=\(String(describing: self.exerciseLayoutPreferences))"
                     }
+                    guard !self.exerciseLayoutPreferences.isPianoAccessoryVisible else {
+                        return "reason=piano_accessory_enabled"
+                    }
                     guard self.trainerDisplayState.usesQuarterNoteSequenceKernel else {
                         return "reason=sequence_kernel_disabled"
+                    }
+                    let resolvedSequenceConfiguration = self.trainerDisplayState
+                        .resolvedSequenceConfiguration
+                    guard resolvedSequenceConfiguration.clef == .treble else {
+                        return "reason=clef_not_treble resolvedClef=\(String(describing: resolvedSequenceConfiguration.clef))"
+                    }
+                    guard resolvedSequenceConfiguration.answerPolicy == expectedAnswerPolicy else {
+                        return "reason=answer_policy_not_fixed resolvedPolicy=\(String(describing: resolvedSequenceConfiguration.answerPolicy)) expectedPolicy=\(String(describing: expectedAnswerPolicy))"
                     }
                     guard self.exercisePresentationState.projectedSurfaceState(for: .staff) == .promptOnly else {
                         return "reason=staff_not_prompt_only"
@@ -2199,13 +2313,26 @@ extension macOSViewController {
                     guard self.exercisePresentationState.projectedSurfaceState(for: .piano) == .answerOnly else {
                         return "reason=piano_not_answer_only"
                     }
-                    guard self.exercisePresentationState.isSurfaceVisible(.staff),
+                    guard self.exercisePresentationState.containsSurface(.piano),
+                          self.exercisePresentationState.isSurfaceVisible(.staff),
                           self.exercisePresentationState.isSurfaceVisible(.piano) else {
-                        return "reason=sr1_surfaces_not_visible"
+                        return "reason=sr_piano_surfaces_not_visible"
                     }
-                    guard self.resolvedPianoSettingsSlice.rowCount == 1,
+                    guard !self.exercisePresentationState.containsSurface(.fretboard),
+                          self.exercisePresentationState.projectedSurfaceState(for: .fretboard) == nil else {
+                        return "reason=fretboard_surface_present"
+                    }
+                    guard !self.exercisePresentationState.containsSurface(.naturalNoteStrip),
+                          self.exercisePresentationState.projectedSurfaceState(for: .naturalNoteStrip) == nil else {
+                        return "reason=strip_surface_present"
+                    }
+                    guard self.resolvedPianoSettingsSlice.rowCount == expectedPianoRowCount,
                           self.resolvedPianoSettingsSlice.movementScope == .rowOnly else {
                         return "reason=piano_settings_not_fixed rowCount=\(self.resolvedPianoSettingsSlice.rowCount) movement=\(self.resolvedPianoSettingsSlice.movementScope.debugName)"
+                    }
+                    guard self.pianoSurfaceView.currentSettingsSlice.rowCount == expectedPianoRowCount,
+                          self.pianoSurfaceView.currentSettingsSlice.movementScope == .rowOnly else {
+                        return "reason=piano_view_settings_not_applied rowCount=\(self.pianoSurfaceView.currentSettingsSlice.rowCount) movement=\(self.pianoSurfaceView.currentSettingsSlice.movementScope.debugName)"
                     }
                     guard self.pianoSurfaceView.isPianoInteractionEnabled else {
                         return "reason=piano_interaction_disabled"
@@ -2223,28 +2350,45 @@ extension macOSViewController {
                 }
             ),
             (
-                name: "wrong_piano_preview",
+                name: wrongStepName,
                 action: {
                     guard let expectedNote = currentExpectedNotePitch() else {
+                        wrongExpectedNote = nil
                         wrongPreview = nil
                         return
                     }
-                    let preview = PianoPreviewState(
-                        rowIndex: 0,
-                        note: expectedNote.advanced(by: 1)
-                    )
+                    wrongExpectedNote = expectedNote
+                    let preview = makeWrongPreview(expectedNote)
                     wrongPreview = preview
                     self.handlePianoSemanticEvent(.previewStarted(preview))
                 },
                 validate: {
+                    guard let wrongExpectedNote else {
+                        return "reason=missing_wrong_expected_note"
+                    }
                     guard let wrongPreview else {
                         return "reason=missing_wrong_preview"
+                    }
+                    if let selectionFailure = validateWrongPreviewSelection(
+                        wrongExpectedNote,
+                        wrongPreview
+                    ) {
+                        return selectionFailure
                     }
                     guard let evaluation = self.quarterNoteSequenceLastEvaluation else {
                         return "reason=missing_wrong_evaluation"
                     }
+                    guard evaluation.comparisonPolicy == expectedAnswerPolicy else {
+                        return "reason=wrong_policy resolvedPolicy=\(String(describing: evaluation.comparisonPolicy)) expectedPolicy=\(String(describing: expectedAnswerPolicy))"
+                    }
                     guard !evaluation.isCorrect else {
                         return "reason=wrong_preview_marked_correct"
+                    }
+                    guard evaluation.expectedNotePitch == wrongExpectedNote else {
+                        return "reason=wrong_expected_note_shifted answered=\(evaluation.expectedNotePitch.displayText()) expected=\(wrongExpectedNote.displayText())"
+                    }
+                    guard evaluation.answeredPitchClass == wrongPreview.note.pitchClass else {
+                        return "reason=wrong_pitch_class_lost answered=\(evaluation.answeredPitchClass.displayText()) expected=\(wrongPreview.note.pitchClass.displayText())"
                     }
                     guard evaluation.answeredNotePitch == wrongPreview.note else {
                         return "reason=wrong_pitch_lost answered=\(String(describing: evaluation.answeredNotePitch)) expected=\(wrongPreview.note.displayText())"
@@ -2263,34 +2407,48 @@ extension macOSViewController {
                 }
             ),
             (
-                name: "correct_piano_preview",
+                name: correctStepName,
                 action: {
                     if let wrongPreview {
                         self.handlePianoSemanticEvent(.previewEnded(wrongPreview))
                     }
                     guard let expectedNote = currentExpectedNotePitch() else {
+                        correctExpectedNote = nil
                         correctPreview = nil
                         return
                     }
-                    let preview = PianoPreviewState(
-                        rowIndex: 0,
-                        note: NotePitch(
-                            pitchClass: expectedNote.pitchClass,
-                            octave: expectedNote.octave + 1
-                        )
-                    )
+                    correctExpectedNote = expectedNote
+                    let preview = makeCorrectPreview(expectedNote)
                     correctPreview = preview
                     self.handlePianoSemanticEvent(.previewStarted(preview))
                 },
                 validate: {
+                    guard let correctExpectedNote else {
+                        return "reason=missing_correct_expected_note"
+                    }
                     guard let correctPreview else {
                         return "reason=missing_correct_preview"
+                    }
+                    if let selectionFailure = validateCorrectPreviewSelection(
+                        correctExpectedNote,
+                        correctPreview
+                    ) {
+                        return selectionFailure
                     }
                     guard let evaluation = self.quarterNoteSequenceLastEvaluation else {
                         return "reason=missing_correct_evaluation"
                     }
+                    guard evaluation.comparisonPolicy == expectedAnswerPolicy else {
+                        return "reason=correct_policy_mismatch resolvedPolicy=\(String(describing: evaluation.comparisonPolicy)) expectedPolicy=\(String(describing: expectedAnswerPolicy))"
+                    }
                     guard evaluation.isCorrect else {
                         return "reason=correct_preview_marked_wrong"
+                    }
+                    guard evaluation.expectedNotePitch == correctExpectedNote else {
+                        return "reason=correct_expected_note_shifted answered=\(evaluation.expectedNotePitch.displayText()) expected=\(correctExpectedNote.displayText())"
+                    }
+                    guard evaluation.answeredPitchClass == correctPreview.note.pitchClass else {
+                        return "reason=correct_pitch_class_lost answered=\(evaluation.answeredPitchClass.displayText()) expected=\(correctPreview.note.pitchClass.displayText())"
                     }
                     guard evaluation.answeredNotePitch == correctPreview.note else {
                         return "reason=correct_pitch_lost answered=\(String(describing: evaluation.answeredNotePitch)) expected=\(correctPreview.note.displayText())"
@@ -2342,15 +2500,15 @@ extension macOSViewController {
         ]
 
         print(
-            "[RuntimeSmoke][macOS] begin scenario=sr1_piano_answer initialMode=\(String(describing: trainerDisplayState.exerciseMode))"
+            "[RuntimeSmoke][macOS] begin scenario=\(scenarioName) initialMode=\(String(describing: trainerDisplayState.exerciseMode))"
         )
         runExerciseAnswerSmokeSteps(
             steps,
             index: 0,
-            scenarioName: "sr1_piano_answer",
+            scenarioName: scenarioName,
             settleLayout: settleLayout,
             successSummary: {
-                "[RuntimeSmoke][macOS] PASS scenario=sr1_piano_answer finalMode=\(String(describing: self.trainerDisplayState.exerciseMode)) pianoVisible=\(self.exercisePresentationState.isSurfaceVisible(.piano))"
+                "[RuntimeSmoke][macOS] PASS scenario=\(scenarioName) finalMode=\(String(describing: self.trainerDisplayState.exerciseMode)) pianoVisible=\(self.exercisePresentationState.isSurfaceVisible(.piano))"
             },
             completion: completion
         )
