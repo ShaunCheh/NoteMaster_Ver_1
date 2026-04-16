@@ -318,7 +318,8 @@ extension ExerciseCompositionValidationRunner {
             "确认 `stacked + vertical` 模式下保留 `Viewport Height` 滑块；切到 `horizontal` 或 `side` 后该滑块消失，切回 `stacked + vertical` 后沿用上次值。",
             "确认切到 `SR-0` 后主视觉稳定收敛到 `treble staff + 双行 natural note strip`，strip 答错会给五线谱错误反馈、答对会推进到下一题。",
             "确认切到 `SR-1` 后主视觉稳定收敛到 `treble staff + 单行 piano`，不会再把 `piano accessory` 或 legacy page 投影混回主场景。",
-            "确认在 `SR-0` 与 `SR-1` 之间互切，再切回非 SR 模式时，不会残留 sequence 高亮、strip / piano 旧答案缓存，answer surface 交互状态也会随模式正确清理。"
+            "确认切到 `SR-2` 后主视觉稳定收敛到 `treble staff + 两行 piano`，并继续使用主场景 piano 作为 answer surface，不会把 `piano accessory` 或 legacy page 投影混回主场景。",
+            "确认在 `SR-0 / SR-1 / SR-2` 之间互切，再切回非 SR 模式时，不会残留 sequence 高亮、strip / piano 旧答案缓存，answer surface 交互状态也会随模式正确清理。"
         ]
 
         switch platform {
@@ -329,7 +330,7 @@ extension ExerciseCompositionValidationRunner {
             checklist.append("在 macOS 上确认 live resize、打开/关闭 settings、显示/隐藏钢琴后，主布局不会闪回到错误组合。")
             checklist.append("在 macOS 上确认 live resize 过程中，右侧 rail 仍保持左右同高且首屏完整可见，不会把 `natural note strip` 或 `fretboard` 撑出 viewport。")
         case .commandLine:
-            checklist.append("命令行只能覆盖 shared 夹具；settings 开关与钢琴显隐的实际视觉同步需在 App 运行时手工回归。")
+            checklist.append("命令行只能覆盖 shared 夹具；其中 `SR-1 / SR-2` 的 `staffToPiano` family 合同会被自动化锁住，但实际视觉与答题反馈仍需在 App 运行时手工回归。")
         }
 
         return checklist

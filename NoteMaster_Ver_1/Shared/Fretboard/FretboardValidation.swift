@@ -2955,7 +2955,9 @@ private extension FretboardValidationRunner {
             "观察控制台里的 `[PositionPrompt][Trainer]` 日志，确认会打印 `poolStrings`、`activeRoundStrings`、`selectedString`、`minimumHitCount`、`minimumHitCandidateCount`、`roundProgress` 等字段；切换 `Note Names` 或指板配置后，这些字段会按新的候选池重新开始。",
             "尝试连续取消音名直到只剩最后一个已选音名，再继续点击该音名；确认 UI 仍保持至少一个音名被选中。",
             "尝试连续取消品位直到只剩最后一个已选格子，再继续点击该格子；确认 UI 仍保持至少一个品位被选中。",
-            "在 `wrongFlash` 或 `correctHold` 期间切换过滤模式或当前激活模式下的过滤选项；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。"
+            "在 `wrongFlash` 或 `correctHold` 期间切换过滤模式或当前激活模式下的过滤选项；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。",
+            "切到 `SR-1` 后，确认五线谱题目继续使用 treble clef，钢琴保持单行；当题目是 `C5` 时，输入 `C6` 仍判 correct，说明 `SR-1` 继续按 `pitchClass` 判题。",
+            "切到 `SR-2` 后，确认五线谱题目继续使用 treble clef，钢琴切成两行；当题目是 `C5` 时，输入 `C6` 判 wrong、输入 `C5` 判 correct，说明 `SR-2` 继续按 `exactNote` 判题。"
         ]
 
         switch platform {
@@ -2965,7 +2967,7 @@ private extension FretboardValidationRunner {
             checklist.append("在 macOS 上执行 live resize，确认 vertical 模式不闪烁，指板在 resize 过程中保持居中且命中仍正常。")
             checklist.append("在 macOS 的 vertical 模式下分别点击顶部空弦区与底部高品区，确认可见格子与控制台 string / fret 一致，不再出现上下反向。")
         case .commandLine:
-            checklist.append("命令行只能覆盖共享层自动化夹具；iOS 滚动与 macOS live resize 需在 App 运行时手工回归。")
+            checklist.append("命令行只能覆盖共享层自动化夹具；其中 `SR-2` 不篡改 `noteCount / includesAccidentals`、且继续按 `exactNote` 判题的 mode seam 已由自动化锁住，iOS 滚动与 macOS live resize 仍需在 App 运行时手工回归。")
         }
 
         return checklist

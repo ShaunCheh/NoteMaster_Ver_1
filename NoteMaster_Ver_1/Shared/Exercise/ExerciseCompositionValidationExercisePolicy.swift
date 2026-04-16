@@ -1474,6 +1474,17 @@ extension ExerciseCompositionValidationRunner {
                 )
             )
         }
+        if sr1Contract.fixedExerciseLayoutPreferences.compositionPreset
+            != .staffToPiano
+            || sr2Contract.fixedExerciseLayoutPreferences.compositionPreset
+            != .staffToPiano {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 / SR-2 的 family 主场景都应继续显式锁死为 `staffToPiano`。"
+                )
+            )
+        }
         if sr1Contract.fixedPianoMovementScope
             != sr2Contract.fixedPianoMovementScope {
             issues.append(
@@ -1501,12 +1512,12 @@ extension ExerciseCompositionValidationRunner {
                 )
             )
         }
-        if sr1Contract.fixedSequenceAnswerPolicy
-            == sr2Contract.fixedSequenceAnswerPolicy {
+        if sr1Contract.fixedSequenceAnswerPolicy != .pitchClass
+            || sr2Contract.fixedSequenceAnswerPolicy != .exactNote {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 / SR-2 的集中 contract 至少应在 answerPolicy 上保留差异矩阵。"
+                    "SR piano reading contract 应继续显式锁死 SR-1 = .pitchClass、SR-2 = .exactNote，而不是只满足“二者不同”。"
                 )
             )
         }
