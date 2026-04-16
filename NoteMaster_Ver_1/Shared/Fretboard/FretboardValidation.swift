@@ -2229,6 +2229,14 @@ private extension FretboardValidationRunner {
             != sr2ModeContract.fixedPianoMovementScope {
             record("SR-1 / SR-2 的 movementScope 如需分叉，也应只改集中 contract，而不是重新散落到多个 switch。")
         }
+        if sr1ModeContract.fixedPianoMovementScope != .rowOnly
+            || sr2ModeContract.fixedPianoMovementScope != .rowOnly {
+            record("阶段 2 的 SR piano reading family 应继续锁死 rowOnly；若后续要改两行联动，只能改集中 contract 与对应 smoke。")
+        }
+        if sr1ModeContract.fixedPianoRowCount != 1
+            || sr2ModeContract.fixedPianoRowCount != 2 {
+            record("阶段 2 的 SR piano reading family 应显式锁死 SR-1 = 1 row、SR-2 = 2 rows，避免回退成同一行数配置。")
+        }
         if sr1ModeContract.fixedSequenceAnswerPolicy != .pitchClass
             || sr2ModeContract.fixedSequenceAnswerPolicy != .exactNote {
             record("SR piano reading contract 应继续保留 SR-1 pitchClass / SR-2 exactNote 的判题差异。")

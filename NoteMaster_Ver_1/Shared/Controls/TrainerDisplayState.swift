@@ -36,7 +36,7 @@ enum TrainerSRPianoReadingMode: Equatable, Hashable, Sendable {
         case .sr2:
             return TrainerSRPianoReadingContract(
                 answerPolicy: .exactNote,
-                pianoRowCount: 1,
+                pianoRowCount: 2,
                 pianoMovementScope: .rowOnly
             )
         }

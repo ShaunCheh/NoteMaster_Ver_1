@@ -1483,6 +1483,24 @@ extension ExerciseCompositionValidationRunner {
                 )
             )
         }
+        if sr1Contract.fixedPianoMovementScope != .rowOnly
+            || sr2Contract.fixedPianoMovementScope != .rowOnly {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 2 的 SR piano reading family 应继续锁死 rowOnly；若后续要改两行联动，只能改集中 contract 与对应 smoke。"
+                )
+            )
+        }
+        if sr1Contract.fixedPianoRowCount != 1
+            || sr2Contract.fixedPianoRowCount != 2 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "阶段 2 的 SR piano reading family 应显式锁死 SR-1 = 1 row、SR-2 = 2 rows，避免回退成同一行数配置。"
+                )
+            )
+        }
         if sr1Contract.fixedSequenceAnswerPolicy
             == sr2Contract.fixedSequenceAnswerPolicy {
             issues.append(
