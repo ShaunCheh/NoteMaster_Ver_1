@@ -8,6 +8,7 @@
 enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case single
     case sequence
+    case p2
     case positionPrompt
     case sr0
     case sr1
@@ -70,7 +71,7 @@ extension TrainerExerciseMode {
             return .sr1
         case .sr2:
             return .sr2
-        case .single, .sequence, .positionPrompt, .sr0:
+        case .single, .sequence, .p2, .positionPrompt, .sr0:
             return nil
         }
     }
@@ -97,7 +98,7 @@ extension TrainerExerciseMode {
             return srPianoReadingContract?.fixedSequenceAnswerPolicy
         case .sr0:
             return .pitchClass
-        case .single, .sequence, .positionPrompt:
+        case .single, .sequence, .p2, .positionPrompt:
             return nil
         }
     }
@@ -108,7 +109,7 @@ extension TrainerExerciseMode {
             return srPianoReadingContract?.fixedSequenceClef
         case .sr0:
             return .treble
-        case .single, .sequence, .positionPrompt:
+        case .single, .sequence, .p2, .positionPrompt:
             return nil
         }
     }
@@ -117,6 +118,8 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return srPianoReadingContract?.fixedExerciseLayoutPreferences
+        case .p2:
+            return .p2StaffFretboardAnswer
         case .sr0:
             return .srNoteStripAnswer
         case .single, .sequence, .positionPrompt:
@@ -128,7 +131,7 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return srPianoReadingContract?.fixedPianoRowCount
-        case .single, .sequence, .positionPrompt, .sr0:
+        case .single, .sequence, .p2, .positionPrompt, .sr0:
             return nil
         }
     }
@@ -137,14 +140,14 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return srPianoReadingContract?.fixedPianoMovementScope
-        case .single, .sequence, .positionPrompt, .sr0:
+        case .single, .sequence, .p2, .positionPrompt, .sr0:
             return nil
         }
     }
 
     var usesQuarterNoteSequenceKernel: Bool {
         switch self {
-        case .sequence, .sr0, .sr1, .sr2:
+        case .sequence, .p2, .sr0, .sr1, .sr2:
             return true
         case .single, .positionPrompt:
             return false

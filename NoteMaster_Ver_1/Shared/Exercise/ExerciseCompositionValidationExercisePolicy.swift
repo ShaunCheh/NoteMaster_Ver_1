@@ -29,6 +29,15 @@ extension ExerciseCompositionValidationRunner {
         )
     }
 
+    static func validateLegacyP2Baseline()
+        -> [ExerciseCompositionValidationIssue] {
+        validateLegacyBaseline(
+            fixtureName: "legacy_p2_baseline_matches_stacked_staff_over_fretboard",
+            exerciseMode: .p2,
+            expectedPageDisplayState: .default
+        )
+    }
+
     static func validateLegacyPositionPromptBaseline()
         -> [ExerciseCompositionValidationIssue] {
         validateLegacyBaseline(
@@ -117,6 +126,61 @@ extension ExerciseCompositionValidationRunner {
                     issue(
                         fixtureName,
                         "single / sequence 的 legacy baseline 应把 Composition Preset 映射为 Staff -> Fretboard。"
+                    )
+                )
+            }
+        case .p2:
+            if exerciseSection.rows.map(\.id) != [
+                .choice(.exerciseMode)
+            ] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 的 legacy baseline 应把 Exercise section 收敛为只保留 Exercise Mode。"
+                    )
+                )
+            }
+            if expectedPageDisplayState.topContentMode != .staff
+                || expectedPageDisplayState.mainContentMode != .fretboard {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 的 legacy baseline 应保持 staff -> fretboard。"
+                    )
+                )
+            }
+            if expectedPageDisplayState.showsFretboardInTopContent
+                || !expectedPageDisplayState.showsFretboardInMainContent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 的 legacy baseline 只允许 mainContent 承载 fretboard。"
+                    )
+                )
+            }
+            if stateContext.exerciseLayoutPreferences != .p2StaffFretboardAnswer {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 的 legacy baseline 应继续收敛到固定的 `staffToFretboard + stacked` layout contract。"
+                    )
+                )
+            }
+            if panelModel.choiceRow(for: .compositionPreset) != nil
+                || panelModel.choiceRow(for: .layoutPreset) != nil
+                || panelModel.sections.contains(where: { $0.id == .accessories }) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 的 fixed presentation baseline 不应继续暴露 Composition / Layout / Accessories。"
+                    )
+                )
+            }
+            if panelModel.sections.contains(where: { $0.id == .positionPrompt }) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 模式下不应继续暴露 Position Prompt section。"
                     )
                 )
             }

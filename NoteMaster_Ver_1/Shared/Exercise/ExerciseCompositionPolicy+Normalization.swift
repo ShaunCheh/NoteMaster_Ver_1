@@ -54,7 +54,7 @@ extension ExerciseCompositionPolicy {
                  .fretboardSelfAnswer:
                 return false
             }
-        case .sr0, .sr1, .sr2:
+        case .p2, .sr0, .sr1, .sr2:
             return false
         case .positionPrompt:
             switch preset {
@@ -92,7 +92,7 @@ private extension ExerciseCompositionPolicy {
             switch exerciseMode {
             case .single, .sequence:
                 return .staffToFretboard
-            case .sr0, .sr1, .sr2:
+            case .p2, .sr0, .sr1, .sr2:
                 return exerciseMode.fixedCompositionPreset ?? preset
             case .positionPrompt:
                 return .fretboardToNaturalNoteStrip

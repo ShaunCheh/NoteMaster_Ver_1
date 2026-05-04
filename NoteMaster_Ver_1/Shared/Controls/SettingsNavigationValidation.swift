@@ -146,6 +146,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateRootModeSwitchPreservesExerciseTreeAndState
             ),
             SettingsNavigationValidationFixture(
+                name: "p2_root_tree_drops_invalid_exercise_and_accessory_routes",
+                validate: validateP2RootTreeDropsInvalidExerciseAndAccessoryRoutes
+            ),
+            SettingsNavigationValidationFixture(
                 name: "sr0_root_tree_drops_invalid_exercise_and_accessory_routes",
                 validate: validateSR0RootTreeDropsInvalidExerciseAndAccessoryRoutes
             ),
@@ -186,6 +190,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateExerciseLayoutRouteRemainsStableAcrossChoiceUpdates
             ),
             SettingsNavigationValidationFixture(
+                name: "p2_settings_state_freezes_fixed_presentation_options",
+                validate: validateP2SettingsStateFreezesFixedPresentationOptions
+            ),
+            SettingsNavigationValidationFixture(
                 name: "sr0_settings_state_freezes_fixed_presentation_options",
                 validate: validateSR0SettingsStateFreezesFixedPresentationOptions
             ),
@@ -218,10 +226,11 @@ private extension SettingsNavigationValidationRunner {
             "确认 settings root 不再暴露 `Position Prompt` section；Position 模式相关的音名候选入口统一收口在 `Exercise > Mode`。",
             "确认切换到 horizontal 指板布局，或在 side 布局下保持 vertical 指板时 `Fretboard > Vertical Viewport` 深层页会消失；切回 stacked + vertical 后会恢复。",
             "确认 settings 中没有新增 `Rail` / `Strip Size` / `Strip Alignment` 一类入口；右侧 natural note strip 的尺寸与居中仍保持为内部布局契约。",
-            "确认 `Exercise > Mode` 页始终包含 `Exercise Mode`，并且仅在 `positionPrompt` 模式下追加 `Note Names` 多选行。",
+            "确认 `Exercise > Mode` 页始终包含 `Exercise Mode`，mode 列表现在包含 `P-2`，并且仅在 `positionPrompt` 模式下追加 `Note Names` 多选行。",
             "确认 `Accessories` 分区包含 `Natural Strip Visible / Piano Accessory Visible / Accessory Presentation / Accessory Expanded`，`Piano > Behavior` 不再负责可见性开关。",
             "确认 `single/sequence` 下可以打开 `Natural Strip Visible`，而 `positionPrompt` 主 answer strip 场景里该 toggle 会自动禁用。",
             "确认 `Accessory Presentation` 里的 `Docked / Floating / Collapsible` 都可进入且可选；只有切到 `Collapsible` 后才启用 `Accessory Expanded`。",
+            "确认切到 `P-2` 后，settings root 会移除 `Accessories` 分区，`Exercise` 只保留 `Mode` 入口；同时 `Staff > Clef` 仍保持可配置，不会被错误冻结。",
             "确认切到 `SR-0` 或 `SR-1` 后，settings root 会移除 `Accessories` 分区，`Exercise` 也只保留有效的 `Mode` 入口，不再暴露会被 fixed normalization 强拉回的子页。",
             "确认 `SR-0` / `SR-1` 下 `Staff > Clef` 入口都会消失；`SR-1` 还应继续隐藏 `Piano > Rows and movement`，而 `SR-0` 仍保留后台钢琴配置入口。",
             "确认 `Exercise > Mode` 页的 subtitle 继续明确包含 `SR-2`；切到 `SR-2` 后，`Exercise Mode` 选中态会稳定落在 `SR-2`，而不是回退到 `SR-1` 或 `Sequence`。",

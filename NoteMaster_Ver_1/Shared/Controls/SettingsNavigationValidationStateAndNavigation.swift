@@ -951,6 +951,243 @@ extension SettingsNavigationValidationRunner {
         )
     }
 
+    static func validateP2SettingsStateFreezesFixedPresentationOptions()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "p2_settings_state_freezes_fixed_presentation_options"
+        var issues: [SettingsNavigationValidationIssue] = []
+        var stateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .fretboardSelfAnswer,
+                layoutPreset: .singleSurface,
+                accessoryPresentation: .collapsible,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: false
+            ),
+            trainerDisplayState: TrainerDisplayState(
+                exerciseMode: .single,
+                sequenceConfiguration: TrainerSequenceConfiguration(
+                    clef: .bass,
+                    noteCount: 5,
+                    includesAccidentals: true,
+                    answerPolicy: .exactNote
+                )
+            ),
+            pianoPanelState: PianoPanelState(
+                isVisible: true,
+                rowCount: 6,
+                movementScope: .cascade
+            )
+        )
+        SettingsPanelEvent.triggerAction(.setExerciseModeP2).apply(to: &stateContext)
+
+        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
+        let resolvedSequenceConfiguration = stateContext.trainerDisplayState
+            .resolvedSequenceConfiguration
+        let resolvedPianoSettingsSlice = stateContext.trainerDisplayState
+            .resolvedPianoSettingsSlice(from: stateContext.pianoPanelState.settingsSlice)
+        let expectedExerciseModeChoices: [SettingsActionID] = [
+            .setExerciseModeSingle,
+            .setExerciseModeSequence,
+            .setExerciseModeP2,
+            .setExerciseModeSr0,
+            .setExerciseModeSr1,
+            .setExerciseModeSr2,
+            .setExerciseModePositionPrompt
+        ]
+        let expectedExerciseModeTitles = [
+            "Single",
+            "Sequence",
+            "P-2",
+            "SR-0",
+            "SR-1",
+            "SR-2",
+            "Position"
+        ]
+
+        if stateContext.trainerDisplayState.exerciseMode != .p2 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "触发 `.setExerciseModeP2` 后，trainerDisplayState.exerciseMode 应切到 `.p2`。"
+                )
+            )
+        }
+        if stateContext.exerciseLayoutPreferences != .p2StaffFretboardAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 的 settings writeback 应把 exerciseLayoutPreferences 固定收敛到 `staffToFretboard + stacked`。"
+                )
+            )
+        }
+        if stateContext.pageDisplayState != .default {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 的 settings state 应继续保留 legacy 默认 pageState 作为后台兼容值。"
+                )
+            )
+        }
+        if stateContext.pianoPanelState.isVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 的 settings writeback 应同步清掉 accessory piano 显隐状态。"
+                )
+            )
+        }
+        if resolvedSequenceConfiguration.clef != .bass
+            || resolvedSequenceConfiguration.answerPolicy != .exactNote
+            || resolvedSequenceConfiguration.noteCount != 5
+            || !resolvedSequenceConfiguration.includesAccidentals {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 只应固定 presentation，不应篡改 sequence 的 clef / answerPolicy / noteCount / accidental 配置。"
+                )
+            )
+        }
+        if resolvedPianoSettingsSlice.rowCount != 6
+            || resolvedPianoSettingsSlice.movementScope != .cascade {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 不应额外钳制后台 piano rows 或 movementScope。"
+                )
+            )
+        }
+
+        guard let exerciseModeRow = panelModel.choiceRow(for: .exerciseMode) else {
+            issues.append(issue(fixtureName, "P-2 state 应继续暴露 Exercise Mode row。"))
+            return issues
+        }
+
+        if exerciseModeRow.choices.map(\.id) != expectedExerciseModeChoices {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
+                )
+            )
+        }
+        if exerciseModeRow.choices.map(\.title) != expectedExerciseModeTitles {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
+                )
+            )
+        }
+        if exerciseModeRow.choices.filter(\.isSelected).map(\.id) != [
+            .setExerciseModeP2
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 state 下 Exercise Mode row 应只选中 P-2。"
+                )
+            )
+        }
+        guard let p2Choice = exerciseModeRow.choices.first(where: { choice in
+            choice.id == .setExerciseModeP2
+        }) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 应正式暴露 `P-2` 选项，而不是只存在于内部 contract。"
+                )
+            )
+            return issues
+        }
+        if p2Choice.title != "P-2" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 中 `P-2` 选项的标题应保持为 `P-2`。"
+                )
+            )
+        }
+        if p2Choice.accessibilityLabel
+            != "Train a generated note sequence with a fixed staff-over-fretboard stacked layout" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 中 `P-2` 选项的 accessibility label 应明确表达固定的上下 staff/fretboard 布局。"
+                )
+            )
+        }
+        if panelModel.choiceRow(for: .compositionPreset) != nil
+            || panelModel.choiceRow(for: .layoutPreset) != nil
+            || panelModel.choiceRow(for: .accessoryPresentation) != nil
+            || panelModel.toggleRow(for: .naturalStripVisible) != nil
+            || panelModel.toggleRow(for: .pianoAccessoryVisible) != nil
+            || panelModel.toggleRow(for: .accessoryExpanded) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 state 下所有会被 fixed presentation 强拉回的 Exercise / Accessories 行都应从 panel snapshot 中隐藏。"
+                )
+            )
+        }
+        if resolveSection(.accessories, in: panelModel) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 state 下 Accessories section 应整体消失，而不是保留一个空分区。"
+                )
+            )
+        }
+        guard let exerciseSection = resolveSection(.exercise, in: panelModel) else {
+            issues.append(issue(fixtureName, "P-2 state 下应保留 Exercise section。"))
+            return issues
+        }
+        if exerciseSection.rows.map(\.id) != [.choice(.exerciseMode)] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 state 下 Exercise section 应折叠成只包含 Exercise Mode 的固定模式入口。"
+                )
+            )
+        }
+        guard let staffSection = resolveSection(.staff, in: panelModel) else {
+            issues.append(issue(fixtureName, "P-2 state 下仍应保留 Staff section。"))
+            return issues
+        }
+        if staffSection.rows.map(\.id) != [
+            .choice(.clef),
+            .slider(.clefScale),
+            .slider(.clefVerticalTrim),
+            .slider(.clefAnchorYOffset)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 state 下 Staff section 应继续保留可配置的 Clef 与 Clef Layout sliders。"
+                )
+            )
+        }
+        guard let pianoSection = resolveSection(.piano, in: panelModel) else {
+            issues.append(issue(fixtureName, "P-2 state 下仍应保留 Piano section。"))
+            return issues
+        }
+        if pianoSection.rows.map(\.id) != [
+            .slider(.pianoRowCount),
+            .choice(.pianoMovementScope),
+            .choice(.pianoWhiteKeyStyle),
+            .toggle(.pianoSnapEnabled)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "P-2 state 下 Piano section 应继续保留后台 rows / movement / appearance / snap 入口。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateSR1SettingsStateFreezesFixedPresentationOptions()
         -> [SettingsNavigationValidationIssue] {
         validateSRFixedSettingsState(
@@ -1030,6 +1267,7 @@ extension SettingsNavigationValidationRunner {
         let expectedExerciseModeChoices: [SettingsActionID] = [
             .setExerciseModeSingle,
             .setExerciseModeSequence,
+            .setExerciseModeP2,
             .setExerciseModeSr0,
             .setExerciseModeSr1,
             .setExerciseModeSr2,
@@ -1038,6 +1276,7 @@ extension SettingsNavigationValidationRunner {
         let expectedExerciseModeTitles = [
             "Single",
             "Sequence",
+            "P-2",
             "SR-0",
             "SR-1",
             "SR-2",
@@ -1142,7 +1381,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / SR-0 / SR-1 / SR-2 / Position。"
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
                 )
             )
         }
@@ -1150,7 +1389,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / SR-0 / SR-1 / SR-2 / Position。"
+                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
                 )
             )
         }

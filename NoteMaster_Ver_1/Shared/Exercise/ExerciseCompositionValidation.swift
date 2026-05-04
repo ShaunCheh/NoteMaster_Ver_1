@@ -140,6 +140,10 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateLegacySequenceBaseline
             ),
             ExerciseCompositionValidationFixture(
+                name: "legacy_p2_baseline_matches_stacked_staff_over_fretboard",
+                validate: validateLegacyP2Baseline
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "legacy_position_prompt_baseline_matches_fretboard_over_natural_strip",
                 validate: validateLegacyPositionPromptBaseline
             ),
@@ -299,6 +303,7 @@ extension ExerciseCompositionValidationRunner {
     ) -> [String] {
         var checklist = [
             "确认 `single` 与 `sequence` 继续使用上方 `staff`、下方 `fretboard` 的主视觉组合。",
+            "确认切到 `P-2` 后主视觉固定收敛到上方 `staff`、下方 `fretboard`，不会再暴露 Composition / Layout / Accessories 对主场景的干扰入口。",
             "确认 `positionPrompt` 继续使用上方 `fretboard`、下方 `natural note strip` 的主视觉组合；其中 `stacked` 底部 `horizontalStrip` 合同在方案一中固定对应“上半音、下自然音”的双行语义。",
             "确认把 `Layout Preset` 切到 `Side` 后，主视觉立即切成左右双栏，而不是被自动打回 `Stacked`。",
             "确认 `positionPrompt + Side` 在 `fretboardToNaturalNoteStrip` 组合下呈现为左 `fretboard`、右竖排 `natural note strip`；右侧 strip 继续走 `verticalRail` 语义，不会被底部 `horizontalStrip` 合同覆盖。",

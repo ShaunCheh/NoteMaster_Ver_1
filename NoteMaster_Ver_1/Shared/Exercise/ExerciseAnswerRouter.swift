@@ -42,6 +42,8 @@ enum ExerciseAnswerRouteIgnoreReason: Equatable, Sendable {
             return "single"
         case .sequence:
             return "sequence"
+        case .p2:
+            return "p2"
         case .positionPrompt:
             return "positionPrompt"
         case .sr0:
@@ -108,7 +110,7 @@ enum ExerciseAnswerRouter {
                     cell: cell
                 )
             )
-        case .sequence, .sr0, .sr1, .sr2:
+        case .sequence, .p2, .sr0, .sr1, .sr2:
             guard let answer = FretboardNaturalNoteTrainerState
                 .resolvedSequenceAnswer(
                     from: event,
