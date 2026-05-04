@@ -29,6 +29,16 @@ enum ExerciseAccessoryPresentation: String, CaseIterable, Equatable, Hashable, S
     case collapsible
 }
 
+enum ExerciseFretboardOverflowScrollAxis:
+    String,
+    CaseIterable,
+    Equatable,
+    Hashable,
+    Sendable {
+    case horizontal
+    case vertical
+}
+
 struct ExerciseLayoutPreferences: Equatable, Sendable {
     var compositionPreset: ExerciseCompositionPreset
     var layoutPreset: ExerciseLayoutPreset
@@ -36,6 +46,8 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
     var isNaturalNoteStripVisible: Bool
     var isPianoAccessoryVisible: Bool
     var isAccessoryExpanded: Bool
+    var verticalFretboardWidthScale: Double
+    var verticalFretboardOverflowScrollAxis: ExerciseFretboardOverflowScrollAxis
 
     static let `default` = ExerciseLayoutPreferences()
     static let legacyPositionPrompt = ExerciseLayoutPreferences(
@@ -60,7 +72,9 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         accessoryPresentation: .docked,
         isNaturalNoteStripVisible: false,
         isPianoAccessoryVisible: false,
-        isAccessoryExpanded: true
+        isAccessoryExpanded: true,
+        verticalFretboardWidthScale: 2,
+        verticalFretboardOverflowScrollAxis: .vertical
     )
     static let srPianoAnswer = ExerciseLayoutPreferences(
         compositionPreset: .staffToPiano,
@@ -85,7 +99,9 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         accessoryPresentation: ExerciseAccessoryPresentation = .docked,
         isNaturalNoteStripVisible: Bool = false,
         isPianoAccessoryVisible: Bool = false,
-        isAccessoryExpanded: Bool = true
+        isAccessoryExpanded: Bool = true,
+        verticalFretboardWidthScale: Double = 1,
+        verticalFretboardOverflowScrollAxis: ExerciseFretboardOverflowScrollAxis = .horizontal
     ) {
         self.compositionPreset = compositionPreset
         self.layoutPreset = layoutPreset
@@ -93,6 +109,9 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         self.isNaturalNoteStripVisible = isNaturalNoteStripVisible
         self.isPianoAccessoryVisible = isPianoAccessoryVisible
         self.isAccessoryExpanded = isAccessoryExpanded
+        self.verticalFretboardWidthScale = verticalFretboardWidthScale
+        self.verticalFretboardOverflowScrollAxis =
+            verticalFretboardOverflowScrollAxis
     }
 }
 

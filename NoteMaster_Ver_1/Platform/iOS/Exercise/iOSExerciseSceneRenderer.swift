@@ -45,6 +45,9 @@ final class iOSExerciseSceneRenderer {
     private var verticalFretboardHostHeightConstraint: NSLayoutConstraint?
     private var horizontalFretboardContentWidthConstraint: NSLayoutConstraint?
     private var verticalFretboardContentWidthConstraint: NSLayoutConstraint?
+    private var fretboardScrollContentHeightMatchesViewportConstraint:
+        NSLayoutConstraint?
+    private var verticalFretboardContentHeightConstraint: NSLayoutConstraint?
 
     init(
         safeAreaHeightAnchor: NSLayoutDimension,
@@ -84,7 +87,7 @@ final class iOSExerciseSceneRenderer {
     }
 
     func handleLayoutPass() {
-        syncVerticalFretboardContentWidthConstraint()
+        syncVerticalFretboardContentSizeConstraints()
         updateFretboardViewportPresentation()
     }
 
@@ -102,6 +105,23 @@ final class iOSExerciseSceneRenderer {
     private var fretboardHeightPolicy: ExerciseFretboardHeightPolicy {
         currentPresentationState?.fretboardLayoutContract.heightPolicy
             ?? .followViewportRatio
+    }
+
+    private var fretboardLayoutContract: ExerciseFretboardLayoutContract {
+        currentPresentationState?.fretboardLayoutContract
+            ?? ExerciseFretboardLayoutContract(
+                pinsSceneToViewportHeight: true,
+                heightPolicy: .followViewportRatio
+            )
+    }
+
+    private var usesWidthDrivenVerticalOverflow: Bool {
+        currentFretboardDisplayState.displayMode == .vertical
+            && fretboardLayoutContract.usesWidthDrivenVerticalOverflow
+    }
+
+    private var resolvedVerticalFretboardWidthScale: CGFloat {
+        CGFloat(fretboardLayoutContract.resolvedVerticalFretboardWidthScale)
     }
 
     private func configureStaticHierarchy() {
@@ -137,6 +157,12 @@ final class iOSExerciseSceneRenderer {
             equalToConstant: currentFretboardDisplayState.configuration.verticalContentWidth(
                 forViewportHeight: currentFretboardDisplayState.configuration.preferredHeight
             )
+        )
+        fretboardScrollContentHeightMatchesViewportConstraint = fretboardScrollContentView.heightAnchor.constraint(
+            equalTo: fretboardViewportScrollView.frameLayoutGuide.heightAnchor
+        )
+        verticalFretboardContentHeightConstraint = fretboardScrollContentView.heightAnchor.constraint(
+            equalToConstant: currentFretboardDisplayState.configuration.preferredHeight
         )
 
         NSLayoutConstraint.activate([
@@ -190,9 +216,7 @@ final class iOSExerciseSceneRenderer {
             fretboardScrollContentView.bottomAnchor.constraint(
                 equalTo: fretboardViewportScrollView.contentLayoutGuide.bottomAnchor
             ),
-            fretboardScrollContentView.heightAnchor.constraint(
-                equalTo: fretboardViewportScrollView.frameLayoutGuide.heightAnchor
-            ),
+            fretboardScrollContentHeightMatchesViewportConstraint!,
             fretboardView.leadingAnchor.constraint(
                 equalTo: fretboardScrollContentView.leadingAnchor
             ),
@@ -799,10 +823,14 @@ final class iOSExerciseSceneRenderer {
             verticalFretboardHostHeightConstraint?.isActive = false
             horizontalFretboardContentWidthConstraint?.isActive = false
             verticalFretboardContentWidthConstraint?.isActive = false
+            fretboardScrollContentHeightMatchesViewportConstraint?.isActive = false
+            verticalFretboardContentHeightConstraint?.isActive = false
             fretboardViewportScrollView.contentInset = .zero
             fretboardViewportScrollView.scrollIndicatorInsets = .zero
             fretboardViewportScrollView.isScrollEnabled = false
             fretboardViewportScrollView.alwaysBounceHorizontal = false
+            fretboardViewportScrollView.alwaysBounceVertical = false
+            fretboardViewportScrollView.showsVerticalScrollIndicator = false
             fretboardViewportScrollView.showsHorizontalScrollIndicator = false
             fretboardViewportScrollView.setContentOffset(.zero, animated: false)
             return
@@ -811,18 +839,27 @@ final class iOSExerciseSceneRenderer {
         let isVertical = currentFretboardDisplayState.displayMode == .vertical
         let usesViewportRatio = isVertical
             && fretboardHeightPolicy == .followViewportRatio
+        let usesVerticalOverflow = isVertical && usesWidthDrivenVerticalOverflow
         verticalFretboardHostHeightConstraint?.isActive = usesViewportRatio
         horizontalFretboardContentWidthConstraint?.isActive = !isVertical
         verticalFretboardContentWidthConstraint?.isActive = isVertical
+        fretboardScrollContentHeightMatchesViewportConstraint?.isActive =
+            !usesVerticalOverflow
+        verticalFretboardContentHeightConstraint?.isActive = usesVerticalOverflow
 
         if !isVertical {
             fretboardViewportScrollView.contentInset = .zero
             fretboardViewportScrollView.scrollIndicatorInsets = .zero
+            fretboardViewportScrollView.isScrollEnabled = false
+            fretboardViewportScrollView.alwaysBounceVertical = false
+            fretboardViewportScrollView.showsVerticalScrollIndicator = false
+            fretboardViewportScrollView.alwaysBounceHorizontal = false
+            fretboardViewportScrollView.showsHorizontalScrollIndicator = false
             fretboardViewportScrollView.setContentOffset(.zero, animated: false)
         }
     }
 
-    private func syncVerticalFretboardContentWidthConstraint() {
+    private func syncVerticalFretboardContentSizeConstraints() {
         guard
             isShowingFretboard,
             currentFretboardDisplayState.displayMode == .vertical,
@@ -831,14 +868,39 @@ final class iOSExerciseSceneRenderer {
             return
         }
 
-        let targetWidth = fretboardView.verticalContentSize.width
-        guard targetWidth > 0 else {
+        let viewportHeight = fretboardViewportScrollView.bounds.height
+        let targetContentSize = resolvedVerticalFretboardContentSize(
+            forViewportHeight: viewportHeight
+        )
+        guard
+            targetContentSize.width > 0,
+            targetContentSize.height > 0
+        else {
             return
         }
 
-        if abs(verticalFretboardContentWidthConstraint.constant - targetWidth)
+        if abs(
+            verticalFretboardContentWidthConstraint.constant
+                - targetContentSize.width
+        )
             > metrics.contentSizeTolerance {
-            verticalFretboardContentWidthConstraint.constant = targetWidth
+            verticalFretboardContentWidthConstraint.constant =
+                targetContentSize.width
+        }
+
+        guard
+            usesWidthDrivenVerticalOverflow,
+            let verticalFretboardContentHeightConstraint
+        else {
+            return
+        }
+
+        if abs(
+            verticalFretboardContentHeightConstraint.constant
+                - targetContentSize.height
+        ) > metrics.contentSizeTolerance {
+            verticalFretboardContentHeightConstraint.constant =
+                targetContentSize.height
         }
     }
 
@@ -848,6 +910,8 @@ final class iOSExerciseSceneRenderer {
             fretboardViewportScrollView.scrollIndicatorInsets = .zero
             fretboardViewportScrollView.isScrollEnabled = false
             fretboardViewportScrollView.alwaysBounceHorizontal = false
+            fretboardViewportScrollView.alwaysBounceVertical = false
+            fretboardViewportScrollView.showsVerticalScrollIndicator = false
             fretboardViewportScrollView.showsHorizontalScrollIndicator = false
 
             if abs(fretboardViewportScrollView.contentOffset.x)
@@ -863,19 +927,46 @@ final class iOSExerciseSceneRenderer {
         guard isVertical else {
             fretboardViewportScrollView.isScrollEnabled = false
             fretboardViewportScrollView.alwaysBounceHorizontal = false
+            fretboardViewportScrollView.alwaysBounceVertical = false
+            fretboardViewportScrollView.showsVerticalScrollIndicator = false
             fretboardViewportScrollView.showsHorizontalScrollIndicator = false
+            if abs(fretboardViewportScrollView.contentOffset.x)
+                > metrics.contentSizeTolerance
+                || abs(fretboardViewportScrollView.contentOffset.y)
+                > metrics.contentSizeTolerance {
+                fretboardViewportScrollView.setContentOffset(.zero, animated: false)
+            }
             return
         }
 
         let viewportWidth = fretboardViewportScrollView.bounds.width
+        let viewportHeight = fretboardViewportScrollView.bounds.height
         let contentWidth = verticalFretboardContentWidthConstraint?.constant
-            ?? fretboardView.verticalContentSize.width
-        guard viewportWidth > 0, contentWidth > 0 else {
+            ?? resolvedVerticalFretboardContentSize(
+                forViewportHeight: viewportHeight
+            ).width
+        let contentHeight: CGFloat
+        if usesWidthDrivenVerticalOverflow {
+            contentHeight = verticalFretboardContentHeightConstraint?.constant
+                ?? resolvedVerticalFretboardContentSize(
+                    forViewportHeight: viewportHeight
+                ).height
+        } else {
+            contentHeight = viewportHeight
+        }
+        guard
+            viewportWidth > 0,
+            viewportHeight > 0,
+            contentWidth > 0,
+            contentHeight > 0
+        else {
             return
         }
 
         let needsHorizontalScroll = contentWidth
             > viewportWidth + metrics.contentSizeTolerance
+        let needsVerticalScroll = contentHeight
+            > viewportHeight + metrics.contentSizeTolerance
         let horizontalInset = needsHorizontalScroll
             ? 0
             : max((viewportWidth - contentWidth) / 2, 0)
@@ -888,12 +979,18 @@ final class iOSExerciseSceneRenderer {
 
         fretboardViewportScrollView.contentInset = inset
         fretboardViewportScrollView.scrollIndicatorInsets = inset
-        fretboardViewportScrollView.isScrollEnabled = needsHorizontalScroll
+        fretboardViewportScrollView.isScrollEnabled =
+            needsHorizontalScroll || needsVerticalScroll
         fretboardViewportScrollView.alwaysBounceHorizontal = needsHorizontalScroll
+        fretboardViewportScrollView.alwaysBounceVertical = needsVerticalScroll
+        fretboardViewportScrollView.showsVerticalScrollIndicator =
+            needsVerticalScroll
         fretboardViewportScrollView.showsHorizontalScrollIndicator = needsHorizontalScroll
 
         let minOffsetX = -inset.left
         let maxOffsetX = max(minOffsetX, contentWidth - viewportWidth + inset.right)
+        let minOffsetY: CGFloat = 0
+        let maxOffsetY = max(minOffsetY, contentHeight - viewportHeight)
         let clampedOffsetX: CGFloat
         if needsHorizontalScroll {
             clampedOffsetX = min(
@@ -904,15 +1001,53 @@ final class iOSExerciseSceneRenderer {
             clampedOffsetX = minOffsetX
         }
 
+        let clampedOffsetY: CGFloat
+        if needsVerticalScroll {
+            clampedOffsetY = min(
+                max(fretboardViewportScrollView.contentOffset.y, minOffsetY),
+                maxOffsetY
+            )
+        } else {
+            clampedOffsetY = minOffsetY
+        }
+
         if abs(fretboardViewportScrollView.contentOffset.x - clampedOffsetX)
             > metrics.contentSizeTolerance
-            || abs(fretboardViewportScrollView.contentOffset.y)
+            || abs(fretboardViewportScrollView.contentOffset.y - clampedOffsetY)
             > metrics.contentSizeTolerance {
             fretboardViewportScrollView.setContentOffset(
-                CGPoint(x: clampedOffsetX, y: 0),
+                CGPoint(x: clampedOffsetX, y: clampedOffsetY),
                 animated: false
             )
         }
+    }
+
+    private func resolvedVerticalFretboardContentSize(
+        forViewportHeight viewportHeight: CGFloat
+    ) -> CGSize {
+        guard viewportHeight > 0 else {
+            return .zero
+        }
+
+        let configuration = currentFretboardDisplayState.configuration
+        let baseWidth = configuration.verticalContentWidth(
+            forViewportHeight: viewportHeight
+        )
+        guard baseWidth > 0 else {
+            return .zero
+        }
+
+        guard usesWidthDrivenVerticalOverflow else {
+            return CGSize(width: baseWidth, height: viewportHeight)
+        }
+
+        let scaledWidth = baseWidth * resolvedVerticalFretboardWidthScale
+        return CGSize(
+            width: scaledWidth,
+            height: configuration.verticalContentHeight(
+                forContentWidth: scaledWidth
+            )
+        )
     }
 }
 #endif

@@ -225,7 +225,9 @@ struct SettingsPanelStateContext: Equatable, Sendable {
         let scene = ExerciseCompositionPolicy.makeScene(
             preferences: resolvedPreferences
         )
-        return scene.fretboardLayoutContract
+        return scene.fretboardLayoutContract(
+            layoutPreferences: resolvedPreferences
+        )
     }
 
     var showsVerticalViewportHeightControl: Bool {

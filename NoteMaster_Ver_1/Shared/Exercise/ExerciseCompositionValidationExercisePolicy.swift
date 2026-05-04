@@ -166,6 +166,22 @@ extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
+            if stateContext.fretboardLayoutContract
+                != ExerciseFretboardLayoutContract(
+                    pinsSceneToViewportHeight: true,
+                    heightPolicy: .followViewportRatio,
+                    verticalFretboardWidthScale: 2,
+                    verticalFretboardOverflowScrollAxis: .vertical
+                )
+                || !stateContext.fretboardLayoutContract
+                .usesWidthDrivenVerticalOverflow {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "P-2 的 fixed presentation contract 应继续把下方竖向指板切到 `width x2 + local vertical scroll` 语义。"
+                    )
+                )
+            }
             if panelModel.choiceRow(for: .compositionPreset) != nil
                 || panelModel.choiceRow(for: .layoutPreset) != nil
                 || panelModel.sections.contains(where: { $0.id == .accessories }) {

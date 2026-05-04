@@ -235,9 +235,34 @@ enum ExerciseFretboardHeightPolicy: Equatable, Sendable {
 struct ExerciseFretboardLayoutContract: Equatable, Sendable {
     var pinsSceneToViewportHeight: Bool
     var heightPolicy: ExerciseFretboardHeightPolicy
+    var verticalFretboardWidthScale: Double
+    var verticalFretboardOverflowScrollAxis: ExerciseFretboardOverflowScrollAxis
+
+    init(
+        pinsSceneToViewportHeight: Bool,
+        heightPolicy: ExerciseFretboardHeightPolicy,
+        verticalFretboardWidthScale: Double = 1,
+        verticalFretboardOverflowScrollAxis:
+            ExerciseFretboardOverflowScrollAxis = .horizontal
+    ) {
+        self.pinsSceneToViewportHeight = pinsSceneToViewportHeight
+        self.heightPolicy = heightPolicy
+        self.verticalFretboardWidthScale = verticalFretboardWidthScale
+        self.verticalFretboardOverflowScrollAxis =
+            verticalFretboardOverflowScrollAxis
+    }
 
     var usesVerticalViewportHeightControl: Bool {
         heightPolicy == .followViewportRatio
+    }
+
+    var resolvedVerticalFretboardWidthScale: Double {
+        max(verticalFretboardWidthScale, 1)
+    }
+
+    var usesWidthDrivenVerticalOverflow: Bool {
+        verticalFretboardOverflowScrollAxis == .vertical
+            && resolvedVerticalFretboardWidthScale > 1
     }
 }
 
@@ -404,7 +429,9 @@ extension ExercisePresentationState {
     }
 
     var fretboardLayoutContract: ExerciseFretboardLayoutContract {
-        scene.fretboardLayoutContract
+        scene.fretboardLayoutContract(
+            layoutPreferences: resolvedLayoutPreferences
+        )
     }
 
     var naturalNoteStripRailContract: ExerciseNaturalNoteStripRailContract? {
@@ -418,11 +445,21 @@ extension ExerciseScene {
     }
 
     var fretboardLayoutContract: ExerciseFretboardLayoutContract {
+        fretboardLayoutContract(layoutPreferences: .default)
+    }
+
+    func fretboardLayoutContract(
+        layoutPreferences: ExerciseLayoutPreferences
+    ) -> ExerciseFretboardLayoutContract {
         ExerciseFretboardLayoutContract(
             pinsSceneToViewportHeight: requiresViewportPinnedHeight,
             heightPolicy: containsMainFretboardInSideBySideLayout
                 ? .fillAvailableHeight
-                : .followViewportRatio
+                : .followViewportRatio,
+            verticalFretboardWidthScale: layoutPreferences
+                .verticalFretboardWidthScale,
+            verticalFretboardOverflowScrollAxis: layoutPreferences
+                .verticalFretboardOverflowScrollAxis
         )
     }
 
