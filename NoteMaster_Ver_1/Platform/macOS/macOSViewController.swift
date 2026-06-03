@@ -512,7 +512,10 @@ final class macOSViewController: NSViewController {
 
             return .singleCoverage(
                 correctCells: singleCoverageSession.visitedCells,
-                wrongCells: wrongCells
+                wrongCells: wrongCells,
+                markerShape: trainerDisplayState.isFR0Mode
+                    ? .circle
+                    : .roundedRect
             )
         case .positionPrompt:
             guard let positionPromptSession,
@@ -2899,6 +2902,269 @@ extension macOSViewController {
                 )
             }
         }
+    }
+
+    func runFR0CircleFeedbackSmokeTest(
+        in window: NSWindow,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        typealias SmokeStep = (
+            name: String,
+            action: () -> Void,
+            validate: () -> String?
+        )
+        var wrongCell: FretboardCell?
+        var correctCell: FretboardCell?
+
+        func orderedCells(_ cells: Set<FretboardCell>) -> [FretboardCell] {
+            cells.sorted {
+                if $0.stringIndex == $1.stringIndex {
+                    return $0.fret < $1.fret
+                }
+                return $0.stringIndex < $1.stringIndex
+            }
+        }
+
+        func currentMarkerShape()
+            -> FretboardFeedbackOverlayState.SingleCoverageMarkerShape?
+        {
+            guard
+                case let .singleCoverage(_, _, markerShape)
+                    = self.currentFretboardFeedbackOverlayState
+            else {
+                return nil
+            }
+            return markerShape
+        }
+
+        func firstWrongCell() -> FretboardCell? {
+            let requiredCells = self.currentSingleCoverageRequiredCells
+            for stringIndex in 0..<self.displayState.configuration.stringCount {
+                for fret in 0...self.displayState.configuration.maxFret {
+                    let candidate = FretboardCell(
+                        stringIndex: stringIndex,
+                        fret: fret
+                    )
+                    guard self.displayState.configuration.notePitch(for: candidate) != nil
+                    else {
+                        continue
+                    }
+                    guard !requiredCells.contains(candidate) else {
+                        continue
+                    }
+                    return candidate
+                }
+            }
+            return nil
+        }
+
+        func firstCorrectCell() -> FretboardCell? {
+            orderedCells(self.currentSingleCoverageRequiredCells).first
+        }
+
+        func settleLayout() {
+            window.contentView?.layoutSubtreeIfNeeded()
+            view.layoutSubtreeIfNeeded()
+        }
+
+        let steps: [SmokeStep] = [
+            (
+                name: "switch_to_fr0",
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setExerciseModeFr0)
+                    )
+                },
+                validate: {
+                    guard self.trainerDisplayState.exerciseMode == .fr0 else {
+                        return "reason=mode_not_fr0 resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode))"
+                    }
+                    guard
+                        self.exerciseLayoutPreferences
+                            == .fr0TargetPromptFretboardAnswer
+                    else {
+                        return "reason=layout_not_fixed resolvedLayout=\(String(describing: self.exerciseLayoutPreferences))"
+                    }
+                    guard
+                        self.exercisePresentationState.projectedSurfaceState(
+                            for: .fretboard
+                        ) == .answerOnly,
+                        self.exercisePresentationState.isSurfaceVisible(.fretboard)
+                    else {
+                        return "reason=fretboard_not_answer_only"
+                    }
+                    guard self.currentSingleCoverageRequiredCells.count > 1 else {
+                        return "reason=fr0_target_cell_count_too_small count=\(self.currentSingleCoverageRequiredCells.count)"
+                    }
+                    guard self.singleCoverageWrongCells.isEmpty else {
+                        return "reason=wrong_cells_not_cleared count=\(self.singleCoverageWrongCells.count)"
+                    }
+                    guard currentMarkerShape() == .circle else {
+                        return "reason=marker_shape_not_circle resolved=\(String(describing: currentMarkerShape()))"
+                    }
+                    guard
+                        case let .singleCoverage(correctCells, wrongCells, markerShape)
+                            = self.currentFretboardFeedbackOverlayState
+                    else {
+                        return "reason=missing_single_coverage_overlay overlay=\(String(describing: self.currentFretboardFeedbackOverlayState))"
+                    }
+                    guard correctCells.isEmpty else {
+                        return "reason=correct_cells_not_empty count=\(correctCells.count)"
+                    }
+                    guard wrongCells.isEmpty else {
+                        return "reason=wrong_cells_not_empty count=\(wrongCells.count)"
+                    }
+                    guard markerShape == .circle else {
+                        return "reason=overlay_shape_not_circle resolved=\(String(describing: markerShape))"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "wrong_fr0_answer",
+                action: {
+                    guard let candidate = firstWrongCell() else {
+                        wrongCell = nil
+                        return
+                    }
+                    wrongCell = candidate
+                    self.handleSingleCoverageAnswer(candidate)
+                },
+                validate: {
+                    guard let wrongCell else {
+                        return "reason=missing_wrong_cell"
+                    }
+                    guard let evaluation = self.singleCoverageLastEvaluation else {
+                        return "reason=missing_wrong_evaluation"
+                    }
+                    guard evaluation.hitKind == .wrong else {
+                        return "reason=wrong_answer_marked_correct"
+                    }
+                    guard evaluation.selectedCell == wrongCell else {
+                        return "reason=wrong_cell_lost selected=\(evaluation.selectedCell) expected=\(wrongCell)"
+                    }
+                    guard self.singleCoverageWrongCells == Set([wrongCell]) else {
+                        return "reason=wrong_cells_not_persisted count=\(self.singleCoverageWrongCells.count)"
+                    }
+                    guard
+                        self.singleCoverageSession?.visitedCells.isEmpty == true
+                    else {
+                        return "reason=wrong_answer_mutated_correct_cells count=\(self.singleCoverageSession?.visitedCells.count ?? -1)"
+                    }
+                    guard
+                        case let .singleCoverage(correctCells, wrongCells, markerShape)
+                            = self.currentFretboardFeedbackOverlayState
+                    else {
+                        return "reason=missing_single_coverage_overlay_after_wrong overlay=\(String(describing: self.currentFretboardFeedbackOverlayState))"
+                    }
+                    guard correctCells.isEmpty else {
+                        return "reason=wrong_answer_added_correct_cells count=\(correctCells.count)"
+                    }
+                    guard wrongCells.contains(wrongCell) else {
+                        return "reason=wrong_overlay_missing_cell count=\(wrongCells.count)"
+                    }
+                    guard markerShape == .circle else {
+                        return "reason=wrong_overlay_shape_not_circle resolved=\(String(describing: markerShape))"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "correct_fr0_answer",
+                action: {
+                    guard let candidate = firstCorrectCell() else {
+                        correctCell = nil
+                        return
+                    }
+                    correctCell = candidate
+                    self.handleSingleCoverageAnswer(candidate)
+                },
+                validate: {
+                    guard let correctCell else {
+                        return "reason=missing_correct_cell"
+                    }
+                    guard let evaluation = self.singleCoverageLastEvaluation else {
+                        return "reason=missing_correct_evaluation"
+                    }
+                    guard evaluation.hitKind.isCorrect else {
+                        return "reason=correct_answer_marked_wrong"
+                    }
+                    guard !evaluation.didAdvanceTarget else {
+                        return "reason=correct_answer_advanced_too_early"
+                    }
+                    guard evaluation.selectedCell == correctCell else {
+                        return "reason=correct_cell_lost selected=\(evaluation.selectedCell) expected=\(correctCell)"
+                    }
+                    guard
+                        self.singleCoverageSession?.visitedCells.contains(correctCell)
+                            == true
+                    else {
+                        return "reason=correct_cell_not_recorded"
+                    }
+                    guard
+                        case let .singleCoverage(correctCells, wrongCells, markerShape)
+                            = self.currentFretboardFeedbackOverlayState
+                    else {
+                        return "reason=missing_single_coverage_overlay_after_correct overlay=\(String(describing: self.currentFretboardFeedbackOverlayState))"
+                    }
+                    guard correctCells.contains(correctCell) else {
+                        return "reason=correct_overlay_missing_cell count=\(correctCells.count)"
+                    }
+                    if let wrongCell {
+                        guard wrongCells.contains(wrongCell) else {
+                            return "reason=wrong_overlay_not_persisted_after_correct count=\(wrongCells.count)"
+                        }
+                    }
+                    guard markerShape == .circle else {
+                        return "reason=correct_overlay_shape_not_circle resolved=\(String(describing: markerShape))"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "switch_back_to_single",
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setExerciseModeSingle)
+                    )
+                },
+                validate: {
+                    guard self.trainerDisplayState.exerciseMode == .single else {
+                        return "reason=mode_not_single resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode))"
+                    }
+                    guard self.singleCoverageWrongCells.isEmpty else {
+                        return "reason=wrong_cells_leaked_to_single count=\(self.singleCoverageWrongCells.count)"
+                    }
+                    guard
+                        case let .singleCoverage(_, wrongCells, markerShape)
+                            = self.currentFretboardFeedbackOverlayState
+                    else {
+                        return "reason=missing_single_overlay_after_switch_back overlay=\(String(describing: self.currentFretboardFeedbackOverlayState))"
+                    }
+                    guard wrongCells.isEmpty else {
+                        return "reason=single_mode_wrong_cells_not_cleared count=\(wrongCells.count)"
+                    }
+                    guard markerShape == .roundedRect else {
+                        return "reason=single_mode_shape_not_rounded_rect resolved=\(String(describing: markerShape))"
+                    }
+                    return nil
+                }
+            )
+        ]
+
+        print(
+            "[RuntimeSmoke][macOS] begin scenario=fr0_circle_feedback initialMode=\(String(describing: trainerDisplayState.exerciseMode))"
+        )
+        runExerciseAnswerSmokeSteps(
+            steps,
+            index: 0,
+            scenarioName: "fr0_circle_feedback",
+            settleLayout: settleLayout,
+            successSummary: {
+                "[RuntimeSmoke][macOS] PASS scenario=fr0_circle_feedback finalMode=\(String(describing: self.trainerDisplayState.exerciseMode)) markerShape=\(String(describing: currentMarkerShape()))"
+            },
+            completion: completion
+        )
     }
 
     func runLayoutPresetRegressionSmokeTest(

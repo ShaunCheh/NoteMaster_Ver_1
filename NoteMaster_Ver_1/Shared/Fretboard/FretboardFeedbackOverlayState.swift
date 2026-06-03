@@ -6,6 +6,11 @@
 //
 
 enum FretboardFeedbackOverlayState: Equatable, Sendable {
+    enum SingleCoverageMarkerShape: Equatable, Sendable {
+        case roundedRect
+        case circle
+    }
+
     enum PositionPromptPhase: Equatable, Sendable {
         case neutralWhite
         case wrongFlash
@@ -15,7 +20,8 @@ enum FretboardFeedbackOverlayState: Equatable, Sendable {
     case empty
     case singleCoverage(
         correctCells: Set<FretboardCell>,
-        wrongCells: Set<FretboardCell>
+        wrongCells: Set<FretboardCell>,
+        markerShape: SingleCoverageMarkerShape
     )
     case positionPrompt(
         promptCell: FretboardCell,
@@ -26,7 +32,7 @@ enum FretboardFeedbackOverlayState: Equatable, Sendable {
         switch self {
         case .empty:
             return true
-        case let .singleCoverage(correctCells, wrongCells):
+        case let .singleCoverage(correctCells, wrongCells, _):
             return correctCells.isEmpty && wrongCells.isEmpty
         case .positionPrompt:
             return false

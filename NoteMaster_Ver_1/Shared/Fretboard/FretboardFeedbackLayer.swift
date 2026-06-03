@@ -79,10 +79,11 @@ final class FretboardFeedbackLayer: CALayer {
         switch feedbackOverlayState {
         case .empty:
             break
-        case let .singleCoverage(correctCells, wrongCells):
+        case let .singleCoverage(correctCells, wrongCells, markerShape):
             drawSingleCoverageFeedback(
                 correctCells: correctCells,
                 wrongCells: wrongCells,
+                markerShape: markerShape,
                 in: context
             )
         case let .positionPrompt(promptCell, phase):
@@ -112,6 +113,7 @@ final class FretboardFeedbackLayer: CALayer {
     private func drawSingleCoverageFeedback(
         correctCells: Set<FretboardCell>,
         wrongCells: Set<FretboardCell>,
+        markerShape: FretboardFeedbackOverlayState.SingleCoverageMarkerShape,
         in context: CGContext
     ) {
         let orderedCorrectCells = correctCells.sorted {
@@ -121,8 +123,9 @@ final class FretboardFeedbackLayer: CALayer {
             return $0.stringIndex < $1.stringIndex
         }
         for cell in orderedCorrectCells {
-            drawFeedback(
+            drawSingleCoverageMarker(
                 for: cell,
+                markerShape: markerShape,
                 fillColor: FretboardPalette.feedbackCorrectFill,
                 strokeColor: FretboardPalette.feedbackCorrectStroke,
                 in: context
@@ -136,8 +139,9 @@ final class FretboardFeedbackLayer: CALayer {
             return $0.stringIndex < $1.stringIndex
         }
         for wrongCell in orderedWrongCells {
-            drawFeedback(
+            drawSingleCoverageMarker(
                 for: wrongCell,
+                markerShape: markerShape,
                 fillColor: FretboardPalette.feedbackWrongFill,
                 strokeColor: FretboardPalette.feedbackWrongStroke,
                 in: context
@@ -145,8 +149,9 @@ final class FretboardFeedbackLayer: CALayer {
         }
     }
 
-    private func drawFeedback(
+    private func drawSingleCoverageMarker(
         for cell: FretboardCell,
+        markerShape: FretboardFeedbackOverlayState.SingleCoverageMarkerShape,
         fillColor: CGColor,
         strokeColor: CGColor,
         in context: CGContext
@@ -159,25 +164,42 @@ final class FretboardFeedbackLayer: CALayer {
             return
         }
 
-        let highlightRect = insetFeedbackRect(for: cellFrame)
-        guard !highlightRect.isEmpty else {
-            return
+        let markerPath: CGPath
+        let strokeWidth: CGFloat
+        switch markerShape {
+        case .roundedRect:
+            let highlightRect = insetFeedbackRect(for: cellFrame)
+            guard !highlightRect.isEmpty else {
+                return
+            }
+
+            markerPath = CGPath(
+                roundedRect: highlightRect,
+                cornerWidth: resolvedCornerRadius(for: highlightRect),
+                cornerHeight: resolvedCornerRadius(for: highlightRect),
+                transform: nil
+            )
+            strokeWidth = resolvedStrokeWidth
+        case .circle:
+            let markerRect = circularMarkerRect(for: cellFrame)
+            guard !markerRect.isEmpty else {
+                return
+            }
+
+            markerPath = CGPath(
+                ellipseIn: markerRect,
+                transform: nil
+            )
+            strokeWidth = resolvedCircularMarkerStrokeWidth
         }
 
-        let highlightPath = CGPath(
-            roundedRect: highlightRect,
-            cornerWidth: resolvedCornerRadius(for: highlightRect),
-            cornerHeight: resolvedCornerRadius(for: highlightRect),
-            transform: nil
-        )
-
         context.saveGState()
-        context.addPath(highlightPath)
+        context.addPath(markerPath)
         context.setFillColor(fillColor)
         context.fillPath()
-        context.addPath(highlightPath)
+        context.addPath(markerPath)
         context.setStrokeColor(strokeColor)
-        context.setLineWidth(resolvedStrokeWidth)
+        context.setLineWidth(strokeWidth)
         context.strokePath()
         context.restoreGState()
     }
@@ -195,7 +217,7 @@ final class FretboardFeedbackLayer: CALayer {
             return
         }
 
-        let indicatorRect = positionPromptRect(for: cellFrame)
+        let indicatorRect = circularMarkerRect(for: cellFrame)
         guard !indicatorRect.isEmpty else {
             return
         }
@@ -212,7 +234,7 @@ final class FretboardFeedbackLayer: CALayer {
         context.fillPath()
         context.addPath(indicatorPath)
         context.setStrokeColor(colors.strokeColor)
-        context.setLineWidth(resolvedPositionPromptStrokeWidth)
+        context.setLineWidth(resolvedCircularMarkerStrokeWidth)
         context.strokePath()
         context.restoreGState()
     }
@@ -232,7 +254,7 @@ final class FretboardFeedbackLayer: CALayer {
         )
     }
 
-    private func positionPromptRect(for cellFrame: CGRect) -> CGRect {
+    private func circularMarkerRect(for cellFrame: CGRect) -> CGRect {
         let minDimension = min(cellFrame.width, cellFrame.height)
         let maxDiameter = max(
             minDimension - (Style.positionPromptMinimumInset * 2),
@@ -264,7 +286,7 @@ final class FretboardFeedbackLayer: CALayer {
         max(1 / max(contentsScale, 1), Style.minimumStrokeWidth)
     }
 
-    private var resolvedPositionPromptStrokeWidth: CGFloat {
+    private var resolvedCircularMarkerStrokeWidth: CGFloat {
         max(
             resolvedStrokeWidth * Style.positionPromptStrokeWidthMultiplier,
             Style.minimumStrokeWidth
