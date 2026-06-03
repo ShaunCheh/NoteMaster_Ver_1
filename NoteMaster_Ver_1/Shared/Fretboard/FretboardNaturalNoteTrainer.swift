@@ -521,6 +521,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     private(set) var mode: ExerciseMode
     private(set) var targetPitchClass: PitchClass
+    private(set) var singleCoverageTargetPool: Set<PitchClass>
     private(set) var generatedQuarterNoteSequence: GeneratedNoteSequence?
 
     // 兼容当前单目标自然音训练链路；
@@ -543,12 +544,30 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     }
 
     init(targetPitchClass: PitchClass) {
+        self.init(
+            targetPitchClass: targetPitchClass,
+            singleCoverageTargetPool: Set(PitchClass.naturalCasesInOrder)
+        )
+    }
+
+    init(
+        targetPitchClass: PitchClass,
+        singleCoverageTargetPool: Set<PitchClass>
+    ) {
+        let resolvedTargetPool = Self.normalizedSingleCoverageTargetPool(
+            singleCoverageTargetPool
+        )
         precondition(
             targetPitchClass.isNatural,
             "Target pitch class must be a natural note."
         )
+        precondition(
+            resolvedTargetPool.contains(targetPitchClass),
+            "Single coverage target pitch class must stay within the configured target pool."
+        )
         self.mode = .singleNaturalTarget
         self.targetPitchClass = targetPitchClass
+        self.singleCoverageTargetPool = resolvedTargetPool
         generatedQuarterNoteSequence = nil
     }
 
@@ -556,6 +575,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         mode = .quarterNoteSequence(spec)
         // 保留一个稳定的 legacy target 值，避免当前单目标 API 在未来迁移完成前失去初始化基线。
         targetPitchClass = .c
+        singleCoverageTargetPool = Set(PitchClass.naturalCasesInOrder)
         generatedQuarterNoteSequence = nil
     }
 
@@ -564,7 +584,16 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         // 位置题模式当前不消费 legacy target 文本；
         // 这里保留一个稳定自然音占位值，避免旧接口在迁移完成前失去初始化基线。
         targetPitchClass = .c
+        singleCoverageTargetPool = Set(PitchClass.naturalCasesInOrder)
         generatedQuarterNoteSequence = nil
+    }
+
+    init(singleCoverageTargetPool: Set<PitchClass>) {
+        var generator = SystemRandomNumberGenerator()
+        self.init(
+            randomUsing: &generator,
+            singleCoverageTargetPool: singleCoverageTargetPool
+        )
     }
 
     init() {
@@ -574,7 +603,24 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
 
     init<R: RandomNumberGenerator>(randomUsing generator: inout R) {
         self.init(
-            targetPitchClass: Self.randomNaturalPitchClass(using: &generator)
+            randomUsing: &generator,
+            singleCoverageTargetPool: Set(PitchClass.naturalCasesInOrder)
+        )
+    }
+
+    init<R: RandomNumberGenerator>(
+        randomUsing generator: inout R,
+        singleCoverageTargetPool: Set<PitchClass>
+    ) {
+        let resolvedTargetPool = Self.normalizedSingleCoverageTargetPool(
+            singleCoverageTargetPool
+        )
+        self.init(
+            targetPitchClass: Self.randomSingleCoverageTargetPitchClass(
+                from: resolvedTargetPool,
+                using: &generator
+            ),
+            singleCoverageTargetPool: resolvedTargetPool
         )
     }
 
@@ -1053,7 +1099,8 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
     ) -> PitchClass {
         requireSingleNaturalTargetMode()
         // 答对后避免立刻重复同一题目，让外层更容易感知题目已经推进。
-        let nextTargetPitchClass = Self.randomNaturalPitchClass(
+        let nextTargetPitchClass = Self.randomSingleCoverageTargetPitchClass(
+            from: singleCoverageTargetPool,
             excluding: targetPitchClass,
             using: &generator
         )
@@ -1111,19 +1158,35 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         )
     }
 
-    private static func randomNaturalPitchClass<R: RandomNumberGenerator>(
+    private static func normalizedSingleCoverageTargetPool(
+        _ targetPool: Set<PitchClass>
+    ) -> Set<PitchClass> {
+        let normalizedTargetPool = Set(targetPool.filter(\.isNatural))
+        return normalizedTargetPool.isEmpty
+            ? Set(PitchClass.naturalCasesInOrder)
+            : normalizedTargetPool
+    }
+
+    private static func randomSingleCoverageTargetPitchClass<R: RandomNumberGenerator>(
+        from targetPool: Set<PitchClass>,
         excluding excludedPitchClass: PitchClass? = nil,
         using generator: inout R
     ) -> PitchClass {
-        let candidates = PitchClass.naturalCasesInOrder.filter { pitchClass in
+        let normalizedTargetPool = normalizedSingleCoverageTargetPool(targetPool)
+        let orderedCandidates = PitchClass.naturalCasesInOrder.filter {
+            normalizedTargetPool.contains($0)
+        }
+        let candidates = orderedCandidates.filter { pitchClass in
             pitchClass != excludedPitchClass
         }
         let resolvedCandidates = candidates.isEmpty
-            ? PitchClass.naturalCasesInOrder
+            ? orderedCandidates
             : candidates
 
         guard let targetPitchClass = resolvedCandidates.randomElement(using: &generator) else {
-            preconditionFailure("Natural pitch class candidates should never be empty.")
+            preconditionFailure(
+                "Single coverage target pitch class candidates should never be empty."
+            )
         }
 
         return targetPitchClass
@@ -1587,6 +1650,10 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         configuration: FretboardConfiguration,
         _ function: StaticString = #function
     ) {
+        precondition(
+            singleCoverageTargetPool.contains(targetPitchClass),
+            "\(function) single coverage target must stay within the configured target pool."
+        )
         precondition(
             session.targetPitchClass == targetPitchClass,
             "\(function) single coverage session target must match the trainer target."

@@ -206,6 +206,10 @@ private extension SettingsNavigationValidationRunner {
                 validate: validateSR2SettingsStateFreezesFixedPresentationOptions
             ),
             SettingsNavigationValidationFixture(
+                name: "fr0_settings_state_freezes_fixed_presentation_options",
+                validate: validateFR0SettingsStateFreezesFixedPresentationOptions
+            ),
+            SettingsNavigationValidationFixture(
                 name: "reserved_route_titles_remain_stable",
                 validate: validateReservedRouteTitlesRemainStable
             ),

@@ -223,7 +223,8 @@ struct SettingsPanelStateContext: Equatable, Sendable {
             trainerDisplayState: trainerDisplayState
         )
         let scene = ExerciseCompositionPolicy.makeScene(
-            preferences: resolvedPreferences
+            preferences: resolvedPreferences,
+            trainerDisplayState: trainerDisplayState
         )
         return scene.fretboardLayoutContract(
             layoutPreferences: resolvedPreferences

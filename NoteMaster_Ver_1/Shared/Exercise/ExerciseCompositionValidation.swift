@@ -148,6 +148,10 @@ fileprivate extension ExerciseCompositionValidationRunner {
                 validate: validateLegacyPositionPromptBaseline
             ),
             ExerciseCompositionValidationFixture(
+                name: "legacy_fr0_baseline_matches_target_prompt_over_fretboard",
+                validate: validateLegacyFR0Baseline
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "page_state_normalization_preserves_single_fretboard_slot",
                 validate: validatePageStateNormalizationPreservesSingleFretboardSlot
             ),

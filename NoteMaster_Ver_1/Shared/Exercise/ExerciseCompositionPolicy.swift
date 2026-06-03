@@ -33,7 +33,8 @@ enum ExerciseCompositionPolicy {
                     .usesMainPianoAnswerSurface
             )
         let scene = makeScene(
-            preferences: resolvedLayoutPreferences
+            preferences: resolvedLayoutPreferences,
+            trainerDisplayState: input.trainerDisplayState
         )
 
         return ExercisePresentationState(
@@ -100,7 +101,8 @@ enum ExerciseCompositionPolicy {
             )
 
         let legacyScene = makeScene(
-            preferences: legacyCompatiblePreferences
+            preferences: legacyCompatiblePreferences,
+            trainerDisplayState: normalizedLegacyTrainerDisplayState
         )
         if ExerciseSceneValidator.legacyPageDisplayState(for: legacyScene) != nil {
             return legacyCompatiblePreferences
@@ -113,14 +115,16 @@ enum ExerciseCompositionPolicy {
     }
 
     static func makeScene(
-        preferences: ExerciseLayoutPreferences
+        preferences: ExerciseLayoutPreferences,
+        trainerDisplayState: TrainerDisplayState? = nil
     ) -> ExerciseScene {
         let sceneSurfaces = resolvedSceneSurfaces(
             for: preferences
         )
         let mainSceneNode = makeMainSceneNode(
             from: sceneSurfaces,
-            preferences: preferences
+            preferences: preferences,
+            trainerDisplayState: trainerDisplayState
         )
         let accessoryScene = makeAccessorySceneNode(
             preferences: preferences
@@ -179,7 +183,8 @@ enum ExerciseCompositionPolicy {
 
     private static func makeMainSceneNode(
         from sceneSurfaces: (prompt: ExerciseSurfaceNode, answer: ExerciseSurfaceNode),
-        preferences: ExerciseLayoutPreferences
+        preferences: ExerciseLayoutPreferences,
+        trainerDisplayState: TrainerDisplayState?
     ) -> ExerciseSceneNode {
         switch resolvedMainLayoutPreset(for: preferences) {
         case .stacked:
@@ -193,7 +198,8 @@ enum ExerciseCompositionPolicy {
         case .sideBySide:
             return makeSideBySideSceneNode(
                 from: sceneSurfaces,
-                preferences: preferences
+                preferences: preferences,
+                trainerDisplayState: trainerDisplayState
             )
         case .singleSurface:
             return .surface(sceneSurfaces.prompt)
@@ -223,8 +229,26 @@ enum ExerciseCompositionPolicy {
 
     private static func makeSideBySideSceneNode(
         from sceneSurfaces: (prompt: ExerciseSurfaceNode, answer: ExerciseSurfaceNode),
-        preferences: ExerciseLayoutPreferences
+        preferences: ExerciseLayoutPreferences,
+        trainerDisplayState: TrainerDisplayState?
     ) -> ExerciseSceneNode {
+        if trainerDisplayState?.isFR0Mode == true,
+           preferences.compositionPreset == .targetPromptToFretboard {
+            return .makeSplit(
+                axis: .horizontal,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.prompt),
+                        mainAxisSizing: .fitContent
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.answer),
+                        mainAxisSizing: .weighted(1)
+                    )
+                ]
+            )
+        }
+
         switch preferences.compositionPreset {
         case .fretboardToNaturalNoteStrip, .staffToNaturalNoteStrip:
             return .makeSplit(
@@ -405,6 +429,16 @@ enum ExerciseCompositionPolicy {
                 isAccessoryExpanded: true
             )
         }
+        if exerciseMode == .fr0 {
+            return ExerciseLayoutPreferences(
+                compositionPreset: .targetPromptToFretboard,
+                layoutPreset: .stacked,
+                accessoryPresentation: .docked,
+                isNaturalNoteStripVisible: false,
+                isPianoAccessoryVisible: false,
+                isAccessoryExpanded: true
+            )
+        }
 
         return ExerciseLayoutPreferences(
             compositionPreset: .staffToFretboard,
@@ -420,8 +454,13 @@ enum ExerciseCompositionPolicy {
         _ trainerDisplayState: TrainerDisplayState
     ) -> TrainerDisplayState {
         var legacyCompatibleState = trainerDisplayState
-        if legacyCompatibleState.exerciseMode.usesQuarterNoteSequenceKernel,
-           legacyCompatibleState.exerciseMode != .sequence {
+        if legacyCompatibleState.exerciseMode == .fr0 {
+            // Explicit legacy fallback should render through a layout-compatible
+            // single-target host mode instead of being re-normalized back to the
+            // fixed FR-0 side scene.
+            legacyCompatibleState.exerciseMode = .single
+        } else if legacyCompatibleState.exerciseMode.usesQuarterNoteSequenceKernel,
+                  legacyCompatibleState.exerciseMode != .sequence {
             // Explicit legacy fallback should render through a layout-compatible
             // host mode instead of being re-normalized back to fixed SR scenes.
             legacyCompatibleState.exerciseMode = .sequence

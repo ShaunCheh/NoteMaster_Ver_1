@@ -15,7 +15,7 @@ enum FretboardFeedbackOverlayState: Equatable, Sendable {
     case empty
     case singleCoverage(
         correctCells: Set<FretboardCell>,
-        wrongCell: FretboardCell?
+        wrongCells: Set<FretboardCell>
     )
     case positionPrompt(
         promptCell: FretboardCell,
@@ -26,8 +26,8 @@ enum FretboardFeedbackOverlayState: Equatable, Sendable {
         switch self {
         case .empty:
             return true
-        case let .singleCoverage(correctCells, wrongCell):
-            return correctCells.isEmpty && wrongCell == nil
+        case let .singleCoverage(correctCells, wrongCells):
+            return correctCells.isEmpty && wrongCells.isEmpty
         case .positionPrompt:
             return false
         }

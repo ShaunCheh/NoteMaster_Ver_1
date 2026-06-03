@@ -46,6 +46,8 @@ enum ExerciseAnswerRouteIgnoreReason: Equatable, Sendable {
             return "p2"
         case .positionPrompt:
             return "positionPrompt"
+        case .fr0:
+            return "fr0"
         case .sr0:
             return "sr0"
         case .sr1:
@@ -95,7 +97,7 @@ enum ExerciseAnswerRouter {
         }
 
         switch trainerDisplayState.exerciseMode {
-        case .single:
+        case .single, .fr0:
             guard let cell = event.payload.fretboardCell else {
                 return .ignored(
                     .unsupportedPayload(

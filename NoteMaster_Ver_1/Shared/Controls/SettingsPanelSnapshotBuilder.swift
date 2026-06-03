@@ -301,7 +301,7 @@ enum SettingsPanelSnapshotBuilder {
     ) -> Bool {
         switch positionFilterRowID {
         case .positionQuestionPitchClasses:
-            return stateContext.trainerDisplayState.isPositionPromptMode
+            return stateContext.trainerDisplayState.usesPositionQuestionPitchClassPool
         case .positionPromptFilterOptions:
             return false
         }

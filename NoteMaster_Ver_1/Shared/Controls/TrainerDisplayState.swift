@@ -10,6 +10,7 @@ enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case sequence
     case p2
     case positionPrompt
+    case fr0
     case sr0
     case sr1
     case sr2
@@ -71,7 +72,7 @@ extension TrainerExerciseMode {
             return .sr1
         case .sr2:
             return .sr2
-        case .single, .sequence, .p2, .positionPrompt, .sr0:
+        case .single, .sequence, .p2, .positionPrompt, .fr0, .sr0:
             return nil
         }
     }
@@ -98,7 +99,7 @@ extension TrainerExerciseMode {
             return srPianoReadingContract?.fixedSequenceAnswerPolicy
         case .sr0:
             return .pitchClass
-        case .single, .sequence, .p2, .positionPrompt:
+        case .single, .sequence, .p2, .positionPrompt, .fr0:
             return nil
         }
     }
@@ -109,7 +110,7 @@ extension TrainerExerciseMode {
             return srPianoReadingContract?.fixedSequenceClef
         case .sr0:
             return .treble
-        case .single, .sequence, .p2, .positionPrompt:
+        case .single, .sequence, .p2, .positionPrompt, .fr0:
             return nil
         }
     }
@@ -120,6 +121,8 @@ extension TrainerExerciseMode {
             return srPianoReadingContract?.fixedExerciseLayoutPreferences
         case .p2:
             return .p2StaffFretboardAnswer
+        case .fr0:
+            return .fr0TargetPromptFretboardAnswer
         case .sr0:
             return .srNoteStripAnswer
         case .single, .sequence, .positionPrompt:
@@ -131,7 +134,7 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return srPianoReadingContract?.fixedPianoRowCount
-        case .single, .sequence, .p2, .positionPrompt, .sr0:
+        case .single, .sequence, .p2, .positionPrompt, .fr0, .sr0:
             return nil
         }
     }
@@ -140,7 +143,7 @@ extension TrainerExerciseMode {
         switch self {
         case .sr1, .sr2:
             return srPianoReadingContract?.fixedPianoMovementScope
-        case .single, .sequence, .p2, .positionPrompt, .sr0:
+        case .single, .sequence, .p2, .positionPrompt, .fr0, .sr0:
             return nil
         }
     }
@@ -149,7 +152,7 @@ extension TrainerExerciseMode {
         switch self {
         case .sequence, .p2, .sr0, .sr1, .sr2:
             return true
-        case .single, .positionPrompt:
+        case .single, .positionPrompt, .fr0:
             return false
         }
     }
@@ -517,6 +520,14 @@ struct TrainerDisplayState: Equatable, Sendable {
 
     var isPositionPromptMode: Bool {
         exerciseMode == .positionPrompt
+    }
+
+    var isFR0Mode: Bool {
+        exerciseMode == .fr0
+    }
+
+    var usesPositionQuestionPitchClassPool: Bool {
+        isPositionPromptMode || isFR0Mode
     }
 
     // Keep the legacy `.sequence` UI semantics stable until SR modes get

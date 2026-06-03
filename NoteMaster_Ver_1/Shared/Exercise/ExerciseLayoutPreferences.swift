@@ -76,6 +76,14 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         verticalFretboardWidthScale: 2,
         verticalFretboardOverflowScrollAxis: .vertical
     )
+    static let fr0TargetPromptFretboardAnswer = ExerciseLayoutPreferences(
+        compositionPreset: .targetPromptToFretboard,
+        layoutPreset: .sideBySide,
+        accessoryPresentation: .docked,
+        isNaturalNoteStripVisible: false,
+        isPianoAccessoryVisible: false,
+        isAccessoryExpanded: true
+    )
     static let srPianoAnswer = ExerciseLayoutPreferences(
         compositionPreset: .staffToPiano,
         layoutPreset: .stacked,

@@ -159,7 +159,7 @@ enum SettingsNavigationSnapshotBuilder {
                 ChildPageSpec(
                     route: .exerciseMode,
                     title: SettingsRouteID.exerciseMode.fallbackTitle,
-                    subtitle: "Single, sequence, P-2, SR-0, SR-1, SR-2, or position",
+                    subtitle: "Single, sequence, P-2, SR-0, SR-1, SR-2, FR-0, or position",
                     rowIDs: [
                         .choice(.exerciseMode),
                         .positionFilter(.positionQuestionPitchClasses)

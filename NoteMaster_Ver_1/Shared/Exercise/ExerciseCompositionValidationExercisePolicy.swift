@@ -47,6 +47,18 @@ extension ExerciseCompositionValidationRunner {
         )
     }
 
+    static func validateLegacyFR0Baseline()
+        -> [ExerciseCompositionValidationIssue] {
+        validateLegacyBaseline(
+            fixtureName: "legacy_fr0_baseline_matches_target_prompt_over_fretboard",
+            exerciseMode: .fr0,
+            expectedPageDisplayState: PageDisplayState(
+                topContentMode: .targetPrompt,
+                mainContentMode: .fretboard
+            )
+        )
+    }
+
     static func validateLegacyBaseline(
         fixtureName: String,
         exerciseMode: TrainerExerciseMode,
@@ -126,6 +138,63 @@ extension ExerciseCompositionValidationRunner {
                     issue(
                         fixtureName,
                         "single / sequence 的 legacy baseline 应把 Composition Preset 映射为 Staff -> Fretboard。"
+                    )
+                )
+            }
+        case .fr0:
+            if expectedPageDisplayState.topContentMode != .targetPrompt
+                || expectedPageDisplayState.mainContentMode != .fretboard {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 的 legacy baseline 应保持 targetPrompt -> fretboard。"
+                    )
+                )
+            }
+            if expectedPageDisplayState.showsFretboardInTopContent
+                || !expectedPageDisplayState.showsFretboardInMainContent {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 的 legacy baseline 只允许 mainContent 承载 fretboard。"
+                    )
+                )
+            }
+            if exerciseSection.rows.map(\.id) != [
+                .choice(.exerciseMode),
+                .positionFilter(.positionQuestionPitchClasses)
+            ] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 模式下的 Exercise section 应暴露 Exercise Mode / Note Names，并隐藏固定的 Composition / Layout。"
+                    )
+                )
+            }
+            if stateContext.exerciseLayoutPreferences
+                != .fr0TargetPromptFretboardAnswer {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 的 legacy baseline 应继续收敛到固定的 `targetPromptToFretboard + sideBySide` layout contract。"
+                    )
+                )
+            }
+            if panelModel.choiceRow(for: .compositionPreset) != nil
+                || panelModel.choiceRow(for: .layoutPreset) != nil
+                || panelModel.sections.contains(where: { $0.id == .accessories }) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 的 fixed presentation baseline 不应继续暴露 Composition / Layout / Accessories。"
+                    )
+                )
+            }
+            if panelModel.sections.contains(where: { $0.id == .positionPrompt }) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 模式下不应继续暴露 Position Prompt section。"
                     )
                 )
             }
@@ -638,6 +707,102 @@ extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "horizontal split 在阶段 3 仍不应被误标记为 legacy page 可直接投影。"
+                )
+            )
+        }
+
+        let fr0SideBySidePresentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: TrainerDisplayState(exerciseMode: .fr0),
+                fretboardTrainerState: .init(
+                    singleCoverageTargetPool: Set([.a, .c, .e])
+                ),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: ExerciseLayoutPreferences(
+                    compositionPreset: .staffToFretboard,
+                    layoutPreset: .stacked,
+                    accessoryPresentation: .collapsible,
+                    isNaturalNoteStripVisible: true,
+                    isPianoAccessoryVisible: true,
+                    isAccessoryExpanded: false
+                )
+            )
+        )
+        if fr0SideBySidePresentation.resolvedLayoutPreferences
+            != .fr0TargetPromptFretboardAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的 shared normalization 应强制固定到 `targetPromptToFretboard + sideBySide`。"
+                )
+            )
+        }
+        if !ExerciseSceneValidator.validate(
+            fr0SideBySidePresentation.scene
+        ).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的固定 targetPrompt -> fretboard sideBySide 组合应生成合法 scene。"
+                )
+            )
+        }
+        switch fr0SideBySidePresentation.scene.root {
+        case let .split(axis, children):
+            if axis != .horizontal
+                || children.count != 2
+                || children[0].mainAxisSizing != .fitContent
+                || children[1].mainAxisSizing != .weighted(1) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 的 sideBySide 组合应保持左 fitContent、右 weighted(1) 的主轴尺寸语义。"
+                    )
+                )
+            }
+            let childSurfaceIDs = children.compactMap {
+                $0.node.surfaceNodes.first?.id
+            }
+            if childSurfaceIDs != [.targetPrompt, .fretboard] {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "FR-0 的 sideBySide 组合应保持左 targetPrompt、右 fretboard。"
+                    )
+                )
+            }
+        default:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的固定布局应生成 horizontal split scene。"
+                )
+            )
+        }
+        if !fr0SideBySidePresentation.scene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的 sideBySide 组合应继续通过 shared helper 请求 viewport pin 高度。"
+                )
+            )
+        }
+        if fr0SideBySidePresentation.fretboardLayoutContract.heightPolicy
+            != .fillAvailableHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的主 fretboard 应继续跟随 side 容器填满高度。"
+                )
+            )
+        }
+        if fr0SideBySidePresentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的 horizontal split 主场景不应被误标记为 legacy page 可直接投影。"
                 )
             )
         }

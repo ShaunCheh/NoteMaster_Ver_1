@@ -79,10 +79,10 @@ final class FretboardFeedbackLayer: CALayer {
         switch feedbackOverlayState {
         case .empty:
             break
-        case let .singleCoverage(correctCells, wrongCell):
+        case let .singleCoverage(correctCells, wrongCells):
             drawSingleCoverageFeedback(
                 correctCells: correctCells,
-                wrongCell: wrongCell,
+                wrongCells: wrongCells,
                 in: context
             )
         case let .positionPrompt(promptCell, phase):
@@ -111,7 +111,7 @@ final class FretboardFeedbackLayer: CALayer {
 
     private func drawSingleCoverageFeedback(
         correctCells: Set<FretboardCell>,
-        wrongCell: FretboardCell?,
+        wrongCells: Set<FretboardCell>,
         in context: CGContext
     ) {
         let orderedCorrectCells = correctCells.sorted {
@@ -129,7 +129,13 @@ final class FretboardFeedbackLayer: CALayer {
             )
         }
 
-        if let wrongCell {
+        let orderedWrongCells = wrongCells.sorted {
+            if $0.stringIndex == $1.stringIndex {
+                return $0.fret < $1.fret
+            }
+            return $0.stringIndex < $1.stringIndex
+        }
+        for wrongCell in orderedWrongCells {
             drawFeedback(
                 for: wrongCell,
                 fillColor: FretboardPalette.feedbackWrongFill,

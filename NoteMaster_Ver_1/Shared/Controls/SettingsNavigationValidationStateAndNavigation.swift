@@ -993,6 +993,7 @@ extension SettingsNavigationValidationRunner {
             .setExerciseModeSr0,
             .setExerciseModeSr1,
             .setExerciseModeSr2,
+            .setExerciseModeFr0,
             .setExerciseModePositionPrompt
         ]
         let expectedExerciseModeTitles = [
@@ -1002,6 +1003,7 @@ extension SettingsNavigationValidationRunner {
             "SR-0",
             "SR-1",
             "SR-2",
+            "FR-0",
             "Position"
         ]
 
@@ -1067,7 +1069,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
                 )
             )
         }
@@ -1075,7 +1077,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
+                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
                 )
             )
         }
@@ -1203,6 +1205,216 @@ extension SettingsNavigationValidationRunner {
         )
     }
 
+    static func validateFR0SettingsStateFreezesFixedPresentationOptions()
+        -> [SettingsNavigationValidationIssue] {
+        let fixtureName = "fr0_settings_state_freezes_fixed_presentation_options"
+        var issues: [SettingsNavigationValidationIssue] = []
+        var stateContext = SettingsPanelStateContext(
+            exerciseLayoutPreferences: ExerciseLayoutPreferences(
+                compositionPreset: .staffToFretboard,
+                layoutPreset: .stacked,
+                accessoryPresentation: .collapsible,
+                isNaturalNoteStripVisible: true,
+                isPianoAccessoryVisible: true,
+                isAccessoryExpanded: false
+            ),
+            trainerDisplayState: TrainerDisplayState(exerciseMode: .single),
+            pianoPanelState: PianoPanelState(
+                isVisible: true,
+                rowCount: 6,
+                movementScope: .cascade
+            )
+        )
+        SettingsPanelEvent.triggerAction(.setExerciseModeFr0).apply(to: &stateContext)
+
+        let panelModel = SettingsPanelSnapshotBuilder.makeModel(from: stateContext)
+        let navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
+            from: stateContext
+        )
+        let expectedExerciseModeChoices: [SettingsActionID] = [
+            .setExerciseModeSingle,
+            .setExerciseModeSequence,
+            .setExerciseModeP2,
+            .setExerciseModeSr0,
+            .setExerciseModeSr1,
+            .setExerciseModeSr2,
+            .setExerciseModeFr0,
+            .setExerciseModePositionPrompt
+        ]
+        let expectedExerciseModeTitles = [
+            "Single",
+            "Sequence",
+            "P-2",
+            "SR-0",
+            "SR-1",
+            "SR-2",
+            "FR-0",
+            "Position"
+        ]
+
+        if stateContext.trainerDisplayState.exerciseMode != .fr0 {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "触发 `.setExerciseModeFr0` 后，trainerDisplayState.exerciseMode 应切到 `.fr0`。"
+                )
+            )
+        }
+        if stateContext.exerciseLayoutPreferences != .fr0TargetPromptFretboardAnswer {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的 settings writeback 应把 exerciseLayoutPreferences 固定收敛到 `targetPromptToFretboard + sideBySide`。"
+                )
+            )
+        }
+        if stateContext.pageDisplayState
+            != PageDisplayState(
+                topContentMode: .targetPrompt,
+                mainContentMode: .fretboard
+            ) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的 settings state 应把 legacy page bridge 同步到 targetPrompt -> fretboard。"
+                )
+            )
+        }
+        if stateContext.pianoPanelState.isVisible {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 的 settings writeback 应同步清掉 accessory piano 显隐状态。"
+                )
+            )
+        }
+
+        guard let exerciseModeRow = panelModel.choiceRow(for: .exerciseMode) else {
+            issues.append(issue(fixtureName, "FR-0 state 应继续暴露 Exercise Mode row。"))
+            return issues
+        }
+
+        if exerciseModeRow.choices.map(\.id) != expectedExerciseModeChoices {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                )
+            )
+        }
+        if exerciseModeRow.choices.map(\.title) != expectedExerciseModeTitles {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                )
+            )
+        }
+        if exerciseModeRow.choices.filter(\.isSelected).map(\.id) != [
+            .setExerciseModeFr0
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 state 下 Exercise Mode row 应只选中 FR-0。"
+                )
+            )
+        }
+        guard let fr0Choice = exerciseModeRow.choices.first(where: { choice in
+            choice.id == .setExerciseModeFr0
+        }) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 应正式暴露 `FR-0` 选项，而不是只存在于内部 contract。"
+                )
+            )
+            return issues
+        }
+        if fr0Choice.title != "FR-0" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 中 `FR-0` 选项的标题应保持为 `FR-0`。"
+                )
+            )
+        }
+        if fr0Choice.accessibilityLabel
+            != "Train full fretboard note-name coverage with a fixed left-prompt right-fretboard side layout" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 中 `FR-0` 选项的 accessibility label 应明确表达左 prompt / 右 fretboard 的固定 side layout。"
+                )
+            )
+        }
+        if panelModel.choiceRow(for: .compositionPreset) != nil
+            || panelModel.choiceRow(for: .layoutPreset) != nil
+            || panelModel.choiceRow(for: .accessoryPresentation) != nil
+            || panelModel.toggleRow(for: .naturalStripVisible) != nil
+            || panelModel.toggleRow(for: .pianoAccessoryVisible) != nil
+            || panelModel.toggleRow(for: .accessoryExpanded) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 state 下所有会被 fixed presentation 强拉回的 Exercise / Accessories 行都应从 panel snapshot 中隐藏。"
+                )
+            )
+        }
+        if resolveSection(.accessories, in: panelModel) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 state 下 Accessories section 应整体消失，而不是保留一个空分区。"
+                )
+            )
+        }
+        if resolveSection(.positionPrompt, in: panelModel) != nil
+            || navigationModel.page(for: .section(.positionPrompt)) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 state 下不应继续暴露 Position Prompt section 或其导航页。"
+                )
+            )
+        }
+
+        guard let exerciseSection = resolveSection(.exercise, in: panelModel) else {
+            issues.append(issue(fixtureName, "FR-0 state 下应保留 Exercise section。"))
+            return issues
+        }
+        if exerciseSection.rows.map(\.id) != [
+            .choice(.exerciseMode),
+            .positionFilter(.positionQuestionPitchClasses)
+        ] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 state 下 Exercise section 应收敛成 Exercise Mode + Position Question Note Names。"
+                )
+            )
+        }
+        assertFormPage(
+            route: .section(.exercise),
+            expectedTitle: exerciseSection.title,
+            expectedSection: exerciseSection,
+            in: navigationModel,
+            fixtureName: fixtureName,
+            pageDescription: "FR-0 Exercise section",
+            issues: &issues
+        )
+        if navigationModel.page(for: .exerciseMode) != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "FR-0 state 下 Exercise section 已收敛为单页 form 时，不应继续生成多余的 Exercise Mode 子页面。"
+                )
+            )
+        }
+
+        return issues
+    }
+
     static func validateSR2SettingsStateFreezesFixedPresentationOptions()
         -> [SettingsNavigationValidationIssue] {
         validateSRFixedSettingsState(
@@ -1271,6 +1483,7 @@ extension SettingsNavigationValidationRunner {
             .setExerciseModeSr0,
             .setExerciseModeSr1,
             .setExerciseModeSr2,
+            .setExerciseModeFr0,
             .setExerciseModePositionPrompt
         ]
         let expectedExerciseModeTitles = [
@@ -1280,6 +1493,7 @@ extension SettingsNavigationValidationRunner {
             "SR-0",
             "SR-1",
             "SR-2",
+            "FR-0",
             "Position"
         ]
         let expectedStaffSectionRowIDs: [SettingsRowID] = [
@@ -1381,7 +1595,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
+                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
                 )
             )
         }
@@ -1389,7 +1603,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / Position。"
+                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
                 )
             )
         }

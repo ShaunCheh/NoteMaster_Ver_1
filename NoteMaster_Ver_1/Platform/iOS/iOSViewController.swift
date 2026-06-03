@@ -114,6 +114,7 @@ final class iOSViewController: UIViewController {
     private var fretboardTrainerState = FretboardNaturalNoteTrainerState()
     private var singleCoverageSession: FretboardNaturalNoteTrainerState.SingleCoverageSession?
     private var singleCoverageLastEvaluation: FretboardNaturalNoteTrainerState.SingleCoverageEvaluation?
+    private var singleCoverageWrongCells: Set<FretboardCell> = []
     private var positionPromptSession: FretboardNaturalNoteTrainerState.PositionPromptSession?
     private var positionPromptLastEvaluation: FretboardNaturalNoteTrainerState.PositionPromptEvaluation?
     private var positionPromptOverlayPhase: FretboardFeedbackOverlayState.PositionPromptPhase?
@@ -194,6 +195,24 @@ final class iOSViewController: UIViewController {
         )
     }
 
+    private var currentFR0TargetPromptContent: TargetPromptContent {
+        .single(
+            text: fretboardTrainerState.targetPitchClass.displayText(
+                using: displayState.spelling
+            )
+        )
+    }
+
+    private var currentFR0TargetPitchClassPool: Set<PitchClass> {
+        Set(trainerDisplayState.positionQuestionConfiguration.sortedSelectedPitchClasses)
+    }
+
+    private var expectedSingleCoverageTargetPool: Set<PitchClass> {
+        trainerDisplayState.isFR0Mode
+            ? currentFR0TargetPitchClassPool
+            : Set(PitchClass.naturalCasesInOrder)
+    }
+
     private var currentPositionQuestionCandidateFilter: PositionPromptCandidateFilter {
         trainerDisplayState.positionQuestionCandidateFilter
     }
@@ -217,17 +236,19 @@ final class iOSViewController: UIViewController {
                 return .empty
             }
 
-            let wrongCell: FretboardCell?
-            if let singleCoverageLastEvaluation,
-               singleCoverageLastEvaluation.hitKind == .wrong {
-                wrongCell = singleCoverageLastEvaluation.selectedCell
+            let wrongCells: Set<FretboardCell>
+            if trainerDisplayState.isFR0Mode {
+                wrongCells = singleCoverageWrongCells
+            } else if let singleCoverageLastEvaluation,
+                      singleCoverageLastEvaluation.hitKind == .wrong {
+                wrongCells = [singleCoverageLastEvaluation.selectedCell]
             } else {
-                wrongCell = nil
+                wrongCells = []
             }
 
             return .singleCoverage(
                 correctCells: singleCoverageSession.visitedCells,
-                wrongCell: wrongCell
+                wrongCells: wrongCells
             )
         case .positionPrompt:
             guard let positionPromptSession,
@@ -276,6 +297,7 @@ final class iOSViewController: UIViewController {
 
     private func clearSingleCoverageFeedbackState() {
         singleCoverageLastEvaluation = nil
+        singleCoverageWrongCells.removeAll()
     }
 
     private func cancelPendingPositionPromptTransition() {
@@ -309,7 +331,9 @@ final class iOSViewController: UIViewController {
     private func singleCoverageSessionMatchesCurrentTrainer(
         _ session: FretboardNaturalNoteTrainerState.SingleCoverageSession
     ) -> Bool {
-        session.targetPitchClass == fretboardTrainerState.targetPitchClass
+        fretboardTrainerState.singleCoverageTargetPool
+            == expectedSingleCoverageTargetPool
+            && session.targetPitchClass == fretboardTrainerState.targetPitchClass
             && session.requiredCells == currentSingleCoverageRequiredCells
     }
 
@@ -914,10 +938,17 @@ final class iOSViewController: UIViewController {
 
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
-            applySingleCoverageProjection(
-                reason: "fretboardDisplayChanged",
-                showsLog: false
-            )
+            if trainerDisplayState.isFR0Mode {
+                applyFR0Projection(
+                    reason: "fretboardDisplayChanged",
+                    showsLog: false
+                )
+            } else {
+                applySingleCoverageProjection(
+                    reason: "fretboardDisplayChanged",
+                    showsLog: false
+                )
+            }
         case .positionPrompt:
             applyPositionPromptProjection(
                 reason: "fretboardDisplayChanged",
@@ -1035,8 +1066,9 @@ final class iOSViewController: UIViewController {
     private func logIgnoredFretboardAnswerHitResultMissingCell() {
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
+            let modeName = trainerDisplayState.isFR0Mode ? "FR-0" : "SingleCoverage"
             print(
-                "[SingleCoverage][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
+                "[\(modeName)][iOS] target=\(currentFretboardTrainerPrompt.displayText) result=ignored reason=missingHitCell"
             )
         case .positionPrompt:
             print("[PositionPrompt][iOS] result=ignored reason=missingHitCell")
@@ -1153,16 +1185,27 @@ final class iOSViewController: UIViewController {
         case let .evaluated(evaluation):
             self.singleCoverageSession = singleCoverageSession
             updateSingleCoverageFeedbackState(with: answerResult)
+            if trainerDisplayState.isFR0Mode,
+               evaluation.hitKind == .wrong {
+                singleCoverageWrongCells.insert(evaluation.selectedCell)
+            }
             if evaluation.didAdvanceTarget {
                 self.singleCoverageSession = fretboardTrainerState.makeSingleCoverageSession(
                     configuration: displayState.configuration
                 )
                 clearSingleCoverageFeedbackState()
             }
-            applySingleCoverageProjection(
-                reason: evaluation.didAdvanceTarget ? "advanced" : "answered",
-                showsLog: false
-            )
+            if trainerDisplayState.isFR0Mode {
+                applyFR0Projection(
+                    reason: evaluation.didAdvanceTarget ? "advanced" : "answered",
+                    showsLog: false
+                )
+            } else {
+                applySingleCoverageProjection(
+                    reason: evaluation.didAdvanceTarget ? "advanced" : "answered",
+                    showsLog: false
+                )
+            }
             print("[iOS] \(evaluation.debugSummary())")
         }
     }
@@ -1265,6 +1308,8 @@ final class iOSViewController: UIViewController {
         logLifecycle("synchronizeTrainerPresentationState reason=\(reason)")
         if trainerDisplayState.usesQuarterNoteSequenceKernel {
             synchronizeQuarterNoteSequencePresentation(reason: reason)
+        } else if trainerDisplayState.isFR0Mode {
+            synchronizeFR0Presentation(reason: reason)
         } else if trainerDisplayState.isPositionPromptMode {
             synchronizePositionPromptPresentation(reason: reason)
         } else {
@@ -1279,7 +1324,11 @@ final class iOSViewController: UIViewController {
 
         switch fretboardTrainerState.mode {
         case .singleNaturalTarget:
-            break
+            if fretboardTrainerState.singleCoverageTargetPool
+                != expectedSingleCoverageTargetPool {
+                resetSingleCoverageInteractionState()
+                fretboardTrainerState = FretboardNaturalNoteTrainerState()
+            }
         case .positionPrompt, .quarterNoteSequence:
             fretboardTrainerState = FretboardNaturalNoteTrainerState()
             resetSingleCoverageInteractionState()
@@ -1291,6 +1340,41 @@ final class iOSViewController: UIViewController {
 
         synchronizeExerciseCompositionState(reason: reason)
         applyFretboardTrainerPrompt(reason: reason)
+    }
+
+    private func synchronizeFR0Presentation(reason: String) {
+        resetPositionPromptInteractionState()
+        resetQuarterNoteSequenceInteractionState()
+
+        if staffDisplayState != baseStaffDisplayState {
+            staffDisplayState = baseStaffDisplayState
+        }
+
+        if reason == "positionQuestionCandidatesChanged" {
+            resetSingleCoverageInteractionState()
+        }
+
+        switch fretboardTrainerState.mode {
+        case .singleNaturalTarget:
+            if fretboardTrainerState.singleCoverageTargetPool
+                != expectedSingleCoverageTargetPool {
+                resetSingleCoverageInteractionState()
+                fretboardTrainerState = FretboardNaturalNoteTrainerState(
+                    singleCoverageTargetPool: currentFR0TargetPitchClassPool
+                )
+            }
+        case .positionPrompt, .quarterNoteSequence:
+            resetSingleCoverageInteractionState()
+            fretboardTrainerState = FretboardNaturalNoteTrainerState(
+                singleCoverageTargetPool: currentFR0TargetPitchClassPool
+            )
+        }
+
+        synchronizeExerciseCompositionState(reason: reason)
+        applyFR0Projection(
+            reason: reason,
+            showsLog: true
+        )
     }
 
     private func synchronizePositionPromptPresentation(reason: String) {
@@ -1440,6 +1524,24 @@ final class iOSViewController: UIViewController {
 
         print(
             "[SingleCoverage][iOS] target=\(currentFretboardTrainerPrompt.displayText) progress=\(progressText) state=\(reason)"
+        )
+    }
+
+    private func applyFR0Projection(
+        reason: String,
+        showsLog: Bool = true
+    ) {
+        ensureSingleCoverageSession()
+        targetNotePromptView.apply(content: currentFR0TargetPromptContent)
+        applyCurrentFretboardFeedbackOverlayState()
+        updateAnswerSurfaceInteractionState()
+
+        guard showsLog else {
+            return
+        }
+
+        print(
+            "[FR-0][iOS] target=\(currentFretboardTrainerPrompt.displayText) state=\(reason)"
         )
     }
 
