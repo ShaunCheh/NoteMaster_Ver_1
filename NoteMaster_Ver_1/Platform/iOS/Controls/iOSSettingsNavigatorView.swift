@@ -126,7 +126,7 @@ final class iOSSettingsNavigatorView: UIView {
     private func configureView() {
         accessibilityIdentifier = SettingsNavigationAccessibility.navigatorIdentifier
         clipsToBounds = true
-        setContentHuggingPriority(.required, for: .vertical)
+        setContentHuggingPriority(.defaultLow, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
 
         pageHostView.translatesAutoresizingMaskIntoConstraints = false

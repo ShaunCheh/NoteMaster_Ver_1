@@ -65,7 +65,7 @@ final class iOSSettingsPanelView: UIView {
         layer.cornerRadius = Style.panelCornerRadius
         layer.cornerCurve = .continuous
 
-        setContentHuggingPriority(.required, for: .vertical)
+        setContentHuggingPriority(.defaultLow, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
 
         sectionsStackView.axis = .vertical
@@ -80,7 +80,9 @@ final class iOSSettingsPanelView: UIView {
             sectionsStackView.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
             sectionsStackView.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor),
             sectionsStackView.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor),
-            sectionsStackView.bottomAnchor.constraint(equalTo: layoutMarginsGuide.bottomAnchor)
+            sectionsStackView.bottomAnchor.constraint(
+                lessThanOrEqualTo: layoutMarginsGuide.bottomAnchor
+            )
         ])
     }
 

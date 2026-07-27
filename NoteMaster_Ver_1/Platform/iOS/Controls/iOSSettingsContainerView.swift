@@ -188,7 +188,7 @@ final class iOSSettingsContainerView: UIView {
         contentView.translatesAutoresizingMaskIntoConstraints = false
         navigatorHostView.translatesAutoresizingMaskIntoConstraints = false
         navigatorHostView.accessibilityIdentifier = "settings-container-navigation-host"
-        navigatorHostView.setContentHuggingPriority(.required, for: .vertical)
+        navigatorHostView.setContentHuggingPriority(.defaultLow, for: .vertical)
         navigatorHostView.setContentCompressionResistancePriority(.required, for: .vertical)
         backButton.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -205,14 +205,6 @@ final class iOSSettingsContainerView: UIView {
         contentView.addSubview(navigatorHostView)
 
         let safeArea = safeAreaLayoutGuide
-        let preferredWidthConstraint = cardView.widthAnchor.constraint(
-            equalToConstant: Style.preferredCardWidth
-        )
-        preferredWidthConstraint.priority = .defaultHigh
-        let scrollHeightMatchesContentConstraint = scrollView.heightAnchor.constraint(
-            equalTo: navigatorHostView.heightAnchor
-        )
-        scrollHeightMatchesContentConstraint.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
             backdropView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -220,25 +212,22 @@ final class iOSSettingsContainerView: UIView {
             backdropView.topAnchor.constraint(equalTo: topAnchor),
             backdropView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-            cardView.centerXAnchor.constraint(equalTo: safeArea.centerXAnchor),
-            cardView.centerYAnchor.constraint(equalTo: safeArea.centerYAnchor),
             cardView.leadingAnchor.constraint(
-                greaterThanOrEqualTo: safeArea.leadingAnchor,
+                equalTo: safeArea.leadingAnchor,
                 constant: Style.screenInset
             ),
             cardView.trailingAnchor.constraint(
-                lessThanOrEqualTo: safeArea.trailingAnchor,
+                equalTo: safeArea.trailingAnchor,
                 constant: -Style.screenInset
             ),
             cardView.topAnchor.constraint(
-                greaterThanOrEqualTo: safeArea.topAnchor,
+                equalTo: safeArea.topAnchor,
                 constant: Style.screenInset
             ),
             cardView.bottomAnchor.constraint(
-                lessThanOrEqualTo: safeArea.bottomAnchor,
+                equalTo: safeArea.bottomAnchor,
                 constant: -Style.screenInset
             ),
-            preferredWidthConstraint,
 
             headerView.leadingAnchor.constraint(
                 equalTo: cardView.leadingAnchor,
@@ -291,14 +280,15 @@ final class iOSSettingsContainerView: UIView {
                 equalTo: cardView.bottomAnchor,
                 constant: -Style.cardContentInset
             ),
-            scrollHeightMatchesContentConstraint,
-            scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: Style.maximumScrollHeight),
 
             contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
             contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
             contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
             contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            contentView.heightAnchor.constraint(
+                greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor
+            ),
 
             navigatorHostView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             navigatorHostView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -363,8 +353,6 @@ final class iOSSettingsContainerView: UIView {
 
 private enum Style {
     static let screenInset: CGFloat = 16
-    static let preferredCardWidth: CGFloat = 360
-    static let maximumScrollHeight: CGFloat = 520
     static let cardContentInset: CGFloat = 16
     static let headerHeight: CGFloat = 40
     static let headerBottomSpacing: CGFloat = 8

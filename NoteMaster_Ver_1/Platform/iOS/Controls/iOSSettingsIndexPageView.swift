@@ -62,7 +62,7 @@ final class iOSSettingsIndexPageView: UIView {
         layer.cornerRadius = Style.panelCornerRadius
         layer.cornerCurve = .continuous
 
-        setContentHuggingPriority(.required, for: .vertical)
+        setContentHuggingPriority(.defaultLow, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
 
         routesStackView.axis = .vertical
@@ -77,7 +77,9 @@ final class iOSSettingsIndexPageView: UIView {
             routesStackView.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
             routesStackView.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor),
             routesStackView.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor),
-            routesStackView.bottomAnchor.constraint(equalTo: layoutMarginsGuide.bottomAnchor)
+            routesStackView.bottomAnchor.constraint(
+                lessThanOrEqualTo: layoutMarginsGuide.bottomAnchor
+            )
         ])
     }
 
