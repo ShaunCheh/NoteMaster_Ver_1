@@ -13,8 +13,13 @@ enum SettingsSelectionStyle: Equatable, Sendable {
     case independent
 }
 
+enum SettingsOptionsAxis: Equatable, Sendable {
+    case horizontal
+    case vertical
+}
+
 enum SettingsPresentationStyle: Equatable, Sendable {
-    case chips
+    case chips(axis: SettingsOptionsAxis)
     case segmented
 }
 
@@ -191,6 +196,15 @@ enum SettingsPositionFilterRowID: CaseIterable, Equatable, Hashable, Sendable {
             return TrainerPositionPromptConfiguration.supportedPitchClasses
         }
     }
+
+    var optionsAxis: SettingsOptionsAxis {
+        switch self {
+        case .positionQuestionPitchClasses:
+            return .vertical
+        case .positionPromptFilterOptions:
+            return .horizontal
+        }
+    }
 }
 
 enum SettingsPositionFilterOptionID: Equatable, Hashable, Sendable {
@@ -340,22 +354,23 @@ enum SettingsChoiceRowID: CaseIterable, Equatable, Hashable, Sendable {
     var presentationStyle: SettingsPresentationStyle {
         switch self {
         case .rootMode,
-             .exerciseMode,
              .positionPromptFilterMode,
              .stringThickness,
              .clef,
              .pianoMovementScope,
              .pianoWhiteKeyStyle:
             return .segmented
-        case .compositionPreset,
-             .layoutPreset,
-             .accessoryPresentation,
+        case .exerciseMode,
+             .compositionPreset,
+             .layoutPreset:
+            return .chips(axis: .vertical)
+        case .accessoryPresentation,
              .instrument,
              .displayMode,
              .labels,
              .spelling,
              .octave:
-            return .chips
+            return .chips(axis: .horizontal)
         }
     }
 
@@ -1293,6 +1308,7 @@ struct SettingsPositionFilterRow: Equatable, Sendable {
     var id: SettingsPositionFilterRowID
     var title: String
     var accessibilityLabel: String
+    var optionsAxis: SettingsOptionsAxis
     var options: [SettingsPositionFilterItem]
 }
 

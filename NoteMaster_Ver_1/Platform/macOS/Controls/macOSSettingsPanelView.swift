@@ -309,11 +309,15 @@ private final class ChoiceRowView: NSView {
         titleLabel.stringValue = item.title
 
         switch item.presentationStyle {
-        case .chips:
-            applyChipButtons(item: item)
+        case let .chips(axis):
+            applyChipButtons(
+                item: item,
+                axis: axis
+            )
             chipsStackView.isHidden = false
             segmentedControl.isHidden = true
         case .segmented:
+            contentStackView.alignment = .leading
             applySegmentedControl(item: item)
             chipsStackView.isHidden = true
             segmentedControl.isHidden = false
@@ -357,10 +361,16 @@ private final class ChoiceRowView: NSView {
         ])
     }
 
-    private func applyChipButtons(item: SettingsChoiceRow) {
+    private func applyChipButtons(
+        item: SettingsChoiceRow,
+        axis: SettingsOptionsAxis
+    ) {
         identifier = NSUserInterfaceItemIdentifier(
             "settings-panel-choice-row-\(String(describing: item.id))"
         )
+        contentStackView.alignment = axis == .vertical ? .width : .leading
+        chipsStackView.orientation = axis == .vertical ? .vertical : .horizontal
+        chipsStackView.alignment = axis == .vertical ? .width : .centerY
         removeObsoleteButtons(notIn: Set(item.choices.map(\.id)))
 
         let orderedButtons = item.choices.map { choice -> NSView in
@@ -850,6 +860,19 @@ private final class PositionFilterRowView: NSView {
         toolTip = item.accessibilityLabel
         titleLabel.stringValue = item.title
         removeObsoleteButtons(notIn: Set(item.options.map(\.id)))
+
+        contentStackView.alignment = item.optionsAxis == .vertical
+            ? .width
+            : .leading
+        optionsStackView.orientation = item.optionsAxis == .vertical
+            ? .vertical
+            : .horizontal
+        optionsStackView.alignment = item.optionsAxis == .vertical
+            ? .width
+            : .centerY
+        optionsStackView.distribution = item.optionsAxis == .vertical
+            ? .fill
+            : .fillEqually
 
         let orderedButtons = item.options.map { option -> NSView in
             optionButton(for: option)

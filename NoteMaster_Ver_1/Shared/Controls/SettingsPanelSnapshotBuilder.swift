@@ -189,6 +189,7 @@ enum SettingsPanelSnapshotBuilder {
                 id: id,
                 title: "Note Names",
                 accessibilityLabel: "Select the note names used when generating position questions",
+                optionsAxis: id.optionsAxis,
                 options: id.supportedPitchClasses.map { pitchClass in
                     let title = pitchClass.displayText()
                     let isSelected = configuration.contains(pitchClass)
@@ -210,6 +211,7 @@ enum SettingsPanelSnapshotBuilder {
                     id: id,
                     title: "Note Names",
                     accessibilityLabel: "Select the note names used when generating position prompt questions",
+                    optionsAxis: id.optionsAxis,
                     options: id.supportedPitchClasses.map { pitchClass in
                         let title = pitchClass.displayText()
                         let isSelected = configuration.contains(pitchClass)
@@ -227,6 +229,7 @@ enum SettingsPanelSnapshotBuilder {
                 id: id,
                 title: "Frets",
                 accessibilityLabel: "Select the frets used when generating position prompt questions",
+                optionsAxis: id.optionsAxis,
                 options: id.supportedFrets.map { fret in
                     let isSelected = configuration.contains(fret)
                     return SettingsPositionFilterItem(

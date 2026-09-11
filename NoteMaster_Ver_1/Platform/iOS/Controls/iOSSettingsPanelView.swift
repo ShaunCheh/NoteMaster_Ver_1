@@ -286,8 +286,11 @@ private final class ChoiceRowView: UIView {
         titleLabel.text = item.title
 
         switch item.presentationStyle {
-        case .chips:
-            applyChipButtons(item: item)
+        case let .chips(axis):
+            applyChipButtons(
+                item: item,
+                axis: axis
+            )
             chipsStackView.isHidden = false
             segmentedControl.isHidden = true
         case .segmented:
@@ -334,7 +337,11 @@ private final class ChoiceRowView: UIView {
         ])
     }
 
-    private func applyChipButtons(item: SettingsChoiceRow) {
+    private func applyChipButtons(
+        item: SettingsChoiceRow,
+        axis: SettingsOptionsAxis
+    ) {
+        chipsStackView.axis = axis == .vertical ? .vertical : .horizontal
         removeObsoleteButtons(notIn: Set(item.choices.map(\.id)))
 
         let orderedButtons = item.choices.map { choice -> UIButton in
@@ -745,6 +752,13 @@ private final class PositionFilterRowView: UIView {
         accessibilityLabel = item.accessibilityLabel
         titleLabel.text = item.title
         removeObsoleteButtons(notIn: Set(item.options.map(\.id)))
+
+        optionsStackView.axis = item.optionsAxis == .vertical
+            ? .vertical
+            : .horizontal
+        optionsStackView.distribution = item.optionsAxis == .vertical
+            ? .fill
+            : .fillEqually
 
         let orderedButtons = item.options.map { option -> UIView in
             optionButton(for: option)

@@ -303,6 +303,40 @@ extension SettingsNavigationValidationRunner {
         if resolveSection(.layout, in: panelModel) != nil {
             issues.append(issue(fixtureName, "default state 不应再保留 Layout section。"))
         }
+        for rowID in [
+            SettingsChoiceRowID.exerciseMode,
+            .compositionPreset,
+            .layoutPreset
+        ] {
+            guard let row = panelModel.choiceRow(for: rowID) else {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Exercise section 缺少 \(String(describing: rowID)) choice row。"
+                    )
+                )
+                continue
+            }
+
+            if row.presentationStyle != .chips(axis: .vertical) {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "Exercise section 的 \(String(describing: rowID)) 选项应使用纵向列表。"
+                    )
+                )
+            }
+        }
+        if panelModel.positionFilterRow(
+            for: .positionQuestionPitchClasses
+        )?.optionsAxis != .vertical {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise section 的 Note Names 选项应使用纵向列表。"
+                )
+            )
+        }
         if debugSection.rows.map(\.id) != [
             .toggle(.showsComponentBounds),
             .toggle(.showsSideBySideContainerOutlines)
