@@ -273,6 +273,12 @@ private extension StaffValidationRunner {
             clef: .bass,
             renderMode: .coreText
         )
+        let bcr1BassConfiguration = StaffConfiguration(
+            clef: .bass,
+            renderMode: .coreText,
+            additionalVerticalStaffSpaces:
+                TrainerBCR1QuestionConfiguration.staffAdditionalVerticalSpaces
+        )
 
         let keySignatureFixtures: [(String, StaffKeySignature)] = [
             ("c", .natural),
@@ -433,6 +439,29 @@ private extension StaffValidationRunner {
                 notationDisplayOptions: .fullNotation,
                 extraVerticalSpaces: 8,
                 expectedLedgerLineCount: 4
+            ),
+            fixture(
+                name: "bass-bcr1-boundary-sequence-feedback",
+                configuration: bcr1BassConfiguration,
+                score: score(
+                    clef: .bass,
+                    measures: [[
+                        ("c2", .quarter),
+                        ("d2", .quarter),
+                        ("e2", .quarter),
+                        ("f2", .quarter),
+                        ("a3", .quarter),
+                        ("b3", .quarter),
+                        ("c4", .quarter),
+                        ("d4", .quarter)
+                    ]]
+                ),
+                notationDisplayOptions: .fullNotation,
+                expectedLedgerLineCount: 6,
+                sequencePresentation: .correct(
+                    cursorIndex: 2,
+                    evaluatedIndex: 1
+                )
             ),
             fixture(
                 name: "treble-g-major-context-reset",

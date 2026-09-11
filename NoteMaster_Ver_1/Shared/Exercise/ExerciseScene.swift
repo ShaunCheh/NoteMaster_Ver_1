@@ -128,7 +128,7 @@ extension ExerciseSurfaceNode {
         weight: Double = 1
     ) -> ExerciseSceneSplitChildMainAxisSizing {
         switch kind {
-        case .staff, .targetPrompt, .naturalNoteStrip:
+        case .staff, .targetPrompt, .naturalNoteStrip, .questionModeSelector:
             return .fitContent
         case .fretboard, .piano:
             return .weighted(weight)
@@ -180,6 +180,11 @@ extension ExerciseSurfaceNode {
     static let pianoAccessory = ExerciseSurfaceNode(
         id: .piano,
         kind: .piano,
+        roles: [.auxiliary]
+    )
+    static let bcr1QuestionModeSelector = ExerciseSurfaceNode(
+        id: .questionModeSelector,
+        kind: .questionModeSelector,
         roles: [.auxiliary]
     )
 }

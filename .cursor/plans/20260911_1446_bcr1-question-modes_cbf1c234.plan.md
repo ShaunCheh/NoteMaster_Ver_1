@@ -4,22 +4,22 @@ overview: 为 BCR-1 增加“线上 / 间上 / 混合”三种出题子模式、
 todos:
   - id: generation-contract
     content: 实现通用自然音级 progression、staff line/space 分类及约束式无放回抽样，并保持旧生成策略不变
-    status: pending
+    status: completed
   - id: bcr-state
     content: 新增 BCR-1 子模式配置，固定三种模式的 8 音 resolved sequence 合同
-    status: pending
+    status: completed
   - id: three-surface-scene
     content: 扩展 scene surface 与 rendered layout 摘要，构建 selector、Staff、Piano 三层 BCR scene
-    status: pending
+    status: completed
   - id: platform-selector
     content: 实现 iOS/macOS segmented selector，接入 renderer，并让 regenerate button 跟随 prompt surface
-    status: pending
+    status: completed
   - id: mode-transition
     content: 接通双平台子模式事件、播放中断、状态清理和即时重新生成
-    status: pending
+    status: completed
   - id: validation-regression
     content: 补齐生成器、scene、Staff、Settings 与双平台 runtime smoke 验证并执行 SR 回归
-    status: pending
+    status: completed
 isProject: false
 ---
 

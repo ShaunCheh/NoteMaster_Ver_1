@@ -141,6 +141,10 @@ struct StaffConfiguration: Equatable, Sendable {
     // 以共享逻辑坐标语义描述各 clef 在 optical bounds 上下两侧各自裁切的比例。
     var trebleClefVerticalTrimRatio: CGFloat
     var bassClefVerticalTrimRatio: CGFloat
+    // Adds outer breathing room without changing staff-space geometry.
+    // Exercise modes with ledger-note ranges can opt in without resizing
+    // ordinary Staff and SR presentations.
+    var additionalVerticalStaffSpaces: CGFloat
     var debugOptions: DebugOptions
 
     init(
@@ -152,6 +156,7 @@ struct StaffConfiguration: Equatable, Sendable {
         bassClefAnchorLogicalDownwardShiftRatio: CGFloat = 0,
         trebleClefVerticalTrimRatio: CGFloat = 0.2,
         bassClefVerticalTrimRatio: CGFloat = 0.33,
+        additionalVerticalStaffSpaces: CGFloat = 0,
         debugOptions: DebugOptions = .default
     ) {
         self.canvasOrientation = canvasOrientation
@@ -162,11 +167,19 @@ struct StaffConfiguration: Equatable, Sendable {
         self.bassClefAnchorLogicalDownwardShiftRatio = bassClefAnchorLogicalDownwardShiftRatio
         self.trebleClefVerticalTrimRatio = trebleClefVerticalTrimRatio
         self.bassClefVerticalTrimRatio = bassClefVerticalTrimRatio
+        self.additionalVerticalStaffSpaces = max(
+            additionalVerticalStaffSpaces,
+            0
+        )
         self.debugOptions = debugOptions
     }
 
     var preferredHeight: CGFloat {
         layoutMetrics.preferredHeight(for: clef)
+            + (
+                layoutMetrics.normalizedStaffSpaceHeight
+                    * additionalVerticalStaffSpaces
+            )
     }
 
     func clefAnchorLogicalDownwardShiftRatio(for clef: StaffClef) -> CGFloat {

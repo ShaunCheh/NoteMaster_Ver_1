@@ -2204,6 +2204,144 @@ private extension FretboardValidationRunner {
             )
         }
 
+        logStage("bcr1QuestionGeneration")
+        let lineCandidates = StaffDiatonicPitchSequenceGenerator()
+            .makeCandidates(
+                for: StaffDiatonicPitchProgressionSpec(
+                    startPitch: StaffPitch(letter: .c, octave: 2),
+                    intervalNumber: 3,
+                    candidateCount: 8
+                )
+            )
+        let expectedLinePitches = [
+            "C2", "E2", "G2", "B2", "D3", "F3", "A3", "C4"
+        ]
+        if lineCandidates.map(\.scientificName) != expectedLinePitches {
+            record("BCR-1 线上 progression 应精确生成 C2 到 C4 的 8 个自然音级三度候选。")
+        }
+
+        let spaceCandidates = StaffDiatonicPitchSequenceGenerator()
+            .makeCandidates(
+                for: StaffDiatonicPitchProgressionSpec(
+                    startPitch: StaffPitch(letter: .d, octave: 2),
+                    intervalNumber: 3,
+                    candidateCount: 8
+                )
+            )
+        let expectedSpacePitches = [
+            "D2", "F2", "A2", "C3", "E3", "G3", "B3", "D4"
+        ]
+        if spaceCandidates.map(\.scientificName) != expectedSpacePitches {
+            record("BCR-1 间上 progression 应精确生成 D2 到 D4 的 8 个自然音级三度候选。")
+        }
+
+        let mixedCandidates = StaffDiatonicPitchSequenceGenerator()
+            .makeCandidates(
+                for: StaffDiatonicPitchProgressionSpec(
+                    startPitch: StaffPitch(letter: .c, octave: 2),
+                    intervalNumber: 2,
+                    candidateCount: 16
+                )
+            )
+        let expectedMixedPitches = [
+            "C2", "D2", "E2", "F2", "G2", "A2", "B2", "C3",
+            "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4"
+        ]
+        if mixedCandidates.map(\.scientificName) != expectedMixedPitches {
+            record("BCR-1 混合 progression 应精确生成 C2 到 D4 的 16 个连续自然音候选。")
+        }
+
+        let bassPitchLayout = StaffPitchLayout(clef: .bass)
+        if !lineCandidates.allSatisfy({
+            bassPitchLayout.positionKind(for: $0) == .line
+        }) {
+            record("BCR-1 线上候选应全部映射为 Bass Clef 的线位置，包括谱表外加线。")
+        }
+        if !spaceCandidates.allSatisfy({
+            bassPitchLayout.positionKind(for: $0) == .space
+        }) {
+            record("BCR-1 间上候选应全部映射为 Bass Clef 的间位置，包括谱表外加间。")
+        }
+        if mixedCandidates.enumerated().contains(where: { index, pitch in
+            let expectedKind: StaffPositionKind = index.isMultiple(of: 2)
+                ? .line
+                : .space
+            return bassPitchLayout.positionKind(for: pitch) != expectedKind
+        }) {
+            record("BCR-1 C2...D4 候选应在线与间之间严格交替。")
+        }
+
+        func generatedBCR1Pitches(
+            mode: TrainerBCR1QuestionMode
+        ) -> [StaffPitch] {
+            let displayState = TrainerDisplayState(
+                exerciseMode: .bcr1,
+                bcr1QuestionConfiguration:
+                    TrainerBCR1QuestionConfiguration(mode: mode)
+            )
+            var trainer = FretboardNaturalNoteTrainerState(
+                quarterNoteSequenceSpec: displayState
+                    .resolvedSequenceConfiguration
+                    .quarterNoteSequenceSpec
+            )
+            var generator = DeterministicRandomNumberGenerator()
+            return trainer.generateQuarterNoteSequence(using: &generator)
+                .items
+                .map(\.writtenPitch)
+        }
+
+        let generatedLinePitches = generatedBCR1Pitches(mode: .line)
+        if generatedLinePitches.count != 8
+            || Set(generatedLinePitches) != Set(lineCandidates)
+            || Set(generatedLinePitches).count != generatedLinePitches.count
+            || generatedLinePitches.contains(where: {
+                $0.accidental != .natural
+                    || bassPitchLayout.positionKind(for: $0) != .line
+            }) {
+            record("BCR-1 线上模式应将精确 8 音候选无放回抽取并整体洗牌。")
+        }
+
+        let generatedSpacePitches = generatedBCR1Pitches(mode: .space)
+        if generatedSpacePitches.count != 8
+            || Set(generatedSpacePitches) != Set(spaceCandidates)
+            || Set(generatedSpacePitches).count != generatedSpacePitches.count
+            || generatedSpacePitches.contains(where: {
+                $0.accidental != .natural
+                    || bassPitchLayout.positionKind(for: $0) != .space
+            }) {
+            record("BCR-1 间上模式应将精确 8 音候选无放回抽取并整体洗牌。")
+        }
+
+        let generatedMixedPitches = generatedBCR1Pitches(mode: .mixed)
+        let generatedMixedKinds = Set(
+            generatedMixedPitches.map {
+                bassPitchLayout.positionKind(for: $0)
+            }
+        )
+        if generatedMixedPitches.count != 8
+            || !Set(generatedMixedPitches).isSubset(of: Set(mixedCandidates))
+            || Set(generatedMixedPitches).count != generatedMixedPitches.count
+            || generatedMixedPitches.contains(where: {
+                $0.accidental != .natural
+            })
+            || generatedMixedKinds != Set([.line, .space]) {
+            record("BCR-1 混合模式应从 16 音池无放回取 8 音，并至少覆盖一个线上音和一个间上音。")
+        }
+
+        let defaultBCR1State = TrainerDisplayState(exerciseMode: .bcr1)
+        if defaultBCR1State.bcr1QuestionConfiguration.mode != .mixed {
+            record("BCR-1 默认出题子模式应为 mixed。")
+        }
+        let selectorModel = BCR1QuestionModeSelectorModel.make(
+            from: defaultBCR1State
+        )
+        if selectorModel.choices.map(\.mode) != [.line, .space, .mixed]
+            || selectorModel.choices.map(\.title) != ["线上", "间上", "混合"]
+            || selectorModel.choices.filter(\.isSelected).map(\.mode)
+                != [.mixed] {
+            record("BCR-1 选择器模型应固定为“线上 / 间上 / 混合”顺序并默认选中 mixed。")
+        }
+
         logStage("modePolicySeam")
         if !TrainerExerciseMode.sr1.isPianoSequenceRecognitionMode
             || !TrainerExerciseMode.sr2.isPianoSequenceRecognitionMode
@@ -2315,6 +2453,10 @@ private extension FretboardValidationRunner {
             || !sr0ResolvedSequenceConfiguration.includesAccidentals {
             record("SR-0 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
         }
+        if sr0ResolvedSequenceConfiguration.generationStrategy
+            != .clefRangeRandomWithReplacement {
+            record("SR-0 应继续使用原有 clef 音域内有放回随机策略。")
+        }
 
         let sr1DisplayState = TrainerDisplayState(
             exerciseMode: .sr1,
@@ -2341,6 +2483,16 @@ private extension FretboardValidationRunner {
             || sr1ResolvedSequenceConfiguration.includesAccidentals {
             record("SR-1 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
         }
+        if sr1ResolvedSequenceConfiguration.generationStrategy
+            != .clefRangeRandomWithReplacement {
+            record("SR-1 应继续使用原有 clef 音域内有放回随机策略。")
+        }
+        if TrainerSequenceConfiguration(
+            quarterNoteSequenceSpec:
+                sr1ResolvedSequenceConfiguration.quarterNoteSequenceSpec
+        ) != sr1ResolvedSequenceConfiguration {
+            record("Trainer sequence configuration 与 quarter-note spec 往返时不应丢失生成策略。")
+        }
 
         let bcr1DisplayState = TrainerDisplayState(
             exerciseMode: .bcr1,
@@ -2364,9 +2516,21 @@ private extension FretboardValidationRunner {
             != bcr1ModeContract.fixedSequenceAnswerPolicy {
             record("BCR-1 的判题策略应与 SR-1 一致固定为 pitchClass。")
         }
-        if bcr1ResolvedSequenceConfiguration.noteCount != 5
-            || !bcr1ResolvedSequenceConfiguration.includesAccidentals {
-            record("BCR-1 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
+        if bcr1ResolvedSequenceConfiguration.noteCount != 8
+            || bcr1ResolvedSequenceConfiguration.includesAccidentals {
+            record("BCR-1 应固定生成 8 个自然音，不沿用普通 Sequence 的数量与升降号配置。")
+        }
+        if bcr1ResolvedSequenceConfiguration.generationStrategy
+            != bcr1DisplayState.bcr1QuestionConfiguration
+                .generationStrategy {
+            record("BCR-1 resolved sequence 应携带当前子模式的 progression 生成策略。")
+        }
+        var changedBCR1DisplayState = bcr1DisplayState
+        changedBCR1DisplayState.setBCR1QuestionMode(.line)
+        if changedBCR1DisplayState.resolvedSequenceConfiguration
+            .quarterNoteSequenceSpec
+            == bcr1ResolvedSequenceConfiguration.quarterNoteSequenceSpec {
+            record("BCR-1 子模式变化必须改变 quarter-note spec 身份以触发重新生成。")
         }
         var bcr1Trainer = FretboardNaturalNoteTrainerState(
             quarterNoteSequenceSpec:
@@ -2375,6 +2539,10 @@ private extension FretboardValidationRunner {
         let bcr1GeneratedSequence = bcr1Trainer.generateQuarterNoteSequence()
         if bcr1GeneratedSequence.clef != .bass {
             record("BCR-1 生成的共享 sequence 应实际携带 bass clef。")
+        }
+        if bcr1GeneratedSequence.noteCount != 8
+            || Set(bcr1GeneratedSequence.items.map(\.writtenPitch)).count != 8 {
+            record("BCR-1 默认 mixed sequence 应包含 8 个不重复音符。")
         }
 
         logStage("naturalPrompt")

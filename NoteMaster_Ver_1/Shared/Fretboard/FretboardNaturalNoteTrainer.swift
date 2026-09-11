@@ -329,12 +329,15 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
         var noteCount: Int
         var includesAccidentals: Bool
         var answerPolicy: TrainerSequenceAnswerPolicy
+        var generationStrategy: StaffQuarterNoteGenerationStrategy
 
         init(
             clef: StaffClef,
             noteCount: Int,
             includesAccidentals: Bool,
-            answerPolicy: TrainerSequenceAnswerPolicy
+            answerPolicy: TrainerSequenceAnswerPolicy,
+            generationStrategy: StaffQuarterNoteGenerationStrategy =
+                .clefRangeRandomWithReplacement
         ) {
             precondition(
                 noteCount > 0,
@@ -344,6 +347,7 @@ struct FretboardNaturalNoteTrainerState: Equatable, Sendable {
             self.noteCount = noteCount
             self.includesAccidentals = includesAccidentals
             self.answerPolicy = answerPolicy
+            self.generationStrategy = generationStrategy
         }
     }
 
@@ -1775,7 +1779,8 @@ private extension FretboardNaturalNoteTrainerState.QuarterNoteSequenceSpec {
         StaffQuarterNoteSequenceGenerator.Spec(
             clef: clef,
             noteCount: noteCount,
-            includesAccidentals: includesAccidentals
+            includesAccidentals: includesAccidentals,
+            generationStrategy: generationStrategy
         )
     }
 }

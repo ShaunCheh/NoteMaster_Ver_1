@@ -11,6 +11,7 @@ enum PlaybackStopReason: String, Sendable {
     case sharedSettingsChanged
     case viewWillDisappear
     case interactionDisabled
+    case bcr1QuestionModeChanged
 
     var debugName: String {
         rawValue

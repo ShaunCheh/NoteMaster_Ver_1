@@ -97,6 +97,7 @@ final class iOSViewController: UIViewController {
             applySettingsPanelState()
             applySequenceRegenerateButtonState()
             applyPianoAccessoryState()
+            applyBCR1QuestionModeSelectorState()
         }
     }
     private var settingsDebugState = SettingsDebugState() {
@@ -490,6 +491,8 @@ final class iOSViewController: UIViewController {
         _ state: StaffDisplayState
     ) -> StaffDisplayState {
         var state = state
+        state.configuration.additionalVerticalStaffSpaces =
+            baseStaffDisplayState.configuration.additionalVerticalStaffSpaces
         state.clearSequencePresentation()
         return state
     }
@@ -720,6 +723,20 @@ final class iOSViewController: UIViewController {
         return naturalNoteStripView
     }()
 
+    private lazy var bcr1QuestionModeSelectorView:
+        iOSBCR1QuestionModeSelectorView = {
+            let selectorView = iOSBCR1QuestionModeSelectorView()
+            selectorView.onEvent = { [weak self] event in
+                self?.handleBCR1QuestionModeSelectorEvent(event)
+            }
+            selectorView.apply(
+                model: BCR1QuestionModeSelectorModel.make(
+                    from: trainerDisplayState
+                )
+            )
+            return selectorView
+        }()
+
     private lazy var exerciseSceneRenderer = iOSExerciseSceneRenderer(
         safeAreaHeightAnchor: view.safeAreaLayoutGuide.heightAnchor,
         metrics: .init(
@@ -733,6 +750,7 @@ final class iOSViewController: UIViewController {
         targetNotePromptView: targetNotePromptView,
         naturalNoteStripView: naturalNoteStripView,
         pianoSurfaceView: pianoSurfaceView,
+        questionModeSelectorView: bcr1QuestionModeSelectorView,
         fretboardView: fretboardView
     )
 
@@ -925,6 +943,7 @@ final class iOSViewController: UIViewController {
         applyStaffDisplayState()
         applySequenceRegenerateButtonState()
         applyLabelVisibilityButtonState()
+        applyBCR1QuestionModeSelectorState()
         synchronizeTrainerPresentationState(reason: "initial")
         logLifecycle("applyDisplayState end")
     }
@@ -984,6 +1003,14 @@ final class iOSViewController: UIViewController {
     private func applySettingsPanelState() {
         settingsContainerView.navigationModel = SettingsNavigationSnapshotBuilder.makeModel(
             from: settingsPanelStateContext
+        )
+    }
+
+    private func applyBCR1QuestionModeSelectorState() {
+        bcr1QuestionModeSelectorView.apply(
+            model: BCR1QuestionModeSelectorModel.make(
+                from: trainerDisplayState
+            )
         )
     }
 
@@ -1456,6 +1483,16 @@ final class iOSViewController: UIViewController {
         targetNotePromptView.apply(content: content)
 
         var nextStaffDisplayState = staffDisplayState
+        nextStaffDisplayState.configuration.additionalVerticalStaffSpaces =
+            trainerDisplayState.exerciseMode == .bcr1
+                ? max(
+                    baseStaffDisplayState.configuration
+                        .additionalVerticalStaffSpaces,
+                    TrainerBCR1QuestionConfiguration
+                        .staffAdditionalVerticalSpaces
+                )
+                : baseStaffDisplayState.configuration
+                    .additionalVerticalStaffSpaces
         nextStaffDisplayState.apply(
             generatedSequence: generatedSequence,
             sequencePresentation: currentQuarterNoteSequenceStaffPresentation(
@@ -1747,6 +1784,23 @@ final class iOSViewController: UIViewController {
         regenerateQuarterNoteSequence(reason: "manualRegenerated")
     }
 
+    private func handleBCR1QuestionModeSelectorEvent(
+        _ event: BCR1QuestionModeSelectorEvent
+    ) {
+        guard
+            case let .select(nextMode) = event,
+            trainerDisplayState.exerciseMode == .bcr1,
+            nextMode != trainerDisplayState.bcr1QuestionConfiguration.mode
+        else {
+            return
+        }
+
+        interruptActivePianoPlayback(reason: .bcr1QuestionModeChanged)
+        trainerDisplayState.setBCR1QuestionMode(nextMode)
+        resetQuarterNoteSequenceInteractionState()
+        synchronizeTrainerPresentationState(reason: "bcr1QuestionModeChanged")
+    }
+
     private func handleSettingsPanelEvent(_ event: SettingsPanelEvent) {
         var nextStateContext = settingsPanelStateContext
         event.apply(to: &nextStateContext)
@@ -1865,13 +1919,332 @@ extension iOSViewController {
         in window: UIWindow,
         completion: @escaping (Bool, String) -> Void
     ) {
-        runPitchClassPianoRecognitionSmokeTest(
-            in: window,
+        typealias SmokeStep = (
+            name: String,
+            action: () -> Void,
+            validate: () -> String?
+        )
+        let bassLayout = StaffPitchLayout(clef: .bass)
+        let expectedLinePitches = Set([
+            "C2", "E2", "G2", "B2", "D3", "F3", "A3", "C4"
+        ])
+        let expectedSpacePitches = Set([
+            "D2", "F2", "A2", "C3", "E3", "G3", "B3", "D4"
+        ])
+        let mixedDiatonicRange =
+            StaffPitch(letter: .c, octave: 2).diatonicIndex
+                ... StaffPitch(letter: .d, octave: 4).diatonicIndex
+        var mixedWrongPreview: PianoPreviewState?
+        var repeatedLineSequence: GeneratedNoteSequence?
+        var repeatedLineSession:
+            FretboardNaturalNoteTrainerState.QuarterNoteSequenceSession?
+        var didSeedSpaceTransitionState = false
+        var correctSpacePreview: PianoPreviewState?
+
+        func validateCurrentSequence(
+            for mode: TrainerBCR1QuestionMode
+        ) -> String? {
+            guard let sequence = currentGeneratedQuarterNoteSequence else {
+                return "reason=missing_sequence"
+            }
+            let pitches = sequence.items.map(\.writtenPitch)
+            guard sequence.clef == .bass, pitches.count == 8 else {
+                return "reason=sequence_contract_mismatch clef=\(sequence.clef) count=\(pitches.count)"
+            }
+            guard Set(pitches).count == pitches.count,
+                  pitches.allSatisfy({ $0.accidental == .natural }) else {
+                return "reason=sequence_not_unique_natural pitches=\(pitches.map(\.scientificName))"
+            }
+
+            switch mode {
+            case .line:
+                guard Set(pitches.map(\.scientificName))
+                    == expectedLinePitches,
+                    pitches.allSatisfy({
+                        bassLayout.positionKind(for: $0) == .line
+                    }) else {
+                    return "reason=line_sequence_contract_failed pitches=\(pitches.map(\.scientificName))"
+                }
+            case .space:
+                guard Set(pitches.map(\.scientificName))
+                    == expectedSpacePitches,
+                    pitches.allSatisfy({
+                        bassLayout.positionKind(for: $0) == .space
+                    }) else {
+                    return "reason=space_sequence_contract_failed pitches=\(pitches.map(\.scientificName))"
+                }
+            case .mixed:
+                let kinds = Set(
+                    pitches.map {
+                        bassLayout.positionKind(for: $0)
+                    }
+                )
+                guard kinds == Set([.line, .space]),
+                      pitches.allSatisfy({
+                          mixedDiatonicRange.contains($0.diatonicIndex)
+                      }) else {
+                    return "reason=mixed_sequence_contract_failed pitches=\(pitches.map(\.scientificName))"
+                }
+            }
+            return nil
+        }
+
+        func currentExpectedNote() -> NotePitch? {
+            quarterNoteSequenceSession?.currentItem?.expectedNotePitch
+        }
+
+        func settleLayout() {
+            window.setNeedsLayout()
+            window.layoutIfNeeded()
+            view.setNeedsLayout()
+            view.layoutIfNeeded()
+        }
+
+        let steps: [SmokeStep] = [
+            (
+                name: "switch_to_bcr1_default_mixed",
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setExerciseModeBcr1)
+                    )
+                },
+                validate: {
+                    guard self.trainerDisplayState.exerciseMode == .bcr1,
+                          self.trainerDisplayState
+                            .bcr1QuestionConfiguration.mode == .mixed else {
+                        return "reason=mode_not_bcr1_mixed"
+                    }
+                    guard self.trainerDisplayState
+                        .resolvedSequenceConfiguration.noteCount == 8,
+                        !self.trainerDisplayState
+                            .resolvedSequenceConfiguration.includesAccidentals,
+                        self.trainerDisplayState
+                            .resolvedSequenceConfiguration.answerPolicy
+                            == .pitchClass else {
+                        return "reason=bcr1_resolved_configuration_invalid"
+                    }
+                    guard case let .split(axis, children) =
+                        self.exercisePresentationState.scene.root,
+                        axis == .vertical,
+                        children.count == 3,
+                        children.flatMap(\.node.surfaceNodes).map(\.id)
+                            == [.questionModeSelector, .staff, .piano],
+                        children.map(\.mainAxisSizing)
+                            == [.fitContent, .fitContent, .weighted(1)] else {
+                        return "reason=bcr1_scene_not_three_layer"
+                    }
+                    guard self.exercisePresentationState
+                        .projectedSurfaceState(for: .questionModeSelector)
+                        == .auxiliaryOnly,
+                        self.bcr1QuestionModeSelectorView.displayedTitles
+                            == ["线上", "间上", "混合"],
+                        self.bcr1QuestionModeSelectorView.selectedMode
+                            == .mixed,
+                        !self.bcr1QuestionModeSelectorView.isHidden,
+                        self.staffDisplayState.configuration
+                            .additionalVerticalStaffSpaces
+                            == TrainerBCR1QuestionConfiguration
+                                .staffAdditionalVerticalSpaces else {
+                        return "reason=selector_not_visible_default_mixed"
+                    }
+                    guard self.sequenceRegenerateButton.superview
+                        === self.staffView.superview,
+                        self.sequenceRegenerateButton.superview
+                            !== self.bcr1QuestionModeSelectorView.superview,
+                        !self.sequenceRegenerateButton.isHidden else {
+                        return "reason=regenerate_not_anchored_to_staff_prompt"
+                    }
+                    return validateCurrentSequence(for: .mixed)
+                }
+            ),
+            (
+                name: "wrong_mixed_answer",
+                action: {
+                    guard let expectedNote = currentExpectedNote() else {
+                        mixedWrongPreview = nil
+                        return
+                    }
+                    let preview = PianoPreviewState(
+                        rowIndex: 0,
+                        note: expectedNote.advanced(by: 1)
+                    )
+                    mixedWrongPreview = preview
+                    self.handlePianoSemanticEvent(.previewStarted(preview))
+                },
+                validate: {
+                    guard let mixedWrongPreview,
+                          let evaluation =
+                            self.quarterNoteSequenceLastEvaluation,
+                          !evaluation.isCorrect,
+                          self.quarterNoteSequenceSession?.currentIndex == 0,
+                          self.lastPianoAnswerNotesByPreviewID[
+                            mixedWrongPreview.previewID
+                          ] == mixedWrongPreview.note,
+                          self.playbackCoordinator?.currentPreview
+                            == mixedWrongPreview else {
+                        return "reason=wrong_mixed_answer_state_missing"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "switch_to_line_resets_interaction",
+                action: {
+                    self.handleBCR1QuestionModeSelectorEvent(.select(.line))
+                },
+                validate: {
+                    guard self.trainerDisplayState
+                        .bcr1QuestionConfiguration.mode == .line,
+                        self.bcr1QuestionModeSelectorView.selectedMode == .line,
+                        self.quarterNoteSequenceSession?.currentIndex == 0,
+                        self.quarterNoteSequenceLastEvaluation == nil,
+                        self.lastPianoAnswerNotesByPreviewID.isEmpty,
+                        self.playbackCoordinator?.currentPreview == nil,
+                        self.staffDisplayState.sequencePresentation?.state
+                            == .idle else {
+                        return "reason=line_transition_did_not_reset_state"
+                    }
+                    return validateCurrentSequence(for: .line)
+                }
+            ),
+            (
+                name: "repeat_line_is_noop",
+                action: {
+                    repeatedLineSequence =
+                        self.currentGeneratedQuarterNoteSequence
+                    repeatedLineSession = self.quarterNoteSequenceSession
+                    self.handleBCR1QuestionModeSelectorEvent(.select(.line))
+                },
+                validate: {
+                    guard self.currentGeneratedQuarterNoteSequence
+                        == repeatedLineSequence,
+                        self.quarterNoteSequenceSession
+                            == repeatedLineSession else {
+                        return "reason=repeated_line_regenerated_sequence"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "switch_to_space_resets_seeded_state",
+                action: {
+                    if let expectedNote = currentExpectedNote() {
+                        let preview = PianoPreviewState(
+                            rowIndex: 0,
+                            note: expectedNote.advanced(by: 1)
+                        )
+                        self.handlePianoSemanticEvent(.previewStarted(preview))
+                        didSeedSpaceTransitionState =
+                            self.quarterNoteSequenceLastEvaluation != nil
+                            && !self.lastPianoAnswerNotesByPreviewID.isEmpty
+                            && self.playbackCoordinator?.currentPreview != nil
+                    }
+                    self.handleBCR1QuestionModeSelectorEvent(.select(.space))
+                },
+                validate: {
+                    guard didSeedSpaceTransitionState else {
+                        return "reason=space_transition_state_not_seeded"
+                    }
+                    guard self.trainerDisplayState
+                        .bcr1QuestionConfiguration.mode == .space,
+                        self.bcr1QuestionModeSelectorView.selectedMode == .space,
+                        self.quarterNoteSequenceSession?.currentIndex == 0,
+                        self.quarterNoteSequenceLastEvaluation == nil,
+                        self.lastPianoAnswerNotesByPreviewID.isEmpty,
+                        self.playbackCoordinator?.currentPreview == nil else {
+                        return "reason=space_transition_did_not_reset_state"
+                    }
+                    return validateCurrentSequence(for: .space)
+                }
+            ),
+            (
+                name: "manual_regenerate_preserves_space",
+                action: {
+                    self.handleSequenceRegenerateButtonTap()
+                },
+                validate: {
+                    guard self.trainerDisplayState
+                        .bcr1QuestionConfiguration.mode == .space,
+                        self.bcr1QuestionModeSelectorView.selectedMode
+                            == .space,
+                        self.quarterNoteSequenceSession?.currentIndex == 0,
+                        self.quarterNoteSequenceLastEvaluation == nil else {
+                        return "reason=regenerate_did_not_preserve_space"
+                    }
+                    return validateCurrentSequence(for: .space)
+                }
+            ),
+            (
+                name: "pitch_class_answer_advances",
+                action: {
+                    guard let expectedNote = currentExpectedNote() else {
+                        correctSpacePreview = nil
+                        return
+                    }
+                    let preview = PianoPreviewState(
+                        rowIndex: 0,
+                        note: NotePitch(
+                            pitchClass: expectedNote.pitchClass,
+                            octave: expectedNote.octave + 1
+                        )
+                    )
+                    correctSpacePreview = preview
+                    self.handlePianoSemanticEvent(.previewStarted(preview))
+                },
+                validate: {
+                    guard let correctSpacePreview,
+                          let evaluation =
+                            self.quarterNoteSequenceLastEvaluation,
+                          evaluation.isCorrect,
+                          evaluation.comparisonPolicy == .pitchClass,
+                          evaluation.answeredNotePitch
+                            == correctSpacePreview.note,
+                          evaluation.expectedNotePitch
+                            != correctSpacePreview.note,
+                          self.quarterNoteSequenceSession?.currentIndex == 1 else {
+                        return "reason=pitch_class_answer_did_not_advance"
+                    }
+                    return nil
+                }
+            ),
+            (
+                name: "switch_back_to_single",
+                action: {
+                    self.handleSettingsPanelEvent(
+                        .triggerAction(.setExerciseModeSingle)
+                    )
+                },
+                validate: {
+                    guard self.trainerDisplayState.exerciseMode == .single,
+                          !self.exercisePresentationState
+                            .containsSurface(.questionModeSelector),
+                          self.bcr1QuestionModeSelectorView.isHidden,
+                          self.sequenceRegenerateButton.isHidden,
+                          self.quarterNoteSequenceSession == nil,
+                          self.quarterNoteSequenceLastEvaluation == nil,
+                          self.lastPianoAnswerNotesByPreviewID.isEmpty,
+                          self.staffDisplayState.configuration
+                            .additionalVerticalStaffSpaces
+                            == self.baseStaffDisplayState.configuration
+                                .additionalVerticalStaffSpaces else {
+                        return "reason=bcr1_state_leaked_after_single"
+                    }
+                    return nil
+                }
+            )
+        ]
+
+        print(
+            "[RuntimeSmoke][iOS] begin scenario=bcr1_piano_answer initialMode=\(String(describing: trainerDisplayState.exerciseMode))"
+        )
+        runExerciseAnswerSmokeSteps(
+            steps,
+            index: 0,
             scenarioName: "bcr1_piano_answer",
-            switchStepName: "switch_to_bcr1",
-            switchAction: .setExerciseModeBcr1,
-            expectedMode: .bcr1,
-            expectedClef: .bass,
+            settleLayout: settleLayout,
+            successSummary: {
+                "[RuntimeSmoke][iOS] PASS scenario=bcr1_piano_answer finalMode=\(String(describing: self.trainerDisplayState.exerciseMode))"
+            },
             completion: completion
         )
     }

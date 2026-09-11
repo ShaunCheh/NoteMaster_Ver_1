@@ -1606,12 +1606,26 @@ extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
-            if resolvedSequenceConfiguration.noteCount != 5
-                || !resolvedSequenceConfiguration.includesAccidentals {
+            if exerciseMode == .bcr1 {
+                if resolvedSequenceConfiguration.noteCount != 8
+                    || resolvedSequenceConfiguration.includesAccidentals
+                    || resolvedSequenceConfiguration.generationStrategy
+                        == .clefRangeRandomWithReplacement {
+                    issues.append(
+                        issue(
+                            fixtureName,
+                            "bcr1 应固定为 8 个自然音，并使用当前 BCR-1 子模式的 progression 生成策略。"
+                        )
+                    )
+                }
+            } else if resolvedSequenceConfiguration.noteCount != 5
+                || !resolvedSequenceConfiguration.includesAccidentals
+                || resolvedSequenceConfiguration.generationStrategy
+                    != .clefRangeRandomWithReplacement {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 只应钳制 clef / answerPolicy；noteCount 与 includesAccidentals 应继续保留用户配置。"
+                        "\(modeDebugName) 只应钳制 clef / answerPolicy；noteCount、includesAccidentals 与旧的有放回生成策略应继续保留。"
                     )
                 )
             }
@@ -1801,6 +1815,171 @@ extension ExerciseCompositionValidationRunner {
                 issue(
                     fixtureName,
                     "判题策略应固定为 SR-1 / BCR-1 = .pitchClass、SR-2 = .exactNote。"
+                )
+            )
+        }
+
+        return issues
+    }
+
+    static func validateBCR1QuestionModeSelectorBuildsThreeSurfaceScene()
+        -> [ExerciseCompositionValidationIssue] {
+        let fixtureName =
+            "bcr1_question_mode_selector_builds_three_surface_scene"
+        var issues: [ExerciseCompositionValidationIssue] = []
+        let trainerDisplayState = TrainerDisplayState(
+            exerciseMode: .bcr1
+        )
+        let resolvedSequenceSpec = trainerDisplayState
+            .resolvedSequenceConfiguration
+            .quarterNoteSequenceSpec
+        let presentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: trainerDisplayState,
+                fretboardTrainerState: FretboardNaturalNoteTrainerState(
+                    quarterNoteSequenceSpec: resolvedSequenceSpec
+                ),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .default
+            )
+        )
+
+        if trainerDisplayState.bcr1QuestionConfiguration.mode != .mixed {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 默认问题模式应为 mixed。"
+                )
+            )
+        }
+        if !ExerciseSceneValidator.validate(presentation.scene).isEmpty {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 的三层 scene 应通过共享 scene validator。"
+                )
+            )
+        }
+
+        guard case let .split(axis, children) = presentation.scene.root else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 主场景应为 vertical split。"
+                )
+            )
+            return issues
+        }
+        let surfaces = children.compactMap { child -> ExerciseSurfaceNode? in
+            guard case let .surface(surface) = child.node else {
+                return nil
+            }
+            return surface
+        }
+        if axis != .vertical
+            || surfaces.map(\.id)
+                != [.questionModeSelector, .staff, .piano] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 三层 surface 顺序应严格为 selector、staff、piano。"
+                )
+            )
+        }
+        if children.map(\.mainAxisSizing)
+            != [.fitContent, .fitContent, .weighted(1)] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 三层尺寸应严格为 fitContent、fitContent、weighted(1)。"
+                )
+            )
+        }
+        if surfaces.count != 3
+            || surfaces[0].roles != [.auxiliary]
+            || surfaces[1].roles != [.prompt]
+            || surfaces[2].roles != [.answer] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 selector、staff、piano 应分别承担 auxiliary、prompt、answer 角色。"
+                )
+            )
+        }
+        let selectorState = presentation.effectiveSurfaceState(
+            for: .questionModeSelector
+        )
+        if !selectorState.isVisible
+            || !selectorState.isInteractionEnabled
+            || selectorState.isPromptActive
+            || selectorState.isAnswerEnabled {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 selector 应是可见、可交互且不承担 prompt/answer 的 auxiliary surface。"
+                )
+            )
+        }
+        if presentation.legacyPageDisplayState != nil {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 三层 scene 不应被倒灌到旧两槽 page model。"
+                )
+            )
+        }
+        guard let renderedLayout = presentation.renderedSceneLayout else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 三个直接 surface 应生成 N-child rendered layout 摘要。"
+                )
+            )
+            return issues
+        }
+        if renderedLayout.arrangement != .stacked
+            || renderedLayout.children.map(\.surface.id)
+                != [.questionModeSelector, .staff, .piano]
+            || renderedLayout.children.map(\.mainAxisSizing)
+                != [.fitContent, .fitContent, .weighted(1)] {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 rendered layout 应完整保留三个 child 及其顺序和尺寸。"
+                )
+            )
+        }
+        if !presentation.scene.requiresViewportPinnedHeight {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 fitContent + weighted 三层场景应固定到 viewport 高度。"
+                )
+            )
+        }
+
+        let sr1DisplayState = TrainerDisplayState(exerciseMode: .sr1)
+        let sr1Presentation = ExerciseCompositionPolicy.makePresentation(
+            from: ExerciseCompositionPolicyInput(
+                trainerDisplayState: sr1DisplayState,
+                fretboardTrainerState: FretboardNaturalNoteTrainerState(
+                    quarterNoteSequenceSpec: sr1DisplayState
+                        .resolvedSequenceConfiguration
+                        .quarterNoteSequenceSpec
+                ),
+                fretboardDisplayState: .default,
+                staffDisplayState: .default,
+                pianoPanelState: .init(),
+                layoutPreferences: .default
+            )
+        )
+        if sr1Presentation.containsSurface(.questionModeSelector) {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "非 BCR-1 的 SR-1 scene 不应包含问题模式选择器。"
                 )
             )
         }

@@ -7,6 +7,11 @@
 
 import CoreGraphics
 
+enum StaffPositionKind: Equatable, Hashable, Sendable {
+    case line
+    case space
+}
+
 struct StaffPitchLayout: Equatable, Sendable {
     enum StemDirection: Equatable, Sendable {
         case up
@@ -37,7 +42,7 @@ struct StaffPitchLayout: Equatable, Sendable {
             return nil
         }
 
-        let staffPosition = pitch.diatonicIndex - bottomLineReferencePitch.diatonicIndex
+        let staffPosition = staffPosition(for: pitch)
         let centerY = bottomLineY - (CGFloat(staffPosition) * geometry.staffStepHeight)
 
         return PositionedPitch(
@@ -52,6 +57,16 @@ struct StaffPitchLayout: Equatable, Sendable {
                 geometry: geometry
             )
         )
+    }
+
+    func staffPosition(for pitch: StaffPitch) -> Int {
+        pitch.diatonicIndex - bottomLineReferencePitch.diatonicIndex
+    }
+
+    func positionKind(for pitch: StaffPitch) -> StaffPositionKind {
+        staffPosition(for: pitch).isMultiple(of: 2)
+            ? .line
+            : .space
     }
 
     private var bottomLineReferencePitch: StaffPitch {

@@ -11,6 +11,7 @@ enum AppSurfaceID: String, CaseIterable, Equatable, Hashable, Sendable {
     case targetPrompt
     case naturalNoteStrip
     case piano
+    case questionModeSelector
 }
 
 enum AppSurfaceKind: String, CaseIterable, Equatable, Hashable, Sendable {
@@ -19,6 +20,7 @@ enum AppSurfaceKind: String, CaseIterable, Equatable, Hashable, Sendable {
     case targetPrompt
     case naturalNoteStrip
     case piano
+    case questionModeSelector
 }
 
 enum AppSurfacePresentationStyle: String, CaseIterable, Equatable, Hashable,

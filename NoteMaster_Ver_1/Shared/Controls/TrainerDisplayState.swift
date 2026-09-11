@@ -5,6 +5,8 @@
 //  Created by Cursor on 2026/3/27.
 //
 
+import CoreGraphics
+
 enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case single
     case sequence
@@ -22,6 +24,61 @@ enum TrainerExerciseMode: Equatable, Hashable, Sendable {
 enum TrainerSequenceAnswerPolicy: Equatable, Hashable, Sendable {
     case pitchClass
     case exactNote
+}
+
+enum TrainerBCR1QuestionMode: CaseIterable, Equatable, Hashable, Sendable {
+    case line
+    case space
+    case mixed
+}
+
+struct TrainerBCR1QuestionConfiguration: Equatable, Sendable {
+    var mode: TrainerBCR1QuestionMode
+
+    static let `default` = TrainerBCR1QuestionConfiguration(mode: .mixed)
+    static let staffAdditionalVerticalSpaces: CGFloat = 2
+
+    var generationStrategy: StaffQuarterNoteGenerationStrategy {
+        switch mode {
+        case .line:
+            return .diatonicProgression(
+                progression: StaffDiatonicPitchProgressionSpec(
+                    startPitch: StaffPitch(letter: .c, octave: 2),
+                    intervalNumber: 3,
+                    candidateCount: 8
+                ),
+                selection: StaffWithoutReplacementSelectionSpec(
+                    outputCount: 8,
+                    minimumLineCount: 8
+                )
+            )
+        case .space:
+            return .diatonicProgression(
+                progression: StaffDiatonicPitchProgressionSpec(
+                    startPitch: StaffPitch(letter: .d, octave: 2),
+                    intervalNumber: 3,
+                    candidateCount: 8
+                ),
+                selection: StaffWithoutReplacementSelectionSpec(
+                    outputCount: 8,
+                    minimumSpaceCount: 8
+                )
+            )
+        case .mixed:
+            return .diatonicProgression(
+                progression: StaffDiatonicPitchProgressionSpec(
+                    startPitch: StaffPitch(letter: .c, octave: 2),
+                    intervalNumber: 2,
+                    candidateCount: 16
+                ),
+                selection: StaffWithoutReplacementSelectionSpec(
+                    outputCount: 8,
+                    minimumLineCount: 1,
+                    minimumSpaceCount: 1
+                )
+            )
+        }
+    }
 }
 
 enum TrainerPianoSequenceRecognitionMode: Equatable, Hashable, Sendable {
@@ -488,6 +545,7 @@ struct TrainerSequenceConfiguration: Equatable, Sendable {
     var noteCount: Int
     var includesAccidentals: Bool
     var answerPolicy: TrainerSequenceAnswerPolicy
+    var generationStrategy: StaffQuarterNoteGenerationStrategy
 
     static let `default` = TrainerSequenceConfiguration(
         clef: .treble,
@@ -500,7 +558,9 @@ struct TrainerSequenceConfiguration: Equatable, Sendable {
         clef: StaffClef = .treble,
         noteCount: Int = 7,
         includesAccidentals: Bool = false,
-        answerPolicy: TrainerSequenceAnswerPolicy
+        answerPolicy: TrainerSequenceAnswerPolicy,
+        generationStrategy: StaffQuarterNoteGenerationStrategy =
+            .clefRangeRandomWithReplacement
     ) {
         precondition(
             noteCount > 0,
@@ -510,12 +570,14 @@ struct TrainerSequenceConfiguration: Equatable, Sendable {
         self.noteCount = noteCount
         self.includesAccidentals = includesAccidentals
         self.answerPolicy = answerPolicy
+        self.generationStrategy = generationStrategy
     }
 }
 
 struct TrainerDisplayState: Equatable, Sendable {
     var exerciseMode: TrainerExerciseMode
     var sequenceConfiguration: TrainerSequenceConfiguration
+    var bcr1QuestionConfiguration: TrainerBCR1QuestionConfiguration
     var positionQuestionConfiguration: TrainerPositionQuestionConfiguration
     var positionPromptConfiguration: TrainerPositionPromptConfiguration
 
@@ -526,11 +588,13 @@ struct TrainerDisplayState: Equatable, Sendable {
     init(
         exerciseMode: TrainerExerciseMode = .single,
         sequenceConfiguration: TrainerSequenceConfiguration = .default,
+        bcr1QuestionConfiguration: TrainerBCR1QuestionConfiguration = .default,
         positionQuestionConfiguration: TrainerPositionQuestionConfiguration = .default,
         positionPromptConfiguration: TrainerPositionPromptConfiguration = .default
     ) {
         self.exerciseMode = exerciseMode
         self.sequenceConfiguration = sequenceConfiguration
+        self.bcr1QuestionConfiguration = bcr1QuestionConfiguration
         self.positionQuestionConfiguration = positionQuestionConfiguration.normalized()
         self.positionPromptConfiguration = positionPromptConfiguration.normalized()
     }
@@ -569,6 +633,10 @@ struct TrainerDisplayState: Equatable, Sendable {
 
     mutating func setExerciseMode(_ mode: TrainerExerciseMode) {
         exerciseMode = mode
+    }
+
+    mutating func setBCR1QuestionMode(_ mode: TrainerBCR1QuestionMode) {
+        bcr1QuestionConfiguration.mode = mode
     }
 
     mutating func setPositionPromptConfiguration(
@@ -639,7 +707,8 @@ extension TrainerSequenceConfiguration {
             clef: quarterNoteSequenceSpec.clef,
             noteCount: quarterNoteSequenceSpec.noteCount,
             includesAccidentals: quarterNoteSequenceSpec.includesAccidentals,
-            answerPolicy: quarterNoteSequenceSpec.answerPolicy
+            answerPolicy: quarterNoteSequenceSpec.answerPolicy,
+            generationStrategy: quarterNoteSequenceSpec.generationStrategy
         )
     }
 
@@ -648,14 +717,25 @@ extension TrainerSequenceConfiguration {
             clef: clef,
             noteCount: noteCount,
             includesAccidentals: includesAccidentals,
-            answerPolicy: answerPolicy
+            answerPolicy: answerPolicy,
+            generationStrategy: generationStrategy
         )
     }
 }
 
 extension TrainerDisplayState {
     var resolvedSequenceConfiguration: TrainerSequenceConfiguration {
-        sequenceConfiguration.applyingModeConstraints(exerciseMode)
+        var resolved = sequenceConfiguration.applyingModeConstraints(exerciseMode)
+        guard exerciseMode == .bcr1 else {
+            return resolved
+        }
+
+        resolved.clef = .bass
+        resolved.noteCount = 8
+        resolved.includesAccidentals = false
+        resolved.answerPolicy = .pitchClass
+        resolved.generationStrategy = bcr1QuestionConfiguration.generationStrategy
+        return resolved
     }
 
     func resolvedPianoSettingsSlice(

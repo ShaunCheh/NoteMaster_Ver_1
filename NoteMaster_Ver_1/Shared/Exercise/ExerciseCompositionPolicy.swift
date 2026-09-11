@@ -186,6 +186,26 @@ enum ExerciseCompositionPolicy {
         preferences: ExerciseLayoutPreferences,
         trainerDisplayState: TrainerDisplayState?
     ) -> ExerciseSceneNode {
+        if trainerDisplayState?.exerciseMode == .bcr1 {
+            return .makeSplit(
+                axis: .vertical,
+                children: [
+                    ExerciseSceneSplitChild(
+                        node: .surface(.bcr1QuestionModeSelector),
+                        mainAxisSizing: .fitContent
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.prompt),
+                        mainAxisSizing: .fitContent
+                    ),
+                    ExerciseSceneSplitChild(
+                        node: .surface(sceneSurfaces.answer),
+                        mainAxisSizing: .weighted(1)
+                    )
+                ]
+            )
+        }
+
         switch resolvedMainLayoutPreset(for: preferences) {
         case .stacked:
             return .makeSplit(

@@ -270,6 +270,11 @@ fileprivate extension ExerciseCompositionValidationRunner {
                     validatePianoRecognitionModesFreezeStaffToPianoPolicyContracts
             ),
             ExerciseCompositionValidationFixture(
+                name: "bcr1_question_mode_selector_builds_three_surface_scene",
+                validate:
+                    validateBCR1QuestionModeSelectorBuildsThreeSurfaceScene
+            ),
+            ExerciseCompositionValidationFixture(
                 name: "sr0_mode_freezes_staff_to_natural_note_strip_policy_contracts",
                 validate:
                     validateSR0ModeFreezesStaffToNaturalNoteStripPolicyContracts

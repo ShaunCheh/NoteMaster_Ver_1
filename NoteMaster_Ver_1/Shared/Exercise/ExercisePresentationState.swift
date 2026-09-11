@@ -77,6 +77,7 @@ struct ExerciseSurfaceState: Equatable, Sendable {
 
         if surface.isAuxiliarySurface {
             return surface.id == .piano
+                || surface.id == .questionModeSelector
         }
 
         return false
@@ -219,12 +220,44 @@ enum ExerciseRenderedSceneArrangement: Equatable, Sendable {
     case sideBySide
 }
 
+struct ExerciseRenderedSceneChild: Equatable, Sendable {
+    var surface: ExerciseSurfaceNode
+    var mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing
+}
+
 struct ExerciseRenderedSceneLayout: Equatable, Sendable {
     var arrangement: ExerciseRenderedSceneArrangement
-    var primarySurface: ExerciseSurfaceNode
-    var primaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing
-    var secondarySurface: ExerciseSurfaceNode?
-    var secondaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing?
+    var children: [ExerciseRenderedSceneChild]
+
+    var primarySurface: ExerciseSurfaceNode {
+        guard let primaryChild = children.first else {
+            preconditionFailure(
+                "Rendered scene layout must contain a primary child."
+            )
+        }
+        return primaryChild.surface
+    }
+
+    var primaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing {
+        guard let primaryChild = children.first else {
+            preconditionFailure(
+                "Rendered scene layout must contain a primary child."
+            )
+        }
+        return primaryChild.mainAxisSizing
+    }
+
+    var secondarySurface: ExerciseSurfaceNode? {
+        children.indices.contains(1)
+            ? children[1].surface
+            : nil
+    }
+
+    var secondaryMainAxisSizing: ExerciseSceneSplitChildMainAxisSizing? {
+        children.indices.contains(1)
+            ? children[1].mainAxisSizing
+            : nil
+    }
 }
 
 enum ExerciseFretboardHeightPolicy: Equatable, Sendable {
@@ -468,6 +501,7 @@ extension ExerciseScene {
             containsNaturalNoteStripAnswerRailInSideBySideLayout,
             let renderedSceneLayout,
             renderedSceneLayout.arrangement == .sideBySide,
+            renderedSceneLayout.children.count == 2,
             renderedSceneLayout.primarySurface.id == .fretboard,
             renderedSceneLayout.secondarySurface?.isNaturalNoteStripAnswerRail == true,
             renderedSceneLayout.secondaryMainAxisSizing == .fitContent
@@ -485,24 +519,32 @@ private extension ExerciseSceneNode {
         case let .surface(surface):
             return ExerciseRenderedSceneLayout(
                 arrangement: .singleSurface,
-                primarySurface: surface,
-                primaryMainAxisSizing: .weighted(1),
-                secondarySurface: nil,
-                secondaryMainAxisSizing: nil
+                children: [
+                    ExerciseRenderedSceneChild(
+                        surface: surface,
+                        mainAxisSizing: .weighted(1)
+                    )
+                ]
             )
         case let .split(axis, children):
-            guard children.count == 2,
-                  case let .surface(primarySurface) = children[0].node,
-                  case let .surface(secondarySurface) = children[1].node else {
+            let renderedChildren: [ExerciseRenderedSceneChild] =
+                children.compactMap { child in
+                    guard case let .surface(surface) = child.node else {
+                        return nil
+                    }
+
+                    return ExerciseRenderedSceneChild(
+                        surface: surface,
+                        mainAxisSizing: child.mainAxisSizing
+                    )
+                }
+            guard renderedChildren.count == children.count else {
                 return nil
             }
 
             return ExerciseRenderedSceneLayout(
                 arrangement: axis == .vertical ? .stacked : .sideBySide,
-                primarySurface: primarySurface,
-                primaryMainAxisSizing: children[0].mainAxisSizing,
-                secondarySurface: secondarySurface,
-                secondaryMainAxisSizing: children[1].mainAxisSizing
+                children: renderedChildren
             )
         case let .overlay(base, _):
             return base.renderedSceneLayout

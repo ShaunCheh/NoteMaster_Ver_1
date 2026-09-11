@@ -35,6 +35,7 @@ final class iOSExerciseSceneRenderer {
     private let targetNotePromptView: iOSTargetNotePromptView
     private let naturalNoteStripView: iOSNaturalNoteStripView
     private let pianoSurfaceView: UIView
+    private let questionModeSelectorView: iOSBCR1QuestionModeSelectorView
     private let fretboardView: iOSFretboardView
 
     private var currentPresentationState: ExercisePresentationState?
@@ -57,6 +58,7 @@ final class iOSExerciseSceneRenderer {
         targetNotePromptView: iOSTargetNotePromptView,
         naturalNoteStripView: iOSNaturalNoteStripView,
         pianoSurfaceView: UIView,
+        questionModeSelectorView: iOSBCR1QuestionModeSelectorView,
         fretboardView: iOSFretboardView
     ) {
         self.safeAreaHeightAnchor = safeAreaHeightAnchor
@@ -66,6 +68,7 @@ final class iOSExerciseSceneRenderer {
         self.targetNotePromptView = targetNotePromptView
         self.naturalNoteStripView = naturalNoteStripView
         self.pianoSurfaceView = pianoSurfaceView
+        self.questionModeSelectorView = questionModeSelectorView
         self.fretboardView = fretboardView
 
         configureStaticHierarchy()
@@ -135,6 +138,7 @@ final class iOSExerciseSceneRenderer {
         targetNotePromptView.translatesAutoresizingMaskIntoConstraints = false
         naturalNoteStripView.translatesAutoresizingMaskIntoConstraints = false
         pianoSurfaceView.translatesAutoresizingMaskIntoConstraints = false
+        questionModeSelectorView.translatesAutoresizingMaskIntoConstraints = false
         sequenceRegenerateButton.translatesAutoresizingMaskIntoConstraints = false
 
         fretboardViewportScrollView.alwaysBounceVertical = false
@@ -145,7 +149,6 @@ final class iOSExerciseSceneRenderer {
         fretboardViewportScrollView.contentInsetAdjustmentBehavior = .never
 
         sceneContainerView.addSubview(sceneContentView)
-        sceneContainerView.addSubview(sequenceRegenerateButton)
         fretboardHostView.addSubview(fretboardViewportScrollView)
         fretboardViewportScrollView.addSubview(fretboardScrollContentView)
         fretboardScrollContentView.addSubview(fretboardView)
@@ -177,20 +180,6 @@ final class iOSExerciseSceneRenderer {
             ),
             sceneContentView.bottomAnchor.constraint(
                 equalTo: sceneContainerView.bottomAnchor
-            ),
-            sequenceRegenerateButton.topAnchor.constraint(
-                equalTo: sceneContainerView.topAnchor,
-                constant: metrics.floatingButtonInset
-            ),
-            sequenceRegenerateButton.trailingAnchor.constraint(
-                equalTo: sceneContainerView.trailingAnchor,
-                constant: -metrics.floatingButtonInset
-            ),
-            sequenceRegenerateButton.widthAnchor.constraint(
-                equalToConstant: metrics.floatingButtonSize
-            ),
-            sequenceRegenerateButton.heightAnchor.constraint(
-                equalToConstant: metrics.floatingButtonSize
             ),
             fretboardViewportScrollView.leadingAnchor.constraint(
                 equalTo: fretboardHostView.leadingAnchor
@@ -303,6 +292,32 @@ final class iOSExerciseSceneRenderer {
             contentInsets: contentInsets(for: surface),
             layout: embeddedViewLayout(for: surface)
         )
+        if surface.isPromptSurface {
+            installSequenceRegenerateButton(inPromptHost: hostView)
+        }
+    }
+
+    private func installSequenceRegenerateButton(
+        inPromptHost hostView: UIView
+    ) {
+        sequenceRegenerateButton.removeFromSuperview()
+        hostView.addSubview(sequenceRegenerateButton)
+        activeSceneConstraints.append(contentsOf: [
+            sequenceRegenerateButton.topAnchor.constraint(
+                equalTo: hostView.topAnchor,
+                constant: metrics.floatingButtonInset
+            ),
+            sequenceRegenerateButton.trailingAnchor.constraint(
+                equalTo: hostView.trailingAnchor,
+                constant: -metrics.floatingButtonInset
+            ),
+            sequenceRegenerateButton.widthAnchor.constraint(
+                equalToConstant: metrics.floatingButtonSize
+            ),
+            sequenceRegenerateButton.heightAnchor.constraint(
+                equalToConstant: metrics.floatingButtonSize
+            )
+        ])
     }
 
     private func renderSplit(
@@ -728,6 +743,12 @@ final class iOSExerciseSceneRenderer {
             of: .piano,
             isHidden: !(currentPresentationState?.isSurfaceVisible(.piano) ?? false)
         )
+        setVisibility(
+            of: .questionModeSelector,
+            isHidden: !(currentPresentationState?.isSurfaceVisible(
+                .questionModeSelector
+            ) ?? false)
+        )
     }
 
     private func setVisibility(
@@ -745,6 +766,8 @@ final class iOSExerciseSceneRenderer {
             naturalNoteStripView.isHidden = isHidden
         case .piano:
             pianoSurfaceView.isHidden = isHidden
+        case .questionModeSelector:
+            questionModeSelectorView.isHidden = isHidden
         }
     }
 
@@ -760,6 +783,8 @@ final class iOSExerciseSceneRenderer {
             return naturalNoteStripView
         case .piano:
             return pianoSurfaceView
+        case .questionModeSelector:
+            return questionModeSelectorView
         }
     }
 

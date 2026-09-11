@@ -1590,12 +1590,26 @@ extension SettingsNavigationValidationRunner {
                 )
             )
         }
-        if resolvedSequenceConfiguration.noteCount != 5
-            || !resolvedSequenceConfiguration.includesAccidentals {
+        if expectedExerciseMode == .bcr1 {
+            if resolvedSequenceConfiguration.noteCount != 8
+                || resolvedSequenceConfiguration.includesAccidentals
+                || resolvedSequenceConfiguration.generationStrategy
+                    == .clefRangeRandomWithReplacement {
+                issues.append(
+                    issue(
+                        fixtureName,
+                        "\(modeTitle) 应固定为 8 个自然音，并使用 BCR-1 progression 生成策略。"
+                    )
+                )
+            }
+        } else if resolvedSequenceConfiguration.noteCount != 5
+            || !resolvedSequenceConfiguration.includesAccidentals
+            || resolvedSequenceConfiguration.generationStrategy
+                != .clefRangeRandomWithReplacement {
             issues.append(
                 issue(
                     fixtureName,
-                    "\(modeTitle) 只应钳制 clef / answerPolicy；其余 sequence 配置仍应保留。"
+                    "\(modeTitle) 只应钳制 clef / answerPolicy；其余 sequence 配置与旧有放回策略仍应保留。"
                 )
             )
         }
