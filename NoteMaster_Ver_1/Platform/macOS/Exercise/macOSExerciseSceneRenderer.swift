@@ -564,6 +564,7 @@ final class macOSExerciseSceneRenderer {
             configureMainAxisSizing(
                 children[index].mainAxisSizing,
                 for: childHostView,
+                node: children[index].node,
                 axis: axis
             )
         }
@@ -838,6 +839,7 @@ final class macOSExerciseSceneRenderer {
     private func configureMainAxisSizing(
         _ mainAxisSizing: ExerciseSceneSplitChildMainAxisSizing,
         for childHostView: NSView,
+        node: ExerciseSceneNode,
         axis: ExerciseSceneAxis
     ) {
         resetMainAxisSizingPriorities(for: childHostView)
@@ -845,12 +847,20 @@ final class macOSExerciseSceneRenderer {
         case (_, .weighted):
             return
         case (.vertical, .fitContent):
+            configureFitContentPriorities(
+                for: node,
+                axis: .vertical
+            )
             childHostView.setContentHuggingPriority(.required, for: .vertical)
             childHostView.setContentCompressionResistancePriority(
                 .required,
                 for: .vertical
             )
         case (.horizontal, .fitContent):
+            configureFitContentPriorities(
+                for: node,
+                axis: .horizontal
+            )
             childHostView.setContentHuggingPriority(.required, for: .horizontal)
             childHostView.setContentCompressionResistancePriority(
                 .required,
@@ -873,6 +883,36 @@ final class macOSExerciseSceneRenderer {
             )
             activeSceneConstraints.append(
                 childHostView.widthAnchor.constraint(equalToConstant: size)
+            )
+        }
+    }
+
+    private func configureFitContentPriorities(
+        for node: ExerciseSceneNode,
+        axis: ExerciseSceneAxis
+    ) {
+        guard
+            case let .surface(surface) = node,
+            let surfaceView = view(for: surface.id)
+        else {
+            assertionFailure(
+                "fitContent scene children must contain a direct surface."
+            )
+            return
+        }
+
+        switch axis {
+        case .vertical:
+            surfaceView.setContentHuggingPriority(.required, for: .vertical)
+            surfaceView.setContentCompressionResistancePriority(
+                .required,
+                for: .vertical
+            )
+        case .horizontal:
+            surfaceView.setContentHuggingPriority(.required, for: .horizontal)
+            surfaceView.setContentCompressionResistancePriority(
+                .required,
+                for: .horizontal
             )
         }
     }

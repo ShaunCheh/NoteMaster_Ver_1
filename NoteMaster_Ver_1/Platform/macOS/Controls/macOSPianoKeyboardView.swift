@@ -199,7 +199,9 @@ private extension macOSPianoKeyboardView {
         layerContentsRedrawPolicy = .duringViewResize
         setContentHuggingPriority(.defaultLow, for: .horizontal)
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        setContentHuggingPriority(.required, for: .vertical)
+        // Piano is a weighted Exercise surface and must be able to absorb
+        // vertical space left by fit-content prompt surfaces.
+        setContentHuggingPriority(.defaultLow, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
         applyBackingState()
         applyConfiguration()

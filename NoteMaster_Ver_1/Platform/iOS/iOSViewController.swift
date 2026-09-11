@@ -2047,6 +2047,23 @@ extension iOSViewController {
                                 .staffAdditionalVerticalSpaces else {
                         return "reason=selector_not_visible_default_mixed"
                     }
+                    let selectorIntrinsicHeight =
+                        self.bcr1QuestionModeSelectorView
+                            .intrinsicContentSize.height
+                    let staffIntrinsicHeight =
+                        self.staffView.intrinsicContentSize.height
+                    guard selectorIntrinsicHeight > 0,
+                          staffIntrinsicHeight > 0,
+                          abs(
+                            self.bcr1QuestionModeSelectorView.bounds.height
+                                - selectorIntrinsicHeight
+                          ) <= Layout.contentSizeTolerance,
+                          abs(
+                            self.staffView.bounds.height
+                                - staffIntrinsicHeight
+                          ) <= Layout.contentSizeTolerance else {
+                        return "reason=fit_content_height_mismatch selector=\(self.bcr1QuestionModeSelectorView.bounds.height)/\(selectorIntrinsicHeight) staff=\(self.staffView.bounds.height)/\(staffIntrinsicHeight)"
+                    }
                     guard self.sequenceRegenerateButton.superview
                         === self.staffView.superview,
                         self.sequenceRegenerateButton.superview
