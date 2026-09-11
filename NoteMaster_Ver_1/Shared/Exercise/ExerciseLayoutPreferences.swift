@@ -84,7 +84,7 @@ struct ExerciseLayoutPreferences: Equatable, Sendable {
         isPianoAccessoryVisible: false,
         isAccessoryExpanded: true
     )
-    static let srPianoAnswer = ExerciseLayoutPreferences(
+    static let pianoRecognitionAnswer = ExerciseLayoutPreferences(
         compositionPreset: .staffToPiano,
         layoutPreset: .stacked,
         accessoryPresentation: .docked,

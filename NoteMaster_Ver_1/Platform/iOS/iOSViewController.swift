@@ -1850,12 +1850,48 @@ extension iOSViewController {
         in window: UIWindow,
         completion: @escaping (Bool, String) -> Void
     ) {
-        runSRPianoAnswerSmokeTest(
+        runPitchClassPianoRecognitionSmokeTest(
             in: window,
             scenarioName: "sr1_piano_answer",
             switchStepName: "switch_to_sr1",
             switchAction: .setExerciseModeSr1,
             expectedMode: .sr1,
+            expectedClef: .treble,
+            completion: completion
+        )
+    }
+
+    func runBCR1PianoAnswerSmokeTest(
+        in window: UIWindow,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        runPitchClassPianoRecognitionSmokeTest(
+            in: window,
+            scenarioName: "bcr1_piano_answer",
+            switchStepName: "switch_to_bcr1",
+            switchAction: .setExerciseModeBcr1,
+            expectedMode: .bcr1,
+            expectedClef: .bass,
+            completion: completion
+        )
+    }
+
+    private func runPitchClassPianoRecognitionSmokeTest(
+        in window: UIWindow,
+        scenarioName: String,
+        switchStepName: String,
+        switchAction: SettingsActionID,
+        expectedMode: TrainerExerciseMode,
+        expectedClef: StaffClef,
+        completion: @escaping (Bool, String) -> Void
+    ) {
+        runPianoRecognitionAnswerSmokeTest(
+            in: window,
+            scenarioName: scenarioName,
+            switchStepName: switchStepName,
+            switchAction: switchAction,
+            expectedMode: expectedMode,
+            expectedClef: expectedClef,
             expectedAnswerPolicy: .pitchClass,
             expectedPianoRowCount: 1,
             wrongStepName: "wrong_piano_preview",
@@ -1896,12 +1932,13 @@ extension iOSViewController {
         in window: UIWindow,
         completion: @escaping (Bool, String) -> Void
     ) {
-        runSRPianoAnswerSmokeTest(
+        runPianoRecognitionAnswerSmokeTest(
             in: window,
             scenarioName: "sr2_piano_answer",
             switchStepName: "switch_to_sr2",
             switchAction: .setExerciseModeSr2,
             expectedMode: .sr2,
+            expectedClef: .treble,
             expectedAnswerPolicy: .exactNote,
             expectedPianoRowCount: 2,
             wrongStepName: "wrong_exact_note",
@@ -1935,12 +1972,13 @@ extension iOSViewController {
         )
     }
 
-    private func runSRPianoAnswerSmokeTest(
+    private func runPianoRecognitionAnswerSmokeTest(
         in window: UIWindow,
         scenarioName: String,
         switchStepName: String,
         switchAction: SettingsActionID,
         expectedMode: TrainerExerciseMode,
+        expectedClef: StaffClef,
         expectedAnswerPolicy: TrainerSequenceAnswerPolicy,
         expectedPianoRowCount: Int,
         wrongStepName: String,
@@ -1987,7 +2025,8 @@ extension iOSViewController {
                     guard self.trainerDisplayState.exerciseMode == expectedMode else {
                         return "reason=mode_not_expected resolvedMode=\(String(describing: self.trainerDisplayState.exerciseMode)) expectedMode=\(String(describing: expectedMode))"
                     }
-                    guard self.exerciseLayoutPreferences == .srPianoAnswer else {
+                    guard self.exerciseLayoutPreferences
+                        == .pianoRecognitionAnswer else {
                         return "reason=layout_not_fixed resolvedLayout=\(String(describing: self.exerciseLayoutPreferences))"
                     }
                     guard !self.exerciseLayoutPreferences.isPianoAccessoryVisible else {
@@ -1998,8 +2037,8 @@ extension iOSViewController {
                     }
                     let resolvedSequenceConfiguration = self.trainerDisplayState
                         .resolvedSequenceConfiguration
-                    guard resolvedSequenceConfiguration.clef == .treble else {
-                        return "reason=clef_not_treble resolvedClef=\(String(describing: resolvedSequenceConfiguration.clef))"
+                    guard resolvedSequenceConfiguration.clef == expectedClef else {
+                        return "reason=clef_not_expected resolvedClef=\(String(describing: resolvedSequenceConfiguration.clef)) expectedClef=\(String(describing: expectedClef))"
                     }
                     guard resolvedSequenceConfiguration.answerPolicy == expectedAnswerPolicy else {
                         return "reason=answer_policy_not_fixed resolvedPolicy=\(String(describing: resolvedSequenceConfiguration.answerPolicy)) expectedPolicy=\(String(describing: expectedAnswerPolicy))"
@@ -2013,7 +2052,7 @@ extension iOSViewController {
                     guard self.exercisePresentationState.containsSurface(.piano),
                           self.exercisePresentationState.isSurfaceVisible(.staff),
                           self.exercisePresentationState.isSurfaceVisible(.piano) else {
-                        return "reason=sr_piano_surfaces_not_visible"
+                        return "reason=piano_recognition_surfaces_not_visible"
                     }
                     guard !self.exercisePresentationState.containsSurface(.fretboard),
                           self.exercisePresentationState.projectedSurfaceState(for: .fretboard) == nil else {

@@ -45,6 +45,16 @@ extension SettingsNavigationValidationRunner {
         )
     }
 
+    static func validateBCR1RootTreeDropsInvalidExerciseAndAccessoryRoutes()
+        -> [SettingsNavigationValidationIssue] {
+        validateFixedPresentationRootTreeDropsInvalidExerciseAndAccessoryRoutes(
+            exerciseMode: .bcr1,
+            modeTitle: "Bass Clef Recognition-1",
+            fixtureName:
+                "bcr1_root_tree_drops_invalid_exercise_and_accessory_routes"
+        )
+    }
+
     private static func validateFixedPresentationRootTreeDropsInvalidExerciseAndAccessoryRoutes(
         exerciseMode: TrainerExerciseMode,
         modeTitle: String,
@@ -398,7 +408,7 @@ extension SettingsNavigationValidationRunner {
             expectedRouteItems: [
                 SettingsRouteItem(
                     title: SettingsRouteID.exerciseMode.fallbackTitle,
-                    subtitle: "Single, sequence, P-2, SR-0, SR-1, SR-2, FR-0, or position",
+                    subtitle: "Single, sequence, P-2, SR-0, SR-1, SR-2, Bass Clef Recognition-1, FR-0, or position",
                     route: .exerciseMode
                 ),
                 SettingsRouteItem(

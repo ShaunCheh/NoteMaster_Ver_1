@@ -93,7 +93,7 @@ extension ExerciseCompositionValidationRunner {
         }
 
         switch exerciseMode {
-        case .single, .sequence, .sr0, .sr1, .sr2:
+        case .single, .sequence:
             if exerciseSection.rows.map(\.id) != [
                 .choice(.exerciseMode),
                 .choice(.compositionPreset),
@@ -269,6 +269,13 @@ extension ExerciseCompositionValidationRunner {
                     )
                 )
             }
+        case .sr0, .sr1, .sr2, .bcr1:
+            issues.append(
+                issue(
+                    fixtureName,
+                    "固定识别模式应使用各自的 mode contract 夹具，不应走 legacy baseline 验证入口。"
+                )
+            )
         case .positionPrompt:
             if expectedPageDisplayState.topContentMode != .fretboard
                 || expectedPageDisplayState.mainContentMode != .naturalNoteStrip {
@@ -1469,37 +1476,42 @@ extension ExerciseCompositionValidationRunner {
         return issues
     }
 
-    static func validateSRModesFreezeStaffToPianoPolicyContracts()
+    static func validatePianoRecognitionModesFreezeStaffToPianoPolicyContracts()
         -> [ExerciseCompositionValidationIssue] {
-        let fixtureName = "sr_modes_freeze_staff_to_piano_policy_contracts"
+        let fixtureName =
+            "piano_recognition_modes_freeze_staff_to_piano_policy_contracts"
         var issues: [ExerciseCompositionValidationIssue] = []
 
         func validateMode(
             _ exerciseMode: TrainerExerciseMode,
             requestedAnswerPolicy: TrainerSequenceAnswerPolicy
         ) {
-            guard exerciseMode.isSRPianoReadingMode else {
+            guard exerciseMode.isPianoSequenceRecognitionMode else {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(String(describing: exerciseMode)) 应被标记为统一的 SR piano reading family 成员。"
+                        "\(String(describing: exerciseMode)) 应被标记为统一的 piano sequence recognition family 成员。"
                     )
                 )
                 return
             }
-            guard let contract = exerciseMode.srPianoReadingContract else {
+            guard let contract = exerciseMode
+                .pianoSequenceRecognitionContract else {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(String(describing: exerciseMode)) 应暴露集中式 SR piano reading contract，避免固定矩阵继续散落在多个 switch 分支。"
+                        "\(String(describing: exerciseMode)) 应暴露集中式 piano sequence recognition contract。"
                     )
                 )
                 return
             }
+            let requestedClef: StaffClef = contract.fixedSequenceClef == .treble
+                ? .bass
+                : .treble
             let trainerDisplayState = TrainerDisplayState(
                 exerciseMode: exerciseMode,
                 sequenceConfiguration: TrainerSequenceConfiguration(
-                    clef: .bass,
+                    clef: requestedClef,
                     noteCount: 5,
                     includesAccidentals: true,
                     answerPolicy: requestedAnswerPolicy
@@ -1548,7 +1560,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 fixedCompositionPreset 应与集中 SR layout contract 对齐。"
+                        "\(modeDebugName) 的 fixedCompositionPreset 应与集中 recognition layout contract 对齐。"
                     )
                 )
             }
@@ -1556,7 +1568,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 作为 fixed SR piano reading mode，不应允许 accessory piano promotion。"
+                        "\(modeDebugName) 作为 fixed piano recognition mode，不应允许 accessory piano promotion。"
                     )
                 )
             }
@@ -1564,7 +1576,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 fixedSequenceClef 应直接来自 SR piano reading contract。"
+                        "\(modeDebugName) 的 fixedSequenceClef 应直接来自 piano recognition contract。"
                     )
                 )
             }
@@ -1581,7 +1593,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 fixedSequenceAnswerPolicy 应直接来自 SR piano reading contract。"
+                        "\(modeDebugName) 的 fixedSequenceAnswerPolicy 应直接来自 piano recognition contract。"
                     )
                 )
             }
@@ -1608,7 +1620,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 fixedExerciseLayoutPreferences 应直接来自 SR piano reading contract。"
+                        "\(modeDebugName) 的 fixedExerciseLayoutPreferences 应直接来自 piano recognition contract。"
                     )
                 )
             }
@@ -1616,7 +1628,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 shared normalization 应统一收敛到固定的 SR staff-to-piano layout。"
+                        "\(modeDebugName) 的 shared normalization 应统一收敛到固定的 staff-to-piano layout。"
                     )
                 )
             }
@@ -1624,7 +1636,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 settings / legacy bridge normalization 也应与 shared normalization 对齐到同一份 SR layout 常量。"
+                        "\(modeDebugName) 的 settings / legacy bridge normalization 也应与 shared normalization 对齐。"
                     )
                 )
             }
@@ -1632,7 +1644,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 fixedPianoRowCount 应直接来自 SR piano reading contract。"
+                        "\(modeDebugName) 的 fixedPianoRowCount 应直接来自 piano recognition contract。"
                     )
                 )
             }
@@ -1641,7 +1653,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 的 fixedPianoMovementScope 应直接来自 SR piano reading contract。"
+                        "\(modeDebugName) 的 fixedPianoMovementScope 应直接来自 piano recognition contract。"
                     )
                 )
             }
@@ -1684,7 +1696,7 @@ extension ExerciseCompositionValidationRunner {
                 issues.append(
                     issue(
                         fixtureName,
-                        "\(modeDebugName) 不应再把 `staffToFretboard` 暴露成可选主场景，避免 SR seam 漂回 legacy 组合。"
+                        "\(modeDebugName) 不应再把 `staffToFretboard` 暴露成可选主场景，避免 recognition seam 漂回 legacy 组合。"
                     )
                 )
             }
@@ -1698,71 +1710,97 @@ extension ExerciseCompositionValidationRunner {
             .sr2,
             requestedAnswerPolicy: .pitchClass
         )
+        validateMode(
+            .bcr1,
+            requestedAnswerPolicy: .exactNote
+        )
 
-        guard let sr1Contract = TrainerExerciseMode.sr1.srPianoReadingContract,
-              let sr2Contract = TrainerExerciseMode.sr2.srPianoReadingContract else {
+        guard let sr1Contract = TrainerExerciseMode.sr1
+                .pianoSequenceRecognitionContract,
+              let sr2Contract = TrainerExerciseMode.sr2
+                .pianoSequenceRecognitionContract,
+              let bcr1Contract = TrainerExerciseMode.bcr1
+                .pianoSequenceRecognitionContract else {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 / SR-2 应共享可读取的 SR piano reading contract。"
+                    "SR-1 / SR-2 / BCR-1 应共享可读取的 piano sequence recognition contract。"
                 )
             )
             return issues
         }
-        if sr1Contract.fixedSequenceClef != sr2Contract.fixedSequenceClef
-            || sr1Contract.fixedExerciseLayoutPreferences
-            != sr2Contract.fixedExerciseLayoutPreferences {
+        if sr1Contract.fixedSequenceClef != .treble
+            || sr2Contract.fixedSequenceClef != .treble
+            || bcr1Contract.fixedSequenceClef != .bass {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 / SR-2 的 family 基线应继续共享同一份 treble + srPianoAnswer 合同。"
+                    "识别模式谱号应固定为 SR-1 / SR-2 = treble、BCR-1 = bass。"
+                )
+            )
+        }
+        if sr1Contract.fixedExerciseLayoutPreferences
+            != sr2Contract.fixedExerciseLayoutPreferences
+            || sr1Contract.fixedExerciseLayoutPreferences
+            != bcr1Contract.fixedExerciseLayoutPreferences {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "SR-1 / SR-2 / BCR-1 应共享同一份 staff-to-piano stacked layout。"
                 )
             )
         }
         if sr1Contract.fixedExerciseLayoutPreferences.compositionPreset
             != .staffToPiano
             || sr2Contract.fixedExerciseLayoutPreferences.compositionPreset
+            != .staffToPiano
+            || bcr1Contract.fixedExerciseLayoutPreferences.compositionPreset
             != .staffToPiano {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 / SR-2 的 family 主场景都应继续显式锁死为 `staffToPiano`。"
+                    "SR-1 / SR-2 / BCR-1 的主场景都应显式锁死为 `staffToPiano`。"
                 )
             )
         }
         if sr1Contract.fixedPianoMovementScope
-            != sr2Contract.fixedPianoMovementScope {
+            != sr2Contract.fixedPianoMovementScope
+            || sr1Contract.fixedPianoMovementScope
+            != bcr1Contract.fixedPianoMovementScope {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-1 / SR-2 的 movementScope 如需分叉，也应只通过集中 contract 修改；当前不应在其它分支偷跑分裂。"
+                    "识别模式的 movementScope 应统一通过集中 contract 管理。"
                 )
             )
         }
         if sr1Contract.fixedPianoMovementScope != .rowOnly
-            || sr2Contract.fixedPianoMovementScope != .rowOnly {
+            || sr2Contract.fixedPianoMovementScope != .rowOnly
+            || bcr1Contract.fixedPianoMovementScope != .rowOnly {
             issues.append(
                 issue(
                     fixtureName,
-                    "阶段 2 的 SR piano reading family 应继续锁死 rowOnly；若后续要改两行联动，只能改集中 contract 与对应 smoke。"
+                    "piano sequence recognition family 应继续锁死 rowOnly。"
                 )
             )
         }
         if sr1Contract.fixedPianoRowCount != 1
-            || sr2Contract.fixedPianoRowCount != 2 {
+            || sr2Contract.fixedPianoRowCount != 2
+            || bcr1Contract.fixedPianoRowCount != 1 {
             issues.append(
                 issue(
                     fixtureName,
-                    "阶段 2 的 SR piano reading family 应显式锁死 SR-1 = 1 row、SR-2 = 2 rows，避免回退成同一行数配置。"
+                    "钢琴行数应固定为 SR-1 / BCR-1 = 1 row、SR-2 = 2 rows。"
                 )
             )
         }
         if sr1Contract.fixedSequenceAnswerPolicy != .pitchClass
-            || sr2Contract.fixedSequenceAnswerPolicy != .exactNote {
+            || sr2Contract.fixedSequenceAnswerPolicy != .exactNote
+            || bcr1Contract.fixedSequenceAnswerPolicy != .pitchClass {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR piano reading contract 应继续显式锁死 SR-1 = .pitchClass、SR-2 = .exactNote，而不是只满足“二者不同”。"
+                    "判题策略应固定为 SR-1 / BCR-1 = .pitchClass、SR-2 = .exactNote。"
                 )
             )
         }
@@ -1866,7 +1904,7 @@ extension ExerciseCompositionValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "SR-0 不应继承 SR piano reading family 的固定 piano settings helper；其 piano panel 设置应保持原样。"
+                    "SR-0 不应继承 piano sequence recognition family 的固定 piano settings helper；其 piano panel 设置应保持原样。"
                 )
             )
         }

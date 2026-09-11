@@ -154,6 +154,33 @@ final class macOSAppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
             }
+        } else if RuntimeSmokeScenario.shouldRunBCR1PianoAnswerSmoke {
+            print("[RuntimeSmoke][macOS] scheduled scenario=bcr1_piano_answer")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard
+                    let self,
+                    let window = self.window,
+                    let rootViewController = window.contentViewController
+                    as? macOSRootViewController,
+                    let viewController = rootViewController.activeExerciseViewController
+                else {
+                    let summary =
+                        "[RuntimeSmoke][macOS] FAIL scenario=bcr1_piano_answer reason=missing_window_or_view_controller"
+                    print(summary)
+                    fatalError(summary)
+                }
+
+                viewController.runBCR1PianoAnswerSmokeTest(
+                    in: window
+                ) { passed, summary in
+                    print(summary)
+                    if passed {
+                        NSApp.terminate(nil)
+                    } else {
+                        fatalError(summary)
+                    }
+                }
+            }
         } else if RuntimeSmokeScenario.shouldRunFR0CircleFeedbackSmoke {
             print("[RuntimeSmoke][macOS] scheduled scenario=fr0-circle-feedback")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
@@ -227,6 +254,7 @@ private enum RuntimeSmokeScenario {
     static let sr0NoteStripAnswerValue = "sr0-note-strip-answer"
     static let sr1PianoAnswerValue = "sr1-piano-answer"
     static let sr2PianoAnswerValue = "sr2-piano-answer"
+    static let bcr1PianoAnswerValue = "bcr1-piano-answer"
     static let fr0CircleFeedbackValue = "fr0-circle-feedback"
     static let layoutPresetRegressionValue = "layout-preset-regression"
     static let startupValidationValue = "startup-validation"
@@ -244,6 +272,11 @@ private enum RuntimeSmokeScenario {
     static var shouldRunSR2PianoAnswerSmoke: Bool {
         ProcessInfo.processInfo.environment[environmentKey]
             == sr2PianoAnswerValue
+    }
+
+    static var shouldRunBCR1PianoAnswerSmoke: Bool {
+        ProcessInfo.processInfo.environment[environmentKey]
+            == bcr1PianoAnswerValue
     }
 
     static var shouldRunFR0CircleFeedbackSmoke: Bool {

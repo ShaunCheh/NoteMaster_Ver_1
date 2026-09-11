@@ -2205,41 +2205,59 @@ private extension FretboardValidationRunner {
         }
 
         logStage("modePolicySeam")
-        if !TrainerExerciseMode.sr1.isSRPianoReadingMode
-            || !TrainerExerciseMode.sr2.isSRPianoReadingMode {
-            record("SR-1 / SR-2 应共享统一的 SR piano reading family 入口。")
+        if !TrainerExerciseMode.sr1.isPianoSequenceRecognitionMode
+            || !TrainerExerciseMode.sr2.isPianoSequenceRecognitionMode
+            || !TrainerExerciseMode.bcr1.isPianoSequenceRecognitionMode {
+            record("SR-1 / SR-2 / BCR-1 应共享统一的 piano sequence recognition family 入口。")
         }
-        if TrainerExerciseMode.sr0.isSRPianoReadingMode {
-            record("SR-0 不应混入 SR piano reading family。")
+        if TrainerExerciseMode.sr0.isPianoSequenceRecognitionMode {
+            record("SR-0 不应混入 piano sequence recognition family。")
         }
-        let sr1ModeContract = TrainerExerciseMode.sr1.srPianoReadingContract
-            ?? TrainerSRPianoReadingMode.sr1.contract
-        let sr2ModeContract = TrainerExerciseMode.sr2.srPianoReadingContract
-            ?? TrainerSRPianoReadingMode.sr2.contract
-        if TrainerExerciseMode.sr1.srPianoReadingContract == nil
-            || TrainerExerciseMode.sr2.srPianoReadingContract == nil {
-            record("SR-1 / SR-2 应暴露集中式 SR piano reading contract。")
+        let sr1ModeContract = TrainerExerciseMode.sr1
+            .pianoSequenceRecognitionContract
+            ?? TrainerPianoSequenceRecognitionMode.sr1.contract
+        let sr2ModeContract = TrainerExerciseMode.sr2
+            .pianoSequenceRecognitionContract
+            ?? TrainerPianoSequenceRecognitionMode.sr2.contract
+        let bcr1ModeContract = TrainerExerciseMode.bcr1
+            .pianoSequenceRecognitionContract
+            ?? TrainerPianoSequenceRecognitionMode.bcr1.contract
+        if TrainerExerciseMode.sr1.pianoSequenceRecognitionContract == nil
+            || TrainerExerciseMode.sr2.pianoSequenceRecognitionContract == nil
+            || TrainerExerciseMode.bcr1.pianoSequenceRecognitionContract == nil {
+            record("SR-1 / SR-2 / BCR-1 应暴露集中式 piano sequence recognition contract。")
         }
-        if sr1ModeContract.fixedSequenceClef != sr2ModeContract.fixedSequenceClef
+        if sr1ModeContract.fixedSequenceClef != .treble
+            || sr2ModeContract.fixedSequenceClef != .treble
+            || bcr1ModeContract.fixedSequenceClef != .bass {
+            record("识别模式谱号应固定为 SR-1 / SR-2 = treble、BCR-1 = bass。")
+        }
+        if sr1ModeContract.fixedExerciseLayoutPreferences
+            != sr2ModeContract.fixedExerciseLayoutPreferences
             || sr1ModeContract.fixedExerciseLayoutPreferences
-            != sr2ModeContract.fixedExerciseLayoutPreferences {
-            record("SR-1 / SR-2 的 family 基线应继续共享同一份 treble + srPianoAnswer 合同。")
+            != bcr1ModeContract.fixedExerciseLayoutPreferences {
+            record("SR-1 / SR-2 / BCR-1 应共享同一份 staff-to-piano stacked layout 合同。")
         }
         if sr1ModeContract.fixedPianoMovementScope
-            != sr2ModeContract.fixedPianoMovementScope {
-            record("SR-1 / SR-2 的 movementScope 如需分叉，也应只改集中 contract，而不是重新散落到多个 switch。")
+            != sr2ModeContract.fixedPianoMovementScope
+            || sr1ModeContract.fixedPianoMovementScope
+            != bcr1ModeContract.fixedPianoMovementScope {
+            record("SR-1 / SR-2 / BCR-1 的 movementScope 应统一由集中 contract 管理。")
         }
         if sr1ModeContract.fixedPianoMovementScope != .rowOnly
-            || sr2ModeContract.fixedPianoMovementScope != .rowOnly {
-            record("阶段 2 的 SR piano reading family 应继续锁死 rowOnly；若后续要改两行联动，只能改集中 contract 与对应 smoke。")
+            || sr2ModeContract.fixedPianoMovementScope != .rowOnly
+            || bcr1ModeContract.fixedPianoMovementScope != .rowOnly {
+            record("piano sequence recognition family 应继续锁死 rowOnly。")
         }
         if sr1ModeContract.fixedPianoRowCount != 1
-            || sr2ModeContract.fixedPianoRowCount != 2 {
-            record("阶段 2 的 SR piano reading family 应显式锁死 SR-1 = 1 row、SR-2 = 2 rows，避免回退成同一行数配置。")
+            || sr2ModeContract.fixedPianoRowCount != 2
+            || bcr1ModeContract.fixedPianoRowCount != 1 {
+            record("钢琴行数应固定为 SR-1 / BCR-1 = 1 row、SR-2 = 2 rows。")
         }
         if sr1ModeContract.fixedSequenceAnswerPolicy != .pitchClass
-            || sr2ModeContract.fixedSequenceAnswerPolicy != .exactNote {
-            record("SR piano reading contract 应继续保留 SR-1 pitchClass / SR-2 exactNote 的判题差异。")
+            || sr2ModeContract.fixedSequenceAnswerPolicy != .exactNote
+            || bcr1ModeContract.fixedSequenceAnswerPolicy != .pitchClass {
+            record("判题策略应固定为 SR-1 / BCR-1 = pitchClass、SR-2 = exactNote。")
         }
         if TrainerExerciseMode.sr1.fixedSequenceClef
             != sr1ModeContract.fixedSequenceClef
@@ -2260,8 +2278,18 @@ private extension FretboardValidationRunner {
             || TrainerExerciseMode.sr1.fixedPianoMovementScope
             != sr1ModeContract.fixedPianoMovementScope
             || TrainerExerciseMode.sr2.fixedPianoMovementScope
-            != sr2ModeContract.fixedPianoMovementScope {
-            record("SR-1 / SR-2 的固定 accessors 应全部委托到集中式 SR piano reading contract。")
+            != sr2ModeContract.fixedPianoMovementScope
+            || TrainerExerciseMode.bcr1.fixedSequenceClef
+            != bcr1ModeContract.fixedSequenceClef
+            || TrainerExerciseMode.bcr1.fixedExerciseLayoutPreferences
+            != bcr1ModeContract.fixedExerciseLayoutPreferences
+            || TrainerExerciseMode.bcr1.fixedSequenceAnswerPolicy
+            != bcr1ModeContract.fixedSequenceAnswerPolicy
+            || TrainerExerciseMode.bcr1.fixedPianoRowCount
+            != bcr1ModeContract.fixedPianoRowCount
+            || TrainerExerciseMode.bcr1.fixedPianoMovementScope
+            != bcr1ModeContract.fixedPianoMovementScope {
+            record("SR-1 / SR-2 / BCR-1 的固定 accessors 应全部委托到集中式 recognition contract。")
         }
         let sr0DisplayState = TrainerDisplayState(
             exerciseMode: .sr0,
@@ -2312,6 +2340,41 @@ private extension FretboardValidationRunner {
         if sr1ResolvedSequenceConfiguration.noteCount != 7
             || sr1ResolvedSequenceConfiguration.includesAccidentals {
             record("SR-1 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
+        }
+
+        let bcr1DisplayState = TrainerDisplayState(
+            exerciseMode: .bcr1,
+            sequenceConfiguration: TrainerSequenceConfiguration(
+                clef: .treble,
+                noteCount: 5,
+                includesAccidentals: true,
+                answerPolicy: .exactNote
+            )
+        )
+        let bcr1ResolvedSequenceConfiguration = bcr1DisplayState
+            .resolvedSequenceConfiguration
+        if !bcr1DisplayState.usesQuarterNoteSequenceKernel {
+            record("BCR-1 display state 应复用 quarter-note sequence kernel。")
+        }
+        if bcr1ResolvedSequenceConfiguration.clef
+            != bcr1ModeContract.fixedSequenceClef {
+            record("BCR-1 的 resolvedSequenceConfiguration.clef 应固定为 bass。")
+        }
+        if bcr1ResolvedSequenceConfiguration.answerPolicy
+            != bcr1ModeContract.fixedSequenceAnswerPolicy {
+            record("BCR-1 的判题策略应与 SR-1 一致固定为 pitchClass。")
+        }
+        if bcr1ResolvedSequenceConfiguration.noteCount != 5
+            || !bcr1ResolvedSequenceConfiguration.includesAccidentals {
+            record("BCR-1 mode constraint 不应篡改 noteCount 或 includesAccidentals。")
+        }
+        var bcr1Trainer = FretboardNaturalNoteTrainerState(
+            quarterNoteSequenceSpec:
+                bcr1ResolvedSequenceConfiguration.quarterNoteSequenceSpec
+        )
+        let bcr1GeneratedSequence = bcr1Trainer.generateQuarterNoteSequence()
+        if bcr1GeneratedSequence.clef != .bass {
+            record("BCR-1 生成的共享 sequence 应实际携带 bass clef。")
         }
 
         logStage("naturalPrompt")
@@ -2957,7 +3020,8 @@ private extension FretboardValidationRunner {
             "尝试连续取消品位直到只剩最后一个已选格子，再继续点击该格子；确认 UI 仍保持至少一个品位被选中。",
             "在 `wrongFlash` 或 `correctHold` 期间切换过滤模式或当前激活模式下的过滤选项；若当前可见题目已变成非法题，确认界面会平滑切换到新题，不残留错误 overlay 或延时切题任务。",
             "切到 `SR-1` 后，确认五线谱题目继续使用 treble clef，钢琴保持单行；当题目是 `C5` 时，输入 `C6` 仍判 correct，说明 `SR-1` 继续按 `pitchClass` 判题。",
-            "切到 `SR-2` 后，确认五线谱题目继续使用 treble clef，钢琴切成两行；当题目是 `C5` 时，输入 `C6` 判 wrong、输入 `C5` 判 correct，说明 `SR-2` 继续按 `exactNote` 判题。"
+            "切到 `SR-2` 后，确认五线谱题目继续使用 treble clef，钢琴切成两行；当题目是 `C5` 时，输入 `C6` 判 wrong、输入 `C5` 判 correct，说明 `SR-2` 继续按 `exactNote` 判题。",
+            "切到 `Bass Clef Recognition-1` 后，确认五线谱题目固定使用 bass clef，钢琴保持单行；输入相同音级的不同八度仍判 correct，说明其余行为与 `SR-1` 一致。"
         ]
 
         switch platform {
@@ -2967,7 +3031,7 @@ private extension FretboardValidationRunner {
             checklist.append("在 macOS 上执行 live resize，确认 vertical 模式不闪烁，指板在 resize 过程中保持居中且命中仍正常。")
             checklist.append("在 macOS 的 vertical 模式下分别点击顶部空弦区与底部高品区，确认可见格子与控制台 string / fret 一致，不再出现上下反向。")
         case .commandLine:
-            checklist.append("命令行只能覆盖共享层自动化夹具；其中 `SR-2` 不篡改 `noteCount / includesAccidentals`、且继续按 `exactNote` 判题的 mode seam 已由自动化锁住，iOS 滚动与 macOS live resize 仍需在 App 运行时手工回归。")
+            checklist.append("命令行只能覆盖共享层自动化夹具；`SR-2` 的 exactNote 以及 `Bass Clef Recognition-1` 的 bass + pitchClass mode seam 已由自动化锁住，iOS 滚动与 macOS live resize 仍需在 App 运行时手工回归。")
         }
 
         return checklist

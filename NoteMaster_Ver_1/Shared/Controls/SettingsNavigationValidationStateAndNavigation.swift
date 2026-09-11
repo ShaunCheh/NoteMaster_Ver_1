@@ -938,12 +938,13 @@ extension SettingsNavigationValidationRunner {
 
     static func validateSR0SettingsStateFreezesFixedPresentationOptions()
         -> [SettingsNavigationValidationIssue] {
-        validateSRFixedSettingsState(
+        validateFixedRecognitionSettingsState(
             triggerAction: .setExerciseModeSr0,
             expectedExerciseMode: .sr0,
             modeTitle: "SR-0",
             fixtureName: "sr0_settings_state_freezes_fixed_presentation_options",
             expectedLayoutPreferences: .srNoteStripAnswer,
+            expectedSequenceClef: .treble,
             hidesPianoRowsAndMovement: false,
             expectedSequenceAnswerPolicy: .pitchClass,
             expectedResolvedPianoRowCount: 6,
@@ -993,6 +994,7 @@ extension SettingsNavigationValidationRunner {
             .setExerciseModeSr0,
             .setExerciseModeSr1,
             .setExerciseModeSr2,
+            .setExerciseModeBcr1,
             .setExerciseModeFr0,
             .setExerciseModePositionPrompt
         ]
@@ -1003,6 +1005,7 @@ extension SettingsNavigationValidationRunner {
             "SR-0",
             "SR-1",
             "SR-2",
+            "Bass Clef Recognition-1",
             "FR-0",
             "Position"
         ]
@@ -1069,7 +1072,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                    "Exercise Mode row 的选项顺序应包含 Bass Clef Recognition-1，并保持声明顺序。"
                 )
             )
         }
@@ -1077,7 +1080,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                    "Exercise Mode row 的标题顺序应包含 Bass Clef Recognition-1，并保持声明顺序。"
                 )
             )
         }
@@ -1192,12 +1195,13 @@ extension SettingsNavigationValidationRunner {
 
     static func validateSR1SettingsStateFreezesFixedPresentationOptions()
         -> [SettingsNavigationValidationIssue] {
-        validateSRFixedSettingsState(
+        validateFixedRecognitionSettingsState(
             triggerAction: .setExerciseModeSr1,
             expectedExerciseMode: .sr1,
             modeTitle: "SR-1",
             fixtureName: "sr1_settings_state_freezes_fixed_presentation_options",
-            expectedLayoutPreferences: .srPianoAnswer,
+            expectedLayoutPreferences: .pianoRecognitionAnswer,
+            expectedSequenceClef: .treble,
             hidesPianoRowsAndMovement: true,
             expectedSequenceAnswerPolicy: .pitchClass,
             expectedResolvedPianoRowCount: 1,
@@ -1238,6 +1242,7 @@ extension SettingsNavigationValidationRunner {
             .setExerciseModeSr0,
             .setExerciseModeSr1,
             .setExerciseModeSr2,
+            .setExerciseModeBcr1,
             .setExerciseModeFr0,
             .setExerciseModePositionPrompt
         ]
@@ -1248,6 +1253,7 @@ extension SettingsNavigationValidationRunner {
             "SR-0",
             "SR-1",
             "SR-2",
+            "Bass Clef Recognition-1",
             "FR-0",
             "Position"
         ]
@@ -1298,7 +1304,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                    "Exercise Mode row 的选项顺序应包含 Bass Clef Recognition-1，并保持声明顺序。"
                 )
             )
         }
@@ -1306,7 +1312,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                    "Exercise Mode row 的标题顺序应包含 Bass Clef Recognition-1，并保持声明顺序。"
                 )
             )
         }
@@ -1417,12 +1423,13 @@ extension SettingsNavigationValidationRunner {
 
     static func validateSR2SettingsStateFreezesFixedPresentationOptions()
         -> [SettingsNavigationValidationIssue] {
-        validateSRFixedSettingsState(
+        validateFixedRecognitionSettingsState(
             triggerAction: .setExerciseModeSr2,
             expectedExerciseMode: .sr2,
             modeTitle: "SR-2",
             fixtureName: "sr2_settings_state_freezes_fixed_presentation_options",
-            expectedLayoutPreferences: .srPianoAnswer,
+            expectedLayoutPreferences: .pianoRecognitionAnswer,
+            expectedSequenceClef: .treble,
             hidesPianoRowsAndMovement: true,
             expectedSequenceAnswerPolicy: .exactNote,
             expectedResolvedPianoRowCount: 2,
@@ -1430,12 +1437,29 @@ extension SettingsNavigationValidationRunner {
         )
     }
 
-    private static func validateSRFixedSettingsState(
+    static func validateBCR1SettingsStateFreezesFixedPresentationOptions()
+        -> [SettingsNavigationValidationIssue] {
+        validateFixedRecognitionSettingsState(
+            triggerAction: .setExerciseModeBcr1,
+            expectedExerciseMode: .bcr1,
+            modeTitle: "Bass Clef Recognition-1",
+            fixtureName: "bcr1_settings_state_freezes_fixed_presentation_options",
+            expectedLayoutPreferences: .pianoRecognitionAnswer,
+            expectedSequenceClef: .bass,
+            hidesPianoRowsAndMovement: true,
+            expectedSequenceAnswerPolicy: .pitchClass,
+            expectedResolvedPianoRowCount: 1,
+            expectedResolvedPianoMovementScope: .rowOnly
+        )
+    }
+
+    private static func validateFixedRecognitionSettingsState(
         triggerAction: SettingsActionID,
         expectedExerciseMode: TrainerExerciseMode,
         modeTitle: String,
         fixtureName: String,
         expectedLayoutPreferences: ExerciseLayoutPreferences,
+        expectedSequenceClef: StaffClef,
         hidesPianoRowsAndMovement: Bool,
         expectedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy,
         expectedResolvedPianoRowCount: Int,
@@ -1454,7 +1478,7 @@ extension SettingsNavigationValidationRunner {
             trainerDisplayState: TrainerDisplayState(
                 exerciseMode: .single,
                 sequenceConfiguration: TrainerSequenceConfiguration(
-                    clef: .bass,
+                    clef: expectedSequenceClef == .treble ? .bass : .treble,
                     noteCount: 5,
                     includesAccidentals: true,
                     answerPolicy: .exactNote
@@ -1483,6 +1507,7 @@ extension SettingsNavigationValidationRunner {
             .setExerciseModeSr0,
             .setExerciseModeSr1,
             .setExerciseModeSr2,
+            .setExerciseModeBcr1,
             .setExerciseModeFr0,
             .setExerciseModePositionPrompt
         ]
@@ -1493,6 +1518,7 @@ extension SettingsNavigationValidationRunner {
             "SR-0",
             "SR-1",
             "SR-2",
+            "Bass Clef Recognition-1",
             "FR-0",
             "Position"
         ]
@@ -1554,13 +1580,13 @@ extension SettingsNavigationValidationRunner {
                 )
             )
         }
-        if resolvedSequenceConfiguration.clef != .treble
+        if resolvedSequenceConfiguration.clef != expectedSequenceClef
             || resolvedSequenceConfiguration.answerPolicy
             != expectedSequenceAnswerPolicy {
             issues.append(
                 issue(
                     fixtureName,
-                    "\(modeTitle) 的 resolvedSequenceConfiguration 应强制固定为 treble + \(expectedSequenceAnswerPolicy)。"
+                    "\(modeTitle) 的 resolvedSequenceConfiguration 应强制固定为 \(expectedSequenceClef) + \(expectedSequenceAnswerPolicy)。"
                 )
             )
         }
@@ -1595,7 +1621,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的选项顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                    "Exercise Mode row 的选项顺序应包含 Bass Clef Recognition-1，并保持声明顺序。"
                 )
             )
         }
@@ -1603,7 +1629,7 @@ extension SettingsNavigationValidationRunner {
             issues.append(
                 issue(
                     fixtureName,
-                    "Exercise Mode row 的标题顺序应继续保持 Single / Sequence / P-2 / SR-0 / SR-1 / SR-2 / FR-0 / Position。"
+                    "Exercise Mode row 的标题顺序应包含 Bass Clef Recognition-1，并保持声明顺序。"
                 )
             )
         }
@@ -1640,6 +1666,34 @@ extension SettingsNavigationValidationRunner {
                 issue(
                     fixtureName,
                     "Exercise Mode row 中 `SR-2` 选项的 accessibility label 应明确表达 two-row piano + exact-note matching。"
+                )
+            )
+        }
+        guard let bcr1Choice = exerciseModeRow.choices.first(where: { choice in
+            choice.id == .setExerciseModeBcr1
+        }) else {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "Exercise Mode row 应正式暴露 `Bass Clef Recognition-1` 选项。"
+                )
+            )
+            return issues
+        }
+        if bcr1Choice.title != "Bass Clef Recognition-1" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 选项标题应保持为 `Bass Clef Recognition-1`。"
+                )
+            )
+        }
+        if bcr1Choice.accessibilityLabel
+            != "Train bass-clef sequence recognition with a single-row piano answer surface" {
+            issues.append(
+                issue(
+                    fixtureName,
+                    "BCR-1 accessibility label 应明确表达 bass clef、单行钢琴与 sequence recognition。"
                 )
             )
         }

@@ -14,6 +14,7 @@ enum TrainerExerciseMode: Equatable, Hashable, Sendable {
     case sr0
     case sr1
     case sr2
+    case bcr1
 }
 
 // Sequence judging policy is configuration, not generated content.
@@ -23,29 +24,29 @@ enum TrainerSequenceAnswerPolicy: Equatable, Hashable, Sendable {
     case exactNote
 }
 
-enum TrainerSRPianoReadingMode: Equatable, Hashable, Sendable {
+enum TrainerPianoSequenceRecognitionMode: Equatable, Hashable, Sendable {
     case sr1
     case sr2
+    case bcr1
 
-    var contract: TrainerSRPianoReadingContract {
+    var contract: TrainerPianoSequenceRecognitionContract {
         switch self {
         case .sr1:
-            return TrainerSRPianoReadingContract(
-                answerPolicy: .pitchClass,
-                pianoRowCount: 1,
-                pianoMovementScope: .rowOnly
-            )
+            return .singleRowPitchClass(clef: .treble)
         case .sr2:
-            return TrainerSRPianoReadingContract(
+            return TrainerPianoSequenceRecognitionContract(
+                clef: .treble,
                 answerPolicy: .exactNote,
                 pianoRowCount: 2,
                 pianoMovementScope: .rowOnly
             )
+        case .bcr1:
+            return .singleRowPitchClass(clef: .bass)
         }
     }
 }
 
-struct TrainerSRPianoReadingContract: Equatable, Sendable {
+struct TrainerPianoSequenceRecognitionContract: Equatable, Sendable {
     let fixedSequenceClef: StaffClef
     let fixedExerciseLayoutPreferences: ExerciseLayoutPreferences
     let fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy
@@ -53,36 +54,51 @@ struct TrainerSRPianoReadingContract: Equatable, Sendable {
     let fixedPianoMovementScope: PianoMovementScope
 
     init(
+        clef: StaffClef,
         answerPolicy: TrainerSequenceAnswerPolicy,
         pianoRowCount: Int,
         pianoMovementScope: PianoMovementScope
     ) {
-        fixedSequenceClef = .treble
-        fixedExerciseLayoutPreferences = .srPianoAnswer
+        fixedSequenceClef = clef
+        fixedExerciseLayoutPreferences = .pianoRecognitionAnswer
         fixedSequenceAnswerPolicy = answerPolicy
         fixedPianoRowCount = pianoRowCount
         fixedPianoMovementScope = pianoMovementScope
     }
+
+    static func singleRowPitchClass(
+        clef: StaffClef
+    ) -> TrainerPianoSequenceRecognitionContract {
+        TrainerPianoSequenceRecognitionContract(
+            clef: clef,
+            answerPolicy: .pitchClass,
+            pianoRowCount: 1,
+            pianoMovementScope: .rowOnly
+        )
+    }
 }
 
 extension TrainerExerciseMode {
-    var srPianoReadingMode: TrainerSRPianoReadingMode? {
+    var pianoSequenceRecognitionMode: TrainerPianoSequenceRecognitionMode? {
         switch self {
         case .sr1:
             return .sr1
         case .sr2:
             return .sr2
+        case .bcr1:
+            return .bcr1
         case .single, .sequence, .p2, .positionPrompt, .fr0, .sr0:
             return nil
         }
     }
 
-    var isSRPianoReadingMode: Bool {
-        srPianoReadingMode != nil
+    var isPianoSequenceRecognitionMode: Bool {
+        pianoSequenceRecognitionMode != nil
     }
 
-    var srPianoReadingContract: TrainerSRPianoReadingContract? {
-        srPianoReadingMode?.contract
+    var pianoSequenceRecognitionContract:
+        TrainerPianoSequenceRecognitionContract? {
+        pianoSequenceRecognitionMode?.contract
     }
 
     var fixedCompositionPreset: ExerciseCompositionPreset? {
@@ -95,8 +111,8 @@ extension TrainerExerciseMode {
 
     var fixedSequenceAnswerPolicy: TrainerSequenceAnswerPolicy? {
         switch self {
-        case .sr1, .sr2:
-            return srPianoReadingContract?.fixedSequenceAnswerPolicy
+        case .sr1, .sr2, .bcr1:
+            return pianoSequenceRecognitionContract?.fixedSequenceAnswerPolicy
         case .sr0:
             return .pitchClass
         case .single, .sequence, .p2, .positionPrompt, .fr0:
@@ -106,8 +122,8 @@ extension TrainerExerciseMode {
 
     var fixedSequenceClef: StaffClef? {
         switch self {
-        case .sr1, .sr2:
-            return srPianoReadingContract?.fixedSequenceClef
+        case .sr1, .sr2, .bcr1:
+            return pianoSequenceRecognitionContract?.fixedSequenceClef
         case .sr0:
             return .treble
         case .single, .sequence, .p2, .positionPrompt, .fr0:
@@ -117,8 +133,9 @@ extension TrainerExerciseMode {
 
     var fixedExerciseLayoutPreferences: ExerciseLayoutPreferences? {
         switch self {
-        case .sr1, .sr2:
-            return srPianoReadingContract?.fixedExerciseLayoutPreferences
+        case .sr1, .sr2, .bcr1:
+            return pianoSequenceRecognitionContract?
+                .fixedExerciseLayoutPreferences
         case .p2:
             return .p2StaffFretboardAnswer
         case .fr0:
@@ -132,8 +149,8 @@ extension TrainerExerciseMode {
 
     var fixedPianoRowCount: Int? {
         switch self {
-        case .sr1, .sr2:
-            return srPianoReadingContract?.fixedPianoRowCount
+        case .sr1, .sr2, .bcr1:
+            return pianoSequenceRecognitionContract?.fixedPianoRowCount
         case .single, .sequence, .p2, .positionPrompt, .fr0, .sr0:
             return nil
         }
@@ -141,8 +158,8 @@ extension TrainerExerciseMode {
 
     var fixedPianoMovementScope: PianoMovementScope? {
         switch self {
-        case .sr1, .sr2:
-            return srPianoReadingContract?.fixedPianoMovementScope
+        case .sr1, .sr2, .bcr1:
+            return pianoSequenceRecognitionContract?.fixedPianoMovementScope
         case .single, .sequence, .p2, .positionPrompt, .fr0, .sr0:
             return nil
         }
@@ -150,7 +167,7 @@ extension TrainerExerciseMode {
 
     var usesQuarterNoteSequenceKernel: Bool {
         switch self {
-        case .sequence, .p2, .sr0, .sr1, .sr2:
+        case .sequence, .p2, .sr0, .sr1, .sr2, .bcr1:
             return true
         case .single, .positionPrompt, .fr0:
             return false
